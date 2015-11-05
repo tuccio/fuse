@@ -2,6 +2,8 @@
 
 using namespace fuse;
 
+FUSE_DEFINE_ALIGNED_ALLOCATOR_NEW(fps_camera_controller, 16)
+
 fps_camera_controller::fps_camera_controller(void) :
 	m_camera(nullptr),
 	m_velocity(XMVectorZero()),

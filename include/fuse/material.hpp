@@ -50,13 +50,14 @@ namespace fuse
 
 		color_rgb    m_diffuseAlbedo;
 		color_rgb    m_specularAlbedo;
+		color_rgb    m_baseAlbedo;
 
 		color_rgb    m_emissive;
 
 		float        m_metallic;
 		float        m_roughness;
 		float        m_subsurface;
-		float        m_specularPower;
+		float        m_specular;
 
 		unsigned int m_materialType;
 		
@@ -69,6 +70,7 @@ namespace fuse
 		FUSE_PROPERTIES_BY_CONST_REFERENCE(
 			(diffuse_albedo,  m_diffuseAlbedo)
 			(specular_albedo, m_specularAlbedo)
+			(base_albedo,     m_baseAlbedo)
 			(emissive,        m_emissive)
 		)
 
@@ -76,7 +78,7 @@ namespace fuse
 			(metallic,       m_metallic)
 			(roughness,      m_roughness)
 			(subsurface,     m_subsurface)
-			(specular_power, m_specularPower)
+			(specular,       m_specular)
 			(material_type,  m_materialType)
 		)
 
@@ -87,5 +89,7 @@ namespace fuse
 		)
 		
 	};
+
+	typedef std::shared_ptr<material> material_ptr;
 
 }

@@ -73,6 +73,8 @@ namespace fuse
 		virtual void   unload_impl(void) = 0;
 		virtual size_t calculate_size_impl(void) = 0;
 
+		void recalculate_size(void) { m_size = calculate_size_impl(); }
+
 		template <typename UserdataType>
 		UserdataType get_owner_userdata(void) { return reinterpret_cast<UserdataType>(m_owner->get_userdata()); }
 
@@ -119,5 +121,7 @@ namespace fuse
 		std::function<void(resource *)> m_unloader;
 
 	};
+
+	typedef std::shared_ptr<resource> resource_ptr;
 
 }

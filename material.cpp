@@ -26,16 +26,17 @@ size_t material::calculate_size_impl(void)
 void material::set_default(void)
 {
 
+	m_baseAlbedo     = color_rgb{ .85f, .75f, .67f };
 	m_diffuseAlbedo  = color_rgb{ .85f, .75f, .67f };
 	m_specularAlbedo = color_rgb{ .85f, .85f, .85f };
 	m_emissive       = color_rgb{};
 	
-	m_specularPower  = 2.f;
+	m_specular       = 1.f;
 	m_metallic       = 0.f;
 	m_roughness      = 0.4f;
 	m_subsurface     = 0.f;
 
-	m_materialType = 0;
+	m_materialType   = 0;
 
 	m_diffuseTexture.clear();
 	m_specularTexture.clear();

@@ -9,6 +9,8 @@
 
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
+#include <assimp/postprocess.h>
+#include <assimp/cimport.h>
 
 #include <algorithm>
 #include <cstring>
@@ -21,6 +23,8 @@ assimp_loader::assimp_loader(const char * filename, unsigned int flags) :
 {
 
 	m_scene = m_importer.ReadFile(filename, flags | aiProcess_Triangulate);
+
+	m_importer.SetPropertyFloat(AI_CONFIG_PP_GSN_MAX_SMOOTHING_ANGLE, 80.f);
 
 	if (!m_scene)
 	{
@@ -127,23 +131,39 @@ bool assimp_loader::load_mesh(mesh * m)
 			if (pMesh->HasTextureCoords(i)) flags |= (FUSE_MESH_STORAGE_TEXCOORDS0 << i);
 		}
 
-		m->create(pMesh->mNumVertices, pMesh->mNumFaces, flags);
+		flags &= m->get_parameters_storage_semantic_flags();
 
-		struct __triangle { uint32_t v[3]; };
+		m->create(pMesh->mNumVertices, pMesh->mNumFaces, flags);
 
 		std::transform(pMesh->mFaces,
 		               pMesh->mFaces + pMesh->mNumFaces,
-		               (__triangle *) m->get_indices(),
-		               [] (const aiFace & face) { return __triangle { face.mIndices[0], face.mIndices[1], face.mIndices[2] }; });
+		               (XMUINT3 *) m->get_indices(),
+		               [] (const aiFace & face) { return XMUINT3 { face.mIndices[0], face.mIndices[1], face.mIndices[2] }; });
 
 		memcpy(m->get_vertices(), pMesh->mVertices, pMesh->mNumVertices * sizeof(float) * 3);
 
-		if (pMesh->HasNormals()) memcpy(m->get_normals(), pMesh->mNormals, pMesh->mNumVertices * sizeof(float) * 3);
+		if (m->has_storage_semantic(FUSE_MESH_STORAGE_NORMALS) && pMesh->HasNormals())
+		{
+			memcpy(m->get_normals(), pMesh->mNormals, pMesh->mNumVertices * sizeof(float) * 3);
+		}
 
-		if (pMesh->HasTangentsAndBitangents())
+		if (m->has_storage_semantic(FUSE_MESH_STORAGE_TANGENTS) && pMesh->HasTangentsAndBitangents())
 		{
 			memcpy(m->get_tangents(), pMesh->mTangents, pMesh->mNumVertices * sizeof(float) * 3);
+		}
+
+		if (m->has_storage_semantic(FUSE_MESH_STORAGE_BITANGENTS) && pMesh->HasTangentsAndBitangents())
+		{
 			memcpy(m->get_bitangents(), pMesh->mBitangents, pMesh->mNumVertices * sizeof(float) * 3);
+		}
+
+		for (int i = 0; i < FUSE_MESH_MAX_TEXCOORDS; i++)
+		{
+			if (m->has_storage_semantic(static_cast<mesh_storage_semantic>(FUSE_MESH_STORAGE_TEXCOORDS0 << i)) &&
+				pMesh->HasTextureCoords(i))
+			{
+				memcpy(m->get_texcoords(i), pMesh->mTextureCoords[i], pMesh->mNumVertices * sizeof(float) * 2);
+			}
 		}
 
 		return true;
@@ -153,7 +173,7 @@ bool assimp_loader::load_mesh(mesh * m)
 	{
 		return false;
 	}
-	
+
 }
 
 void assimp_loader::unload_mesh(mesh * m)
@@ -163,7 +183,7 @@ void assimp_loader::unload_mesh(mesh * m)
 
 bool assimp_loader::load_material(material * m)
 {
-	
+
 	const char * name = m->get_name();
 
 	unsigned int id;
@@ -202,19 +222,28 @@ bool assimp_loader::load_material(material * m)
 		m->set_normal_map(path.C_Str());
 	}
 
-	aiColor3D diffuseAlbedo, specularAlbedo, emissive;
+	aiColor3D baseAlbedo, diffuseAlbedo, specularAlbedo, emissive;
 
-	if (pMat->Get(AI_MATKEY_COLOR_DIFFUSE, diffuseAlbedo))
+	if (pMat->Get(AI_MATKEY_COLOR_DIFFUSE, diffuseAlbedo) == aiReturn_SUCCESS)
 	{
 		m->set_diffuse_albedo(reinterpret_cast<color_rgb&>(diffuseAlbedo));
 	}
 
-	if (pMat->Get(AI_MATKEY_COLOR_SPECULAR, specularAlbedo))
+	if (pMat->Get(AI_MATKEY_COLOR_SPECULAR, specularAlbedo) == aiReturn_SUCCESS)
 	{
 		m->set_specular_albedo(reinterpret_cast<color_rgb&>(specularAlbedo));
 	}
 
-	if (pMat->Get(AI_MATKEY_COLOR_EMISSIVE, emissive))
+	if (pMat->Get("$mat.baseColor", 0, 0, baseAlbedo) == aiReturn_SUCCESS)
+	{
+		m->set_base_albedo(reinterpret_cast<color_rgb&>(baseAlbedo));
+	}
+	else
+	{
+		m->set_base_albedo(m->get_diffuse_albedo());
+	}
+
+	if (pMat->Get(AI_MATKEY_COLOR_EMISSIVE, emissive) == aiReturn_SUCCESS)
 	{
 		m->set_emissive(reinterpret_cast<color_rgb&>(emissive));
 	}
@@ -233,7 +262,7 @@ bool assimp_loader::load_material(material * m)
 
 	if (pMat->Get(AI_MATKEY_SHININESS, specularPower) == aiReturn_SUCCESS)
 	{
-		m->set_specular_power(specularPower);
+		m->set_specular(specularPower);
 	}
 
 	if (pMat->Get("$mat.subsurface", 0, 0, subsurface) == aiReturn_SUCCESS)

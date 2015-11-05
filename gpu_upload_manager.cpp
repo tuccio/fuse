@@ -37,12 +37,12 @@ UINT64 gpu_upload_manager::upload(ID3D12Device * device,
 	UINT64 id = 0;
 	
 	if (!FUSE_HR_FAILED(device->CreateCommittedResource(
-		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
-		D3D12_HEAP_FLAG_NONE,
-		&dest->GetDesc(),
-		D3D12_RESOURCE_STATE_GENERIC_READ,
-		nullptr,
-		IID_PPV_ARGS(&heap))) &&
+			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
+			D3D12_HEAP_FLAG_NONE,
+			&dest->GetDesc(),
+			D3D12_RESOURCE_STATE_GENERIC_READ,
+			nullptr,
+			IID_PPV_ARGS(&heap))) &&
 		!FUSE_HR_FAILED(m_commandList->Reset(m_commandAllocator.get(), nullptr)))
 	{
 

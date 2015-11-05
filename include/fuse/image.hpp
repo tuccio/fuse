@@ -57,4 +57,6 @@ namespace fuse
 
 	};
 
+	typedef std::shared_ptr<image> image_ptr;
+
 }

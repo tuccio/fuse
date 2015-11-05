@@ -1,5 +1,6 @@
 #pragma once
 
+#include <fuse/allocators.hpp>
 #include <fuse/math.hpp>
 #include <fuse/properties_macros.hpp>
 
@@ -51,12 +52,15 @@ namespace fuse
 		XMMATRIX get_view_matrix(void) const;
 		XMMATRIX get_projection_matrix(void) const;
 
+		float get_fovx(void) const;
+
 		void set_projection(float fovy, float znear, float zfar);
 
 		void set_position(const XMVECTOR & position);
 		void set_orientation(const XMVECTOR & orientation);
 		void set_aspect_ratio(float aspectRatio);
 		void set_fovy(float fovy);
+		void set_fovx(float fovx);
 		void set_znear(float znear);
 		void set_zfar(float zfar);
 
@@ -93,6 +97,8 @@ namespace fuse
 			(znear,        m_znear)
 			(zfar,         m_zfar)
 		)
+
+		FUSE_DECLARE_ALIGNED_ALLOCATOR_NEW(16)
 
 	};
 

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <fuse/allocators.hpp>
 #include <fuse/camera.hpp>
 #include <fuse/properties_macros.hpp>
 
@@ -76,6 +77,18 @@ namespace fuse
 		std::unordered_map<UINT, camera_action> m_mouseBinds;
 
 		void handle_action_key(camera_action action, bool pressed);
+
+	public:
+
+		FUSE_PROPERTIES_BY_VALUE(
+			(camera,            m_camera)
+			(speed,             m_speed)
+			(hold_to_rotate,    m_holdToRotate)
+			(auto_center_mouse, m_centerMouse)
+			(sensitivity,       m_sensitivity)
+		)
+
+		FUSE_DECLARE_ALIGNED_ALLOCATOR_NEW(16)
 
 	};
 

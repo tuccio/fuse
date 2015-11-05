@@ -22,21 +22,18 @@ bool                                 application_base::m_resizeSwapChain;
 com_ptr<ID3D12Device>                application_base::m_device;
 com_ptr<IDXGISwapChain3>             application_base::m_swapChain;
 
-com_ptr<ID3D12CommandQueue>          application_base::m_commandQueue;
+gpu_command_queue                    application_base::m_commandQueue;
 							         
-int                                  application_base::m_bufferIndex;
+UINT                                 application_base::m_bufferIndex;
 							         
 DXGI_SURFACE_DESC                    application_base::m_swapChainBufferDesc;
 application_config                   application_base::m_configuration;
 
 com_ptr<ID3D12DescriptorHeap>        application_base::m_rtvHeap;
-int                                  application_base::m_rtvDescriptorSize;
+UINT                                 application_base::m_rtvDescriptorSize;
+UINT                                 application_base::m_dsvDescriptorSize;
 
 std::vector<com_ptr<ID3D12Resource>> application_base::m_renderTargets;
-
-com_ptr<ID3D12Fence>                 application_base::m_fence;
-UINT64                               application_base::m_fenceValue;
-HANDLE                               application_base::m_fenceEvent;
 
 float                                application_base::m_frameSamples[FUSE_FPS_SAMPLES];
 
@@ -144,10 +141,7 @@ void application_base::shutdown(void)
 		m_device.reset();
 	}
 
-	m_fence.reset();
-	CloseHandle(m_fenceEvent);
-
-	m_commandQueue.reset();
+	m_commandQueue.shutdown();
 
 	UnregisterClass(FUSE_WINDOW_CLASS, m_hInstance);
 	m_initialized = false;
@@ -281,8 +275,14 @@ bool application_base::create_device(D3D_FEATURE_LEVEL featureLevel, bool debug)
 
 	if (!FUSE_HR_FAILED(D3D12CreateDevice(nullptr, featureLevel, IID_PPV_ARGS(&m_device))))
 	{
+
 		m_device->SetName(L"fuse_device");
+
+		m_rtvDescriptorSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+		m_dsvDescriptorSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
+
 		return true;
+
 	}
 
 	return false;
@@ -291,26 +291,8 @@ bool application_base::create_device(D3D_FEATURE_LEVEL featureLevel, bool debug)
 
 bool application_base::create_command_queue(void)
 {
-
 	D3D12_COMMAND_QUEUE_DESC queueDesc = { };
-
-	m_fenceEvent = CreateEventEx(NULL, nullptr, 0, EVENT_ALL_ACCESS);
-
-	if (!m_fenceEvent) FUSE_HR_LOG(GetLastError());
-
-	if (m_fenceEvent &&
-	    !FUSE_HR_FAILED(m_device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_fence))) &&
-	    !FUSE_HR_FAILED(m_device->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&m_commandQueue))))
-	{
-
-		FUSE_HR_CHECK(m_fence->SetName(L"fuse_command_fence"));
-		FUSE_HR_CHECK(m_commandQueue->SetName(L"fuse_command_queue"));
-
-		return true;
-	}
-
-	return false;
-
+	return m_commandQueue.init(m_device.get());
 }
 
 bool application_base::create_swap_chain(bool debug, int width, int height)
@@ -355,14 +337,9 @@ bool application_base::create_swap_chain(bool debug, int width, int height)
 
 	if (success)
 	{
-
 		swapChain.as(m_swapChain);
 		m_bufferIndex = m_swapChain->GetCurrentBackBufferIndex();
-
-		m_rtvDescriptorSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-
 		success = get_swap_chain_buffers() && create_render_target_views();
-
 	}
 
 	return success;

@@ -413,7 +413,8 @@ struct sample_application :
 
 		g_commandList->ResourceBarrier(
 			1,
-			&CD3DX12_RESOURCE_BARRIER::Transition(backBuffer,
+			&CD3DX12_RESOURCE_BARRIER::Transition(
+				backBuffer,
 				D3D12_RESOURCE_STATE_PRESENT,
 				D3D12_RESOURCE_STATE_RENDER_TARGET));
 

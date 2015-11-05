@@ -34,20 +34,31 @@ bool gpu_mesh::create(ID3D12Device * device, gpu_upload_manager * uploadManager,
 
 	// Copy all the vertices
 
+	uint8_t * bufferPosition = intermediateBuffer.get();
+	float * tmp = (float*)bufferPosition;
+
 	size_t verticesBufferSize = mesh->get_num_vertices() * 3 * sizeof(float);
-	std::memcpy(intermediateBuffer.get(), mesh->get_vertices(), verticesBufferSize);
+	//std::memcpy(intermediateBuffer.get(), mesh->get_vertices(), verticesBufferSize);
 	offset += verticesBufferSize;
+
+
+	std::memcpy(bufferPosition, mesh->get_vertices(), verticesBufferSize);
+	bufferPosition += verticesBufferSize;
 
 	// Then copy the indices
 
 	size_t indicesBufferSize = mesh->get_num_triangles() * 3 * sizeof(uint32_t);
-	std::memcpy(intermediateBuffer.get() + offset, mesh->get_indices(), indicesBufferSize);
+
+	//std::memcpy(intermediateBuffer.get() + offset, mesh->get_indices(), indicesBufferSize);
 	offset += indicesBufferSize;
+
+	std::memcpy(bufferPosition, mesh->get_indices(), indicesBufferSize);
+	bufferPosition += indicesBufferSize;
 
 	// Now we need to interleave the non vertex data
 
 	std::vector<uint8_t*> iterators;
-	std::vector<uint32_t>  dataSize;
+	std::vector<uint32_t> dataSize;
 
 	if (has_storage_semantic(FUSE_MESH_STORAGE_NORMALS))
 	{
@@ -88,7 +99,10 @@ bool gpu_mesh::create(ID3D12Device * device, gpu_upload_manager * uploadManager,
 
 			uint32_t copySize = dataSize[iteratorIndex];
 
-			std::memcpy(intermediateBuffer.get() + offset, iterators[iteratorIndex], copySize);
+			//std::memcpy(intermediateBuffer.get() + offset, iterators[iteratorIndex], copySize);
+
+			std::memcpy(bufferPosition, iterators[iteratorIndex], copySize);
+			bufferPosition += copySize;
 
 			offset                   += copySize;
 			iterators[iteratorIndex] += copySize;
@@ -115,7 +129,8 @@ bool gpu_mesh::create(ID3D12Device * device, gpu_upload_manager * uploadManager,
 			m_dataBuffer.get(),
 			0, 1,
 			&dataDesc,
-			nullptr, &CD3DX12_RESOURCE_BARRIER::Transition(
+			nullptr,
+			&CD3DX12_RESOURCE_BARRIER::Transition(
 				m_dataBuffer.get(),
 				D3D12_RESOURCE_STATE_COPY_DEST,
 				D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER)))

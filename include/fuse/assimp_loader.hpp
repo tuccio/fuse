@@ -19,7 +19,7 @@ namespace fuse
 
 	public:
 
-		assimp_loader(const char * filename, unsigned int flags = aiProcessPreset_TargetRealtime_MaxQuality);
+		assimp_loader(const char * filename, unsigned int flags = aiProcessPreset_TargetRealtime_MaxQuality | aiProcess_ConvertToLeftHanded);
 		~assimp_loader(void);
 
 		bool load(resource * r) override;

@@ -64,6 +64,10 @@ add_library ( fuse
 	include/fuse/math.hpp
 	include/fuse/fps_camera_controller.hpp fps_camera_controller.cpp
 	include/fuse/input.hpp input.cpp
+	include/fuse/allocators.hpp
+	include/fuse/debug_ostream.hpp
+	include/fuse/gpu_command_queue.hpp gpu_command_queue.cpp
+	include/fuse/gpu_ring_buffer.hpp gpu_ring_buffer.cpp
 )
 
 add_subdirectory ( sample )

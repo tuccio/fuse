@@ -56,7 +56,7 @@ namespace fuse
 		inline void        reset(void) { if (m_pointer) { m_pointer->Release(); m_pointer = nullptr; } }
 		inline ComObject * release(void) { ComObject * ptr = m_pointer; m_pointer = nullptr; return ptr; }
 
-		inline void swap(com_ptr<ComObject*> & com) { std::swap(m_pointer, com.m_pointer); }
+		inline void swap(com_ptr<ComObject> & com) { std::swap(m_pointer, com.m_pointer); }
 
 		inline operator bool() const { return m_pointer != nullptr; }
 
@@ -65,11 +65,11 @@ namespace fuse
 		inline ComObject * const * operator&(void) const { return &m_pointer; }
 		inline ComObject **        operator&(void) { return &m_pointer; }
 
-		inline bool operator == (const com_ptr<ComObject*> & com) { return m_pointer == com.m_pointer; }
-		inline bool operator != (const com_ptr<ComObject*> & com) { return m_pointer != com.m_pointer; }
+		inline bool operator == (const com_ptr<ComObject> & com) { return m_pointer == com.m_pointer; }
+		inline bool operator != (const com_ptr<ComObject> & com) { return m_pointer != com.m_pointer; }
 
-		inline com_ptr & operator= (const com_ptr<ComObject*> & com) { reset(); m_pointer = com.m_pointer; m_pointer->AddRef(); return *this; }
-		inline com_ptr & operator= (com_ptr<ComObject*> && com)      { reset(); swap(com); return *this; }
+		inline com_ptr & operator= (const com_ptr<ComObject> & com) { reset(); m_pointer = com.m_pointer; m_pointer->AddRef(); return *this; }
+		inline com_ptr & operator= (com_ptr<ComObject> && com)      { reset(); swap(com); return *this; }
 
 		template <typename Interface>
 		inline void as(com_ptr<Interface> & com) { com.reset(); m_pointer->QueryInterface(IID_PPV_ARGS(com.get_address())); }

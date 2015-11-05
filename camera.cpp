@@ -4,6 +4,8 @@
 
 using namespace fuse;
 
+FUSE_DEFINE_ALIGNED_ALLOCATOR_NEW(camera, 16)
+
 camera::camera(void) :
 	m_orientation(XMQuaternionIdentity()),
 	m_position(XMVectorZero()),
@@ -55,19 +57,20 @@ void camera::look_at(const XMFLOAT3 & eye, const XMFLOAT3 & up, const XMFLOAT3 &
 
 	m_position = fuse::to_vector(eye);
 
-	XMVECTOR z = XMVector3Normalize((to_vector(target) - m_position));
+	XMVECTOR z = XMVector3Normalize(m_position - to_vector(target));
 	XMVECTOR x = XMVector3Normalize(XMVector3Cross(to_vector(up), z));
 	XMVECTOR y = XMVector3Cross(z, x);
 
 	XMMATRIX inverseRotation = XMMatrixIdentity();
 
-	inverseRotation.r[0] = x;
-	inverseRotation.r[1] = y;
-	inverseRotation.r[2] = z;
+	inverseRotation.r[0] = XMVectorPermute<XM_PERMUTE_0X, XM_PERMUTE_0Y, XM_PERMUTE_0Z, XM_PERMUTE_1W>(x, inverseRotation.r[0]);
+	inverseRotation.r[1] = XMVectorPermute<XM_PERMUTE_0X, XM_PERMUTE_0Y, XM_PERMUTE_0Z, XM_PERMUTE_1W>(y, inverseRotation.r[1]);
+	inverseRotation.r[2] = XMVectorPermute<XM_PERMUTE_0X, XM_PERMUTE_0Y, XM_PERMUTE_0Z, XM_PERMUTE_1W>(z, inverseRotation.r[2]);
 
-	XMMATRIX rotation = XMMatrixTranspose(inverseRotation);
+	//XMMATRIX rotation = XMMatrixTranspose(inverseRotation);
 
-	m_orientation = XMQuaternionRotationMatrix(rotation);
+	//m_orientation = XMQuaternionRotationMatrix(rotation);
+	m_orientation = XMQuaternionConjugate(XMQuaternionRotationMatrix(inverseRotation));
 
 	m_viewMatrixDirty = true;
 
@@ -120,23 +123,33 @@ void camera::set_orientation(const XMVECTOR & orientation)
 void camera::set_aspect_ratio(float aspectRatio)
 {
 	m_aspectRatio = aspectRatio;
-	m_viewMatrixDirty = true;
+	m_projectionMatrixDirty = true;
 }
 
 void camera::set_fovy(float fovy)
 {
 	m_fovy = fovy;
-	m_viewMatrixDirty = true;
+	m_projectionMatrixDirty = true;
 }
 
 void camera::set_znear(float znear)
 {
 	m_znear = znear;
-	m_viewMatrixDirty = true;
+	m_projectionMatrixDirty = true;
 }
 
 void camera::set_zfar(float zfar)
 {
 	m_zfar = zfar;
-	m_viewMatrixDirty = true;
+	m_projectionMatrixDirty = true;
+}
+
+float camera::get_fovx(void) const
+{
+	return 2 * std::atan(std::tan(m_fovy * .5f) * m_aspectRatio);
+}
+
+void camera::set_fovx(float fovx)
+{
+	m_fovy = 2 * std::atan(std::tan(fovx * .5f) / m_aspectRatio);
 }

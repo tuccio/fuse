@@ -6,6 +6,7 @@
 #include <d3dx12.h>
 
 #include <fuse/singleton.hpp>
+#include <fuse/gpu_command_queue.hpp>
 #include <fuse/directx_helper.hpp>
 
 #include <queue>
@@ -52,7 +53,7 @@ namespace fuse
 		inline static void on_swap_chain_released(ID3D12Device * device, IDXGISwapChain * swapChain) { }
 
 		inline static void on_update(void) { }
-		inline static void on_render(ID3D12Device * device, ID3D12CommandQueue * commandQueue, D3D12_CPU_DESCRIPTOR_HANDLE rtvDescriptor) { }
+		inline static void on_render(ID3D12Device * device, gpu_command_queue & commandQueue, D3D12_CPU_DESCRIPTOR_HANDLE rtvDescriptor) { }
 
 		static LRESULT CALLBACK on_keyboard(int code, WPARAM wParam, LPARAM lParam);
 		static LRESULT CALLBACK on_mouse(int code, WPARAM wParam, LPARAM lParam);
@@ -67,15 +68,18 @@ namespace fuse
 
 		inline static HWND get_window(void) { return m_hWnd; }
 								
-		inline static int  get_screen_width(void) { return m_screenWidth; }
-		inline static int  get_screen_height(void) { return m_screenHeight; }
+		inline static int get_screen_width(void) { return m_screenWidth; }
+		inline static int get_screen_height(void) { return m_screenHeight; }
 						   
 		inline static HINSTANCE get_instance(void) { return m_hInstance; }
 		
 		inline static ID3D12Device       * get_device(void) { return m_device.get(); }
 		inline static ID3D12CommandQueue * get_command_queue(void) { return m_commandQueue.get(); }
 		inline static IDXGISwapChain     * get_swap_chain(void) { return m_swapChain.get(); }
-		
+
+		inline static UINT get_rtv_descriptor_size(void) { return m_rtvDescriptorSize; }
+		inline static UINT get_dsv_descriptor_size(void) { return m_dsvDescriptorSize; }
+
 		inline static void set_screen_viewport(ID3D12GraphicsCommandList * cmdList)
 		{
 
@@ -88,6 +92,7 @@ namespace fuse
 		}
 
 		inline static ID3D12Resource * get_back_buffer(void) { return m_renderTargets[m_bufferIndex].get(); }
+		inline static UINT             get_buffer_index(void) { return m_bufferIndex; }
 
 		inline static D3D12_CPU_DESCRIPTOR_HANDLE get_back_buffer_descriptor(void)
 		{
@@ -114,21 +119,19 @@ namespace fuse
 		static com_ptr<ID3D12Device>                m_device;
 		static com_ptr<IDXGISwapChain3>             m_swapChain;
 
-		static com_ptr<ID3D12CommandQueue>          m_commandQueue;
+		static gpu_command_queue                    m_commandQueue;
 
 		static com_ptr<ID3D12DescriptorHeap>        m_rtvHeap;
-		static int                                  m_rtvDescriptorSize;
+
+		static UINT                                 m_rtvDescriptorSize;
+		static UINT                                 m_dsvDescriptorSize;
 
 		static std::vector<com_ptr<ID3D12Resource>> m_renderTargets;
-
-		static com_ptr<ID3D12Fence>                 m_fence;
-		static UINT64                               m_fenceValue;
-		static HANDLE                               m_fenceEvent;
 
 		static DXGI_SURFACE_DESC                    m_swapChainBufferDesc;
 		static application_config                   m_configuration;
 
-		static int                                  m_bufferIndex;
+		static UINT                                 m_bufferIndex;
 
 		static float                                m_frameSamples[FUSE_FPS_SAMPLES];
 
@@ -249,13 +252,17 @@ namespace fuse
 			do
 			{
 
-				if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
+				while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
 				{
 					TranslateMessage(&msg);
 					DispatchMessage(&msg);
 				}
 
-				wait_for_last_frame();
+				UINT64 lastFrame   = m_commandQueue.get_frame_index();
+				UINT64 frameToWait = lastFrame + 1 < m_configuration.swapChainBufferCount ? 0 : lastFrame + 1 - m_configuration.swapChainBufferCount;
+
+				m_commandQueue.wait_for_frame(frameToWait);
+				//wait_for_last_frame();
 				update_fps_counter();
 
 				on_update();
@@ -266,9 +273,10 @@ namespace fuse
 					return;
 				}
 
-				on_render(get_device(), get_command_queue(), get_back_buffer(), get_back_buffer_descriptor());
+				on_render(get_device(), m_commandQueue, get_back_buffer(), get_back_buffer_descriptor(), get_buffer_index());
 
 				m_swapChain->Present(m_configuration.syncInterval, m_configuration.presentFlags);
+				m_commandQueue.advance_frame_index();
 
 			} while (msg.message != WM_QUIT);
 

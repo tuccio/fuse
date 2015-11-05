@@ -65,4 +65,6 @@ namespace fuse
 
 	};
 
+	typedef std::shared_ptr<gpu_mesh> gpu_mesh_ptr;
+
 }

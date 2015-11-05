@@ -1,6 +1,7 @@
 #pragma once
 
 #include <fuse/resource.hpp>
+#include <fuse/math.hpp>
 
 #include <cstdint>
 #include <memory>
@@ -43,6 +44,8 @@ namespace fuse
 		bool add_storage_semantic(mesh_storage_semantic semantic);
 		bool remove_storage_semantic(mesh_storage_semantic semantic);
 
+		bool calculate_tangent_space(void);
+
 		inline uint32_t get_num_triangles(void) const { return m_numTriangles; }
 		inline uint32_t get_num_vertices(void) const { return m_numVertices; }
 		inline uint32_t get_num_indices(void) const { return 3 * m_numTriangles; }
@@ -50,14 +53,16 @@ namespace fuse
 		inline bool     has_storage_semantic(mesh_storage_semantic semantic) const { return static_cast<bool>(semantic & m_storageFlags);  }
 		inline uint32_t get_storage_semantic_flags(void) const { return m_storageFlags; }
 
-		inline float * get_vertices(void) const { return m_vertices.get(); }
-		inline float * get_normals(void) const { return m_normals.get(); }
-		inline float * get_tangents(void) const { return m_tangents.get(); }
-		inline float * get_bitangents(void) const { return m_bitangents.get(); }
+		uint32_t get_parameters_storage_semantic_flags(void);
 
-		inline float * get_texcoords(int i) const { return m_texcoords[i].get(); }
+		inline float * get_vertices(void) const { return &m_vertices[0].x; }
+		inline float * get_normals(void) const { return &m_normals[0].x; }
+		inline float * get_tangents(void) const { return &m_tangents[0].x; }
+		inline float * get_bitangents(void) const { return &m_bitangents[0].x; }
 
-		inline uint32_t * get_indices(void) const { return m_indices.get(); }
+		inline float * get_texcoords(int i) const { return &m_texcoords[i][0].x; }
+
+		inline uint32_t * get_indices(void) const { return &m_indices[0].x; }
 
 	protected:
 
@@ -67,12 +72,12 @@ namespace fuse
 
 	private:
 
-		std::unique_ptr<float[]>    m_vertices;
-		std::unique_ptr<float[]>    m_normals;
-		std::unique_ptr<float[]>    m_tangents;
-		std::unique_ptr<float[]>    m_bitangents;
-		std::unique_ptr<float[]>    m_texcoords[FUSE_MESH_MAX_TEXCOORDS];
-		std::unique_ptr<uint32_t[]> m_indices;
+		mutable std::vector<XMFLOAT3> m_vertices;
+		mutable std::vector<XMFLOAT3> m_normals;
+		mutable std::vector<XMFLOAT3> m_tangents;
+		mutable std::vector<XMFLOAT3> m_bitangents;
+		mutable std::vector<XMFLOAT2> m_texcoords[FUSE_MESH_MAX_TEXCOORDS];
+		mutable std::vector<XMUINT3>  m_indices;
 
 		uint32_t   m_numVertices;
 		uint32_t   m_numTriangles;
@@ -80,5 +85,7 @@ namespace fuse
 		uint32_t   m_storageFlags;
 
 	};
+
+	typedef std::shared_ptr<mesh> mesh_ptr;
 
 }

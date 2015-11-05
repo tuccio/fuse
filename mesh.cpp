@@ -1,4 +1,5 @@
 #include <fuse/mesh.hpp>
+#include <fuse/math.hpp>
 
 using namespace fuse;
 
@@ -20,37 +21,106 @@ bool mesh::create(size_t vertices, size_t triangles, unsigned int storage_semant
 
 	m_storageFlags = storage_semantics;
 
-	size_t vertexBufferSize  = 3 * vertices;
-	size_t indicesBufferSize = 3 * triangles;
-	size_t textureBufferSize = 2 * vertices;
-
-	m_indices  = std::unique_ptr<uint32_t[]>(new uint32_t[indicesBufferSize]);
-	m_vertices = std::unique_ptr<float[]>(new float[vertexBufferSize]);
+	m_indices.resize(m_numTriangles);
+	m_vertices.resize(m_numVertices);
 
 	if (has_storage_semantic(FUSE_MESH_STORAGE_NORMALS))
 	{
-		m_normals = std::unique_ptr<float[]>(new float[vertexBufferSize]);
+		m_normals.resize(m_numVertices);
 	}
 
 	if (has_storage_semantic(FUSE_MESH_STORAGE_TANGENTS))
 	{
-		m_tangents = std::unique_ptr<float[]>(new float[vertexBufferSize]);
+		m_tangents.resize(m_numVertices);
 	}
 
 	if (has_storage_semantic(FUSE_MESH_STORAGE_BITANGENTS))
 	{
-		m_bitangents = std::unique_ptr<float[]>(new float[vertexBufferSize]);
+		m_bitangents.resize(m_numVertices);
 	}
 
 	for (int i = 0; i < FUSE_MESH_MAX_TEXCOORDS; i++)
 	{
 
-		static uint32_t texcoordSemantic = FUSE_MESH_STORAGE_TEXCOORDS0 << i;
+		uint32_t texcoordSemantic = FUSE_MESH_STORAGE_TEXCOORDS0 << i;
 
 		if (has_storage_semantic(static_cast<mesh_storage_semantic>(texcoordSemantic)))
 		{
-			m_texcoords[i] = std::unique_ptr<float[]>(new float[textureBufferSize]);
+			m_texcoords[i].resize(m_numVertices);
 		}
+
+	}
+
+	return true;
+
+}
+
+uint32_t mesh::get_parameters_storage_semantic_flags(void)
+{
+
+	auto & params = get_parameters();
+
+	boost::optional<bool> normalsOpt    = params.get_optional<bool>("normals");
+	boost::optional<bool> tangentsOpt   = params.get_optional<bool>("tangents");
+	boost::optional<bool> bitangentsOpt = params.get_optional<bool>("bitangents");
+	boost::optional<bool> texcoords0Opt = params.get_optional<bool>("texcoords0");
+	boost::optional<bool> texcoords1Opt = params.get_optional<bool>("texcoords1");
+
+	uint32_t flags = 0;
+
+	/* Default */
+
+	if (!normalsOpt || *normalsOpt) flags |= FUSE_MESH_STORAGE_NORMALS;
+	if (!tangentsOpt || *tangentsOpt) flags |= FUSE_MESH_STORAGE_TANGENTS;
+	if (!bitangentsOpt || *bitangentsOpt) flags |= FUSE_MESH_STORAGE_TANGENTS;
+	if (!texcoords0Opt || *texcoords0Opt) flags |= FUSE_MESH_STORAGE_TEXCOORDS0;
+
+	/* Non default */
+
+	if (texcoords1Opt && *texcoords1Opt) flags |= FUSE_MESH_STORAGE_TEXCOORDS1;
+
+	return flags;
+
+}
+
+bool mesh::calculate_tangent_space(void)
+{
+
+	if (!has_storage_semantic(FUSE_MESH_STORAGE_NORMALS))
+	{
+		return false;
+	}
+
+	add_storage_semantic(FUSE_MESH_STORAGE_TANGENTS);
+	add_storage_semantic(FUSE_MESH_STORAGE_BITANGENTS);
+
+	//if (!has_storage_semantic(FUSE_MESH_STORAGE_TEXCOORDS0))
+	{
+
+		for (int i = 0; i < m_numVertices; i++)
+		{
+
+			float absNx = fabs(m_normals[i].x);
+
+			XMFLOAT3 v = { absNx > .99f ? 0.f : 1.f, absNx > .99f ? 1.f : 0.f, 0.f };
+
+			XMVECTOR N = to_vector(m_normals[i]);
+			XMVECTOR T = to_vector(v);
+			XMVECTOR B = XMVector3Cross(N, T);
+
+			T = XMVector3Cross(N, B);
+
+			m_tangents[i]   = to_float3(T);
+			m_bitangents[i] = to_float3(B);
+
+		}
+
+	}
+	//else
+	{
+
+		//throw;
+		// Tangent space with texcoord
 
 	}
 
@@ -61,14 +131,22 @@ bool mesh::create(size_t vertices, size_t triangles, unsigned int storage_semant
 void mesh::clear(void)
 {
 
-	m_vertices.reset();
-	m_normals.reset();
-	m_tangents.reset();
-	m_bitangents.reset();
+	m_vertices.clear();
+	m_vertices.shrink_to_fit();
+
+	m_normals.clear();
+	m_normals.shrink_to_fit();
+
+	m_tangents.clear();
+	m_tangents.shrink_to_fit();
+
+	m_bitangents.clear();
+	m_bitangents.shrink_to_fit();
 
 	for (int i = 0; i < FUSE_MESH_MAX_TEXCOORDS; i++)
 	{
-		m_texcoords[i].reset();
+		m_texcoords[i].clear();
+		m_texcoords[i].shrink_to_fit();
 	}
 
 	m_numVertices  = m_numTriangles = 0;
@@ -140,27 +218,26 @@ bool mesh::add_storage_semantic(mesh_storage_semantic semantic)
 
 	m_storageFlags |= semantic;
 
+	recalculate_size();
+
 	switch (semantic)
 	{
 
 	case FUSE_MESH_STORAGE_NORMALS:
 		{
-			size_t vertexBufferSize = m_numVertices * 3;
-			m_normals = std::unique_ptr<float[]>(new float[vertexBufferSize]);
+			m_normals.resize(m_numVertices);
 			return true;
 		}
 
 	case FUSE_MESH_STORAGE_TANGENTS:
 		{
-			size_t vertexBufferSize = m_numVertices * 3;
-			m_tangents = std::unique_ptr<float[]>(new float[vertexBufferSize]);
+			m_tangents.resize(m_numVertices);
 			return true;
 		}
 
 	case FUSE_MESH_STORAGE_BITANGENTS:
 		{
-			size_t vertexBufferSize = m_numVertices * 3;
-			m_bitangents = std::unique_ptr<float[]>(new float[vertexBufferSize]);
+			m_bitangents.resize(m_numVertices);
 			return true;
 		}
 
@@ -170,12 +247,11 @@ bool mesh::add_storage_semantic(mesh_storage_semantic semantic)
 	for (int i = 0; i < FUSE_MESH_MAX_TEXCOORDS; i++)
 	{
 
-		static uint32_t texcoordSemantic = FUSE_MESH_STORAGE_TEXCOORDS0 << i;
+		uint32_t texcoordSemantic = FUSE_MESH_STORAGE_TEXCOORDS0 << i;
 
 		if (semantic == texcoordSemantic)
 		{
-			size_t textureBufferSize = m_numVertices * 2;
-			m_texcoords[i] = std::unique_ptr<float[]>(new float[textureBufferSize]);
+			m_texcoords[i].resize(m_numVertices);
 			return true;
 		}
 
@@ -195,24 +271,29 @@ bool mesh::remove_storage_semantic(mesh_storage_semantic semantic)
 
 	m_storageFlags &= ~semantic;
 
+	recalculate_size();
+
 	switch (semantic)
 	{
 
 	case FUSE_MESH_STORAGE_NORMALS:
 	{
-		m_normals.reset();
+		m_normals.clear();
+		m_normals.shrink_to_fit();
 		return true;
 	}
 
 	case FUSE_MESH_STORAGE_TANGENTS:
 	{
-		m_tangents.reset();
+		m_tangents.clear();
+		m_tangents.shrink_to_fit();
 		return true;
 	}
 
 	case FUSE_MESH_STORAGE_BITANGENTS:
 	{
-		m_bitangents.reset();
+		m_bitangents.clear();
+		m_bitangents.shrink_to_fit();
 		return true;
 	}
 
@@ -222,11 +303,12 @@ bool mesh::remove_storage_semantic(mesh_storage_semantic semantic)
 	for (int i = 0; i < FUSE_MESH_MAX_TEXCOORDS; i++)
 	{
 
-		static uint32_t texcoordSemantic = FUSE_MESH_STORAGE_TEXCOORDS0 << i;
+		uint32_t texcoordSemantic = FUSE_MESH_STORAGE_TEXCOORDS0 << i;
 
 		if (semantic == texcoordSemantic)
 		{
-			m_texcoords[i].reset();
+			m_texcoords[i].clear();
+			m_texcoords[i].shrink_to_fit();
 			return true;
 		}
 
