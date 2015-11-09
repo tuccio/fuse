@@ -1,7 +1,10 @@
 #pragma once
 
 #include <fuse/mesh.hpp>
+#include <fuse/gpu_command_queue.hpp>
+#include <fuse/gpu_ring_buffer.hpp>
 #include <fuse/gpu_upload_manager.hpp>
+#include <fuse/properties_macros.hpp>
 
 namespace fuse
 {
@@ -16,22 +19,14 @@ namespace fuse
 		gpu_mesh(const char * name, resource_loader * loader, resource_manager * owner);
 		~gpu_mesh(void);
 
-		bool create(ID3D12Device * device, gpu_upload_manager * uploadManager, mesh * mesh);
+		bool create(ID3D12Device * device, gpu_command_queue & commandQueue, gpu_upload_manager * uploadManager, gpu_ring_buffer * ringBuffer, mesh * mesh);
 		void clear(void);
-
-		inline D3D12_VERTEX_BUFFER_VIEW get_position_data(void) const { return m_positionData; }
-		inline D3D12_VERTEX_BUFFER_VIEW get_non_position_data(void) const { return m_nonPositionData; }
-
-		inline D3D12_INDEX_BUFFER_VIEW get_index_data(void) const { return m_indexData; }
 
 		inline const D3D12_VERTEX_BUFFER_VIEW * get_vertex_buffers(void) const { return m_vertexBuffers; }
 
-		inline uint32_t get_num_vertices(void) const { return m_numVertices; }
-		inline uint32_t get_num_triangles(void) const { return m_numTriangles; }
 		inline uint32_t get_num_indices(void) const { return 3 * m_numTriangles; }
 
-		inline bool     has_storage_semantic(mesh_storage_semantic semantic) const { return static_cast<bool>(semantic & m_storageFlags); }
-		inline uint32_t get_storage_semantic_flags(void) const { return m_storageFlags; }
+		inline bool has_storage_semantic(mesh_storage_semantic semantic) const { return static_cast<bool>(semantic & m_storageFlags); }
 
 	protected:
 
@@ -62,6 +57,21 @@ namespace fuse
 		};
 
 		D3D12_INDEX_BUFFER_VIEW m_indexData;
+
+	public:
+
+		FUSE_PROPERTIES_BY_VALUE_READ_ONLY(
+			(num_vertices, m_numVertices)
+			(num_triangles, m_numTriangles)
+			(storage_semantic_flags, m_storageFlags)
+			(position_data, m_positionData)
+			(non_position_data, m_nonPositionData)
+			(index_data, m_indexData)
+		)
+
+		FUSE_PROPERTIES_SMART_POINTER_READ_ONLY(
+			(resource, m_dataBuffer)
+		)
 
 	};
 

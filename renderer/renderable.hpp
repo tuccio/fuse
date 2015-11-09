@@ -1,33 +1,42 @@
 #pragma once
 
+#include <fuse/allocators.hpp>
 #include <fuse/math.hpp>
 #include <fuse/gpu_mesh.hpp>
 #include <fuse/material.hpp>
 
 #include <fuse/properties_macros.hpp>
 
-class alignas(16) renderable
+namespace fuse
 {
 
-public:
+	class alignas(16) renderable
+	{
 
-	renderable(void) : m_world(DirectX::XMMatrixIdentity()) { }
-	renderable(const renderable &) = default;
-	renderable(renderable &&) = default;
+	public:
 
-private:
+		renderable(void) : m_world(XMMatrixIdentity()) { }
+		renderable(const renderable &) = default;
+		renderable(renderable &&) = default;
 
-	DirectX::XMMATRIX  m_world;
+	private:
 
-	fuse::gpu_mesh_ptr m_mesh;
-	fuse::material_ptr m_material;
+		XMMATRIX     m_world;
 
-public:
+		gpu_mesh_ptr m_mesh;
+		material_ptr m_material;
 
-	FUSE_PROPERTIES_BY_CONST_REFERENCE(
-		(mesh, m_mesh)
-		(material, m_material)
-		(world_matrix, m_world)
-	)
+	public:
 
-};
+		FUSE_PROPERTIES_BY_CONST_REFERENCE(
+			(mesh, m_mesh)
+			(material, m_material)
+			(world_matrix, m_world)
+		)
+
+		FUSE_DECLARE_ALIGNED_ALLOCATOR_NEW(16)
+
+	};
+
+}
+

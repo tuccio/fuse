@@ -3,7 +3,13 @@
 
 #include <IL/ilu.h>
 
+#include <utility>
+
 using namespace fuse;
+
+image::devil_initializer image::m_initializer;
+
+static std::pair<ILenum, ILenum> get_image_devil_format(image_format format);
 
 image::image(void) :
 	m_handle(IL_INVALID_VALUE) { }
@@ -30,7 +36,7 @@ bool image::load_impl(void)
 
 		ilBindImage(m_handle);
 
-		bool converted = true;
+		bool exception = false;
 
 		if (ilLoadImage(get_name()))
 		{
@@ -40,54 +46,19 @@ bool image::load_impl(void)
 
 			auto format = get_parameters().get_optional<int>("format");
 
-			if (format)
+			if (!format) format = FUSE_IMAGE_FORMAT_R8G8B8A8_UINT;
+
+			m_format = static_cast<image_format>(*format);
+			auto ilFormat = get_image_devil_format(m_format);
+
+			if (!ilFormat.first)
 			{
-
-				switch (*format)
-				{
-
-				case FUSE_IMAGE_FORMAT_R16G16B16_FLOAT:
-					formatChannels = IL_RGB;
-					formatDataType = IL_HALF;
-					m_format       = FUSE_IMAGE_FORMAT_R16G16B16_FLOAT;
-					break;
-
-				case FUSE_IMAGE_FORMAT_R32G32B32_FLOAT:
-					formatChannels = IL_RGB;
-					formatDataType = IL_FLOAT;
-					m_format       = FUSE_IMAGE_FORMAT_R32G32B32_FLOAT;
-					break;
-
-				case FUSE_IMAGE_FORMAT_R8G8B8_UINT:
-					formatChannels = IL_RGB;
-					formatDataType = IL_BYTE;
-					m_format       = FUSE_IMAGE_FORMAT_R8G8B8_UINT;
-					break;
-
-				case FUSE_IMAGE_FORMAT_R16G16B16A16_FLOAT:
-					formatChannels = IL_RGBA;
-					formatDataType = IL_HALF;
-					m_format       = FUSE_IMAGE_FORMAT_R16G16B16A16_FLOAT;
-					break;
-
-				case FUSE_IMAGE_FORMAT_R32G32B32A32_FLOAT:
-					formatChannels = IL_RGBA;
-					formatDataType = IL_FLOAT;
-					m_format       = FUSE_IMAGE_FORMAT_R32G32B32A32_FLOAT;
-					break;
-
-				case FUSE_IMAGE_FORMAT_R8G8B8A8_UINT:
-				default:
-					formatChannels = IL_RGBA;
-					formatDataType = IL_BYTE;
-					m_format       = FUSE_IMAGE_FORMAT_R8G8B8A8_UINT;
-					break;
-
-				}
-
-				converted = ilConvertImage(formatChannels, formatDataType);
-
+				ilFormat.first = IL_RGBA;
+				ilFormat.second = IL_BYTE;
+				m_format = FUSE_IMAGE_FORMAT_R8G8B8A8_UINT;
 			}
+
+			bool converted = ilConvertImage(ilFormat.first, ilFormat.second);
 
 			if (converted)
 			{
@@ -136,6 +107,91 @@ void image::clear(void)
 	{
 		ilDeleteImage(m_handle);
 		m_handle = IL_INVALID_VALUE;
+	}
+
+}
+
+static std::pair<ILenum, ILenum> get_image_devil_format(image_format format)
+{
+
+	ILenum formatChannels;
+	ILenum formatDataType;
+
+	switch (format)
+	{
+
+	case FUSE_IMAGE_FORMAT_R16G16B16_FLOAT:
+		formatChannels = IL_RGB;
+		formatDataType = IL_HALF;
+		break;
+
+	case FUSE_IMAGE_FORMAT_R32G32B32_FLOAT:
+		formatChannels = IL_RGB;
+		formatDataType = IL_FLOAT;
+		break;
+
+	case FUSE_IMAGE_FORMAT_R8G8B8_UINT:
+		formatChannels = IL_RGB;
+		formatDataType = IL_BYTE;
+		break;
+
+	case FUSE_IMAGE_FORMAT_R16G16B16A16_FLOAT:
+		formatChannels = IL_RGBA;
+		formatDataType = IL_HALF;
+		break;
+
+	case FUSE_IMAGE_FORMAT_R32G32B32A32_FLOAT:
+		formatChannels = IL_RGBA;
+		formatDataType = IL_FLOAT;
+		break;
+
+	case FUSE_IMAGE_FORMAT_R8G8B8A8_UINT:
+		formatChannels = IL_RGBA;
+		formatDataType = IL_BYTE;
+		break;
+
+	case FUSE_IMAGE_FORMAT_A8_UINT:
+		formatChannels = IL_ALPHA;
+		formatDataType = IL_BYTE;
+		break;
+
+	default:
+		formatChannels = 0;
+		formatDataType = 0;
+		break;
+
+	}
+
+	return std::make_pair(formatChannels, formatDataType);
+
+}
+
+DXGI_FORMAT fuse::get_dxgi_format(image_format format)
+{
+
+	switch (format)
+	{
+
+	case FUSE_IMAGE_FORMAT_R16G16B16_FLOAT:
+	case FUSE_IMAGE_FORMAT_R8G8B8_UINT:
+	default:
+		return DXGI_FORMAT_UNKNOWN;
+
+	case FUSE_IMAGE_FORMAT_R32G32B32_FLOAT:
+		return DXGI_FORMAT_R32G32B32_FLOAT;
+
+	case FUSE_IMAGE_FORMAT_R16G16B16A16_FLOAT:
+		return DXGI_FORMAT_R16G16B16A16_FLOAT;
+
+	case FUSE_IMAGE_FORMAT_R32G32B32A32_FLOAT:
+		return DXGI_FORMAT_R32G32B32A32_FLOAT;
+
+	case FUSE_IMAGE_FORMAT_R8G8B8A8_UINT:
+		return DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+
+	case FUSE_IMAGE_FORMAT_A8_UINT:
+		return DXGI_FORMAT_A8_UNORM;
+
 	}
 
 }

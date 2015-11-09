@@ -1,74 +1,93 @@
 #pragma once
 
-#include <DirectXMath.h>
+#include <fuse/math.hpp>
 
-struct cb_camera
+namespace fuse
 {
 
-	DirectX::XMFLOAT3 position;
+	struct cb_camera
+	{
 
-	float             fovy;
-	float             aspectRatio;
+		XMFLOAT3 position;
+		float fovy;
 
-	float             znear;
-	float             zfar;
+		float aspectRatio;
+		float znear;
+		float zfar;
 
-	float             __fill;
+		float __fill0;
 
-	DirectX::XMMATRIX view;
-	DirectX::XMMATRIX projection;
-	DirectX::XMMATRIX viewProjection;
-	DirectX::XMMATRIX invViewProjection;
+		XMMATRIX view;
+		XMMATRIX projection;
+		XMMATRIX viewProjection;
+		XMMATRIX invViewProjection;
 
-};
+	};
 
-struct cb_material
-{
+	struct cb_screen
+	{
+		XMUINT2  resolution;
+		uint32_t __fill0[2];
+		XMMATRIX orthoProjection;
+	};
 
-	DirectX::XMFLOAT3 baseColor;
+	struct cb_material
+	{
 
-	float             metallic;
-	float             roughness;
-	float             specular;
+		XMFLOAT3 baseColor;
+		float metallic;
 
-	float             __fill[2];
+		float roughness;
+		float specular;
 
-};
+		float __fill[2];
 
-struct cb_transform
-{
-	DirectX::XMMATRIX world;
-	DirectX::XMMATRIX worldView;
-	DirectX::XMMATRIX worldViewProjection;
-};
+	};
 
-struct cb_light
-{
+	struct cb_transform
+	{
+		XMMATRIX world;
+		XMMATRIX worldView;
+		XMMATRIX worldViewProjection;
+	};
 
-	DirectX::XMFLOAT3 luminance;
-	DirectX::XMFLOAT3 ambient;
+	struct cb_light
+	{
 
-	DirectX::XMFLOAT3 position;
-	DirectX::XMFLOAT3 direction;
+		uint32_t type;
+		uint32_t castShadows;
+		uint32_t __fill0[2];
 
-	float             spotAngle;
+		XMFLOAT3 luminance;
+		float __fill1;
 
-	float             __fill[3];
+		XMFLOAT3 ambient;
+		float __fill2;
 
-};
+		XMFLOAT3 position;
+		float __fill3;
 
-struct cb_per_frame
-{
-	cb_camera camera;
-};
+		XMFLOAT3 direction;
+		float spotAngle;
 
-struct cb_per_object
-{
-	cb_transform transform;
-	cb_material  material;
-};
+	};
 
-struct cb_per_light
-{
-	cb_light light;
-};
+	struct cb_per_frame
+	{
+		cb_camera camera;
+		cb_screen screen;
+	};
+
+	struct cb_per_object
+	{
+		cb_transform transform;
+		cb_material  material;
+	};
+
+	struct cb_per_light
+	{
+		cb_light light;
+	};
+
+}
+

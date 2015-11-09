@@ -1,3 +1,5 @@
+#pragma once
+
 #include <fuse/image.hpp>
 #include <fuse/resource_manager.hpp>
 #include <fuse/resource_types.hpp>

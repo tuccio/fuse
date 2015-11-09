@@ -1,19 +1,27 @@
 #include <fuse/gpu_ring_buffer.hpp>
-
-#include <d3dx12.h>
+#include <fuse/gpu_global_resource_state.hpp>
 
 using namespace fuse;
 
-bool gpu_ring_buffer::create(ID3D12Device * device, const D3D12_HEAP_DESC * desc)
+bool gpu_ring_buffer::create(ID3D12Device * device, UINT size)
 {
 
-	if (!FUSE_HR_FAILED(device->CreateHeap(desc, IID_PPV_ARGS(&m_heap))))
+	if (gpu_global_resource_state::get_singleton_pointer()->create_committed_resource(
+			device,
+			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
+			D3D12_HEAP_FLAG_NONE,
+			&CD3DX12_RESOURCE_DESC::Buffer(size),
+			D3D12_RESOURCE_STATE_GENERIC_READ,
+			nullptr,
+			IID_PPV_ARGS(&m_buffer)) &&
+		!FUSE_HR_FAILED(m_buffer->Map(0, &CD3DX12_RANGE(0, 0), (void**) &m_bufferMap)))
 	{
 
-		m_heap->SetName(L"gpu_ring_buffer_heap");
+		m_buffer->SetName(L"gpu_ring_buffer");
 
-		m_size       = desc->SizeInBytes;
-		m_alignment  = desc->Alignment;
+		m_bufferVAddr = m_buffer->GetGPUVirtualAddress();
+
+		m_size       = size;
 		m_offset     = 0;
 		m_freeSpace  = m_size;
 
@@ -25,19 +33,55 @@ bool gpu_ring_buffer::create(ID3D12Device * device, const D3D12_HEAP_DESC * desc
 
 }
 
-bool gpu_ring_buffer::allocate(ID3D12Device * device,
-                               gpu_command_queue & commandQueue,
-                               ID3D12Resource ** resource,
-                               const D3D12_RESOURCE_DESC * desc,
-                               D3D12_RESOURCE_STATES initialState,
-                               const D3D12_CLEAR_VALUE * optimizedClearValue)
+void * gpu_ring_buffer::allocate_constant_buffer(ID3D12Device * device,
+                                                 gpu_command_queue & commandQueue,
+                                                 UINT size,
+                                                 D3D12_GPU_VIRTUAL_ADDRESS * outHandle,
+                                                 UINT64 * offset)
 {
 
-	assert(desc->Alignment == m_alignment && "Resource and heap allocation mismatch, the resource cannot be allocated on this heap.");
+	allocated_chunk * chunk = allocate(commandQueue, size, D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
 
-	D3D12_RESOURCE_ALLOCATION_INFO allocationInfo = device->GetResourceAllocationInfo(0, 1, desc);
+	if (chunk)
+	{
+		if (outHandle) *outHandle = m_bufferVAddr + chunk->alignedOffset;
+		if (offset) *offset = chunk->alignedOffset;
+		return static_cast<void*>(m_bufferMap + chunk->alignedOffset);
+	}
 
-	UINT allocationSize = allocationInfo.SizeInBytes;
+	return nullptr;
+
+}
+
+void * gpu_ring_buffer::allocate_texture(ID3D12Device * device,
+		                                 gpu_command_queue & commandQueue,
+		                                 const D3D12_SUBRESOURCE_FOOTPRINT & footprint,
+		                                 D3D12_PLACED_SUBRESOURCE_FOOTPRINT * placedTex)
+{
+
+	allocated_chunk * chunk = allocate(commandQueue, footprint.Height * footprint.RowPitch, D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT);
+
+	if (chunk)
+	{
+
+		if (placedTex)
+		{
+			placedTex->Offset    = chunk->alignedOffset;
+			placedTex->Footprint = footprint;
+		}
+
+		return static_cast<void*>(m_bufferMap + chunk->alignedOffset);
+
+	}
+
+	return nullptr;
+
+}
+
+gpu_ring_buffer::allocated_chunk * gpu_ring_buffer::allocate(gpu_command_queue & commandQueue, UINT size, UINT alignment)
+{
+
+	const UINT allocationSize = size;
 
 	if (allocationSize > m_size)
 	{
@@ -45,51 +89,51 @@ bool gpu_ring_buffer::allocate(ID3D12Device * device,
 		return false;
 	}
 
-	while (m_freeSpace < allocationSize)
+	UINT alignedAllocationSize = FUSE_ALIGN_OFFSET(m_offset, alignment) - m_offset + size;
+
+	while (m_freeSpace < alignedAllocationSize && !m_allocatedChunks.empty())
 	{
 
-		if (m_allocatedChunks.empty())
+		auto & chunk = m_allocatedChunks.front();
+		commandQueue.wait_for_frame(chunk.frameIndex);
+
+		if (chunk.offset == 0)
 		{
-			m_offset = 0;
-			m_freeSpace = m_size;
+			m_offset              = 0;
+			m_freeSpace           = chunk.size;
+			alignedAllocationSize = size; // Offset set back to 0, no more padding at the beginning
 		}
 		else
 		{
-
-			auto & chunk = m_allocatedChunks.front();
-			commandQueue.wait_for_frame(chunk.frameIndex);
-
-			if (chunk.offset == 0)
-			{
-				m_offset = 0;
-				m_freeSpace = chunk.size;
-			}
-			else
-			{
-				m_freeSpace += chunk.size;
-			}
-
-			m_allocatedChunks.pop();
-
+			m_freeSpace += chunk.size;
 		}
+
+		m_allocatedChunks.pop();
 
 	}
 
-	assert((m_freeSpace >= allocationSize) && "Not enough space freed for the buffer");
+	if (m_freeSpace >= alignedAllocationSize)
+	{
 
-	UINT offset = m_offset;
+		allocated_chunk chunk;
 
-	m_offset    += allocationSize;
-	m_freeSpace -= allocationSize;
+		chunk.offset = m_offset;
+		chunk.alignedOffset = FUSE_ALIGN_OFFSET(m_offset, alignment);
+		chunk.frameIndex = commandQueue.get_frame_index();
+		chunk.size = alignedAllocationSize;
+		chunk.alignment = alignment;
 
-	m_allocatedChunks.push(allocated_chunk{ offset, allocationSize, commandQueue.get_frame_index() });
+		m_offset += alignedAllocationSize;
+		m_freeSpace -= alignedAllocationSize;
 
-	return !FUSE_HR_FAILED(device->CreatePlacedResource(
-		m_heap.get(),
-		offset,
-		desc,
-		initialState,
-		optimizedClearValue,
-		IID_PPV_ARGS(resource)));
+		m_allocatedChunks.push(chunk);
+
+		return &m_allocatedChunks.back();
+
+	}
+
+	FUSE_LOG_OPT("gpu_ring_buffer", "Not enough space freed for the buffer");
+
+	return nullptr;
 
 }

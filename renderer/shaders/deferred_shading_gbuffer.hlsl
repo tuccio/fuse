@@ -67,12 +67,12 @@ gbuffer_out gbuffer_ps(PSInput input)
 	// TODO: texture mapping etc	
 	baseColor = g_material.baseColor;
 	
-	gbuffer      data = (gbuffer) 0;
+	gbuffer_data data = (gbuffer_data) 0;
 	gbuffer_out  output;
 	
-	data.normal = normalize(input.normal);
-	data.metallic = g_material.metallic;
-	data.specular = g_material.specular;
+	data.normal    = normalize(input.normal);
+	data.metallic  = g_material.metallic;
+	data.specular  = g_material.specular;
 	data.roughness = g_material.roughness;
 	data.baseColor = baseColor;
 	

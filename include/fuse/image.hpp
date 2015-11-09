@@ -1,6 +1,7 @@
 #pragma once
 
 #include <fuse/resource.hpp>
+#include <fuse/directx_helper.hpp>
 
 #include <IL/il.h>
 
@@ -13,11 +14,14 @@ enum image_format
 	FUSE_IMAGE_FORMAT_R32G32B32A32_FLOAT,
 	FUSE_IMAGE_FORMAT_R8G8B8_UINT,
 	FUSE_IMAGE_FORMAT_R16G16B16_FLOAT,
-	FUSE_IMAGE_FORMAT_R32G32B32_FLOAT
+	FUSE_IMAGE_FORMAT_R32G32B32_FLOAT,
+	FUSE_IMAGE_FORMAT_A8_UINT
 };
 
 namespace fuse
 {
+
+	DXGI_FORMAT get_dxgi_format(image_format format);
 
 	class image :
 		public resource
@@ -54,6 +58,13 @@ namespace fuse
 				     
 		uint32_t       m_width;
 		uint32_t       m_height;
+
+		struct devil_initializer
+		{
+			devil_initializer(void) { ilInit(); }
+		};
+
+		static devil_initializer m_initializer;
 
 	};
 

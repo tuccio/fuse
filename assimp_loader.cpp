@@ -273,7 +273,7 @@ bool assimp_loader::load_material(material * m)
 	aiShadingMode shadingModel;
 	unsigned int  fuseShadingModel = FUSE_SHADING_MODEL_UNKNOWN;
 
-	if (pMat->Get(AI_MATKEY_SHADING_MODEL, shadingModel))
+	if (pMat->Get(AI_MATKEY_SHADING_MODEL, shadingModel) == aiReturn_SUCCESS)
 	{
 		switch (shadingModel)
 		{

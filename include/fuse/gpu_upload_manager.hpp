@@ -1,9 +1,10 @@
 #pragma once
 
-#include <d3d12.h>
-
+#include <fuse/gpu_command_queue.hpp>
 #include <fuse/directx_helper.hpp>
-#include <map>
+#include <fuse/gpu_graphics_command_list.hpp>
+
+#include <vector>
 
 namespace fuse
 {
@@ -13,35 +14,35 @@ namespace fuse
 
 	public:
 
-		gpu_upload_manager(ID3D12Device * device, ID3D12CommandQueue * commandQueue);
+		gpu_upload_manager(void) = default;
 		gpu_upload_manager(const gpu_upload_manager &) = delete;
 
-		~gpu_upload_manager(void);
+		~gpu_upload_manager(void) = default;
 
-		UINT64 upload(ID3D12Device * device,
-			          ID3D12Resource * dest,
-			          UINT firstSubresource,
-			          UINT numSubresources,
-			          D3D12_SUBRESOURCE_DATA * data,
-		              D3D12_RESOURCE_BARRIER * before = nullptr,
-		              D3D12_RESOURCE_BARRIER * after  = nullptr);
+		bool init(ID3D12Device * device, UINT commandLists);
+		void shutdown(void);
 
-		void collect_garbage(void);
+		void set_command_list_index(UINT index);
 
-		bool wait(UINT waitTime = INFINITE);
-		bool wait_for_id(UINT64 id, UINT waitTime = INFINITE);
+		void upload_buffer(
+			gpu_command_queue & commandQueue,
+			ID3D12Resource * destination,
+			UINT64 destinationOffset,
+			ID3D12Resource * source,
+			UINT64 sourceOffset,
+			UINT64 size);
+
+		void upload_texture(
+			gpu_command_queue & commandQueue,
+			const D3D12_TEXTURE_COPY_LOCATION * destination,
+			const D3D12_TEXTURE_COPY_LOCATION * source);
 
 	private:
 
-		com_ptr<ID3D12CommandQueue>               m_commandQueue;
+		std::vector<com_ptr<ID3D12CommandAllocator>>   m_commandAllocators;
+		std::vector<gpu_graphics_command_list>         m_commandLists;
 
-		com_ptr<ID3D12Fence>                      m_fence;
-		UINT64                                    m_lastAllocated;
-
-		com_ptr<ID3D12CommandAllocator>           m_commandAllocator;
-		com_ptr<ID3D12GraphicsCommandList>        m_commandList;
-												  
-		std::map<UINT64, com_ptr<ID3D12Resource>> m_heaps;
+		UINT                                           m_index;
 
 	};
 

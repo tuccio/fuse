@@ -19,6 +19,14 @@ struct camera
 
 };
 
+struct screen
+{
+
+	uint2    resolution;
+	float4x4 orthoProjection;
+
+};
+
 struct transform
 {
 	float4x4 world;
@@ -36,11 +44,18 @@ struct material
 
 struct light
 {
+
+	uint   type;
+	bool   castShadows;
+	
 	float3 luminance;
 	float3 ambient;
+	
 	float3 position;
 	float3 direction;
+	
 	float  spotAngle;
+	
 };
 
 #endif

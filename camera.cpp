@@ -19,7 +19,7 @@ camera::camera(void) :
 void camera::update_view_matrix(void) const
 {
 
-	XMMATRIX rotation   = XMMatrixRotationQuaternion(m_orientation);
+	XMMATRIX rotation = XMMatrixRotationQuaternion(m_orientation);
 	m_viewMatrix = XMMatrixTranspose(rotation);
 
 	XMVECTOR xyUU = XMVectorPermute<XM_PERMUTE_0X, XM_PERMUTE_1Y, XM_PERMUTE_1Z, XM_PERMUTE_1W>(XMVector3Dot(rotation.r[0], m_position), XMVector3Dot(rotation.r[1], m_position));

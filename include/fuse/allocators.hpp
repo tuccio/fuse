@@ -7,12 +7,46 @@
 namespace fuse
 {
 
-	template <typename T, size_t Alignment = std::alignment_of<T>::value>
-	struct aligned_allocator :
-		std::allocator<T>
+	template <typename T>
+	struct allocator_base
 	{
 
-		inline void * allocate_generic(size_type n, std::allocator<void>::const_pointer hint = 0)
+		typedef T value_type;
+		typedef T * pointer;
+		typedef const T * const_pointer;
+		typedef T & reference;
+		typedef const T & const_reference;
+		typedef std::size_t size_type;
+		typedef std::ptrdiff_t difference_type;
+
+		template <typename ... Args>
+		void construct(T * p, Args && ... args)
+		{
+			new (p) T(args ...);
+		}
+
+		void destroy(T * p)
+		{
+			p->~T();
+		}
+
+	};
+
+	template <typename T, size_t Alignment = std::alignment_of<T>::value>
+	struct aligned_allocator :
+		allocator_base<T>
+	{
+
+		template <class U> struct rebind { typedef aligned_allocator<U, Alignment> other; };
+
+		aligned_allocator(void) = default;
+		aligned_allocator(const aligned_allocator &) = default;
+		aligned_allocator(aligned_allocator &&) = default;
+
+		template <typename U>
+		aligned_allocator(const aligned_allocator<U> &) { }
+
+		inline void * allocate_generic(size_type n, const void * hint = 0)
 		{
 
 			void * p = allocate_no_throw_generic(n, hint);
@@ -26,30 +60,42 @@ namespace fuse
 
 		}
 
-		inline pointer allocate(size_type n, std::allocator<void>::const_pointer hint = 0)
+		inline pointer allocate(size_type n, const void * hint = 0)
 		{
 			return static_cast<pointer>(allocate_generic(n, hint));
 		}
 
-		inline void * allocate_no_throw_generic(size_type n, std::allocator<void>::const_pointer hint = 0)
+		inline void * allocate_no_throw_generic(size_type n, const void * hint = 0)
 		{
 			return _aligned_malloc(n * sizeof(T), Alignment);
 		}
 
-		inline pointer allocate_no_throw(size_type n, std::allocator<void>::const_pointer hint = 0)
+		inline pointer allocate_no_throw(size_type n, const void * hint = 0)
 		{
 			return static_cast<pointer>(allocate_no_throw_generic(n, hint));
 		}
 
-		inline void deallocate(pointer p, size_type n)
+		inline void deallocate(pointer p, size_type n = 1)
 		{
-			deallocate_generic(static_cast<pointer>(p));
+			deallocate_generic(static_cast<pointer>(p), n);
 		}
 
 		inline void deallocate_generic(void * p, size_type n)
 		{
 			_aligned_free(p);
 		}
+
+		template<class U>
+		inline aligned_allocator<T, Alignment> & operator= (const aligned_allocator<U, Alignment> &)
+		{
+			return (*this);
+		}
+
+		template <typename U, size_t OtherAlignment>
+		inline bool operator== (const aligned_allocator<U, OtherAlignment> &) { return OtherAlignment == Alignment; }
+
+		template <typename U, size_t OtherAlignment>
+		inline bool operator!= (const aligned_allocator<U, OtherAlignment> &) { return OtherAlignment != Alignment; }
 
 	};
 

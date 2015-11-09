@@ -1,9 +1,9 @@
 #include <fuse/gpu_mesh.hpp>
 #include <fuse/resource_factory.hpp>
+#include <fuse/gpu_global_resource_state.hpp>
+#include <fuse/gpu_ring_buffer.hpp>
 
 #include <boost/iterator.hpp>
-
-#include <d3dx12.h>
 
 #include <algorithm>
 #include <memory>
@@ -19,7 +19,7 @@ gpu_mesh::~gpu_mesh(void)
 	clear();
 }
 
-bool gpu_mesh::create(ID3D12Device * device, gpu_upload_manager * uploadManager, mesh * mesh)
+bool gpu_mesh::create(ID3D12Device * device, gpu_command_queue & commandQueue, gpu_upload_manager * uploadManager, gpu_ring_buffer * ringBuffer, mesh * mesh)
 {
 
 	m_numVertices  = mesh->get_num_vertices();
@@ -113,47 +113,41 @@ bool gpu_mesh::create(ID3D12Device * device, gpu_upload_manager * uploadManager,
 
 	// Now create the vertex buffer and upload the data
 
-	D3D12_SUBRESOURCE_DATA dataDesc = {};
-
-	dataDesc.pData    = intermediateBuffer.get();
-	dataDesc.RowPitch = bufferSize;
-
-	if (!FUSE_HR_FAILED(device->CreateCommittedResource(
+	if (gpu_global_resource_state::get_singleton_pointer()->create_committed_resource(
+		device,
 		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
 		D3D12_HEAP_FLAG_NONE,
 		&CD3DX12_RESOURCE_DESC::Buffer(bufferSize),
 		D3D12_RESOURCE_STATE_COPY_DEST,
 		nullptr,
-		IID_PPV_ARGS(&m_dataBuffer))) &&
-		uploadManager->upload(device,
-			m_dataBuffer.get(),
-			0, 1,
-			&dataDesc,
-			nullptr,
-			&CD3DX12_RESOURCE_BARRIER::Transition(
-				m_dataBuffer.get(),
-				D3D12_RESOURCE_STATE_COPY_DEST,
-				D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER)))
+		IID_PPV_ARGS(&m_dataBuffer)))
 	{
+
+		UINT64 heapOffset;
+		void * data = ringBuffer->allocate_constant_buffer(device, commandQueue, bufferSize, nullptr, &heapOffset);
+
+		memcpy(data, intermediateBuffer.get(), bufferSize);
+
+		uploadManager->upload_buffer(commandQueue, m_dataBuffer.get(), 0, ringBuffer->get_heap(), heapOffset, bufferSize);
 
 		// Finally setup views
 
 		D3D12_GPU_VIRTUAL_ADDRESS dataAddress = m_dataBuffer->GetGPUVirtualAddress();
 
 		m_positionData.BufferLocation = dataAddress;
-		m_positionData.StrideInBytes  = sizeof(float) * 3;
-		m_positionData.SizeInBytes    = verticesBufferSize;
+		m_positionData.StrideInBytes = sizeof(float) * 3;
+		m_positionData.SizeInBytes = verticesBufferSize;
 
 		m_indexData.BufferLocation = m_positionData.BufferLocation + m_positionData.SizeInBytes;
-		m_indexData.SizeInBytes    = indicesBufferSize;
-		m_indexData.Format         = DXGI_FORMAT_R32_UINT;
+		m_indexData.SizeInBytes = indicesBufferSize;
+		m_indexData.Format = DXGI_FORMAT_R32_UINT;
 
 		uint32_t stride = 0;
 		std::for_each(dataSize.begin(), dataSize.end(), [&stride](uint32_t x) { stride += x; });
 
 		m_nonPositionData.BufferLocation = m_indexData.BufferLocation + m_indexData.SizeInBytes;
-		m_nonPositionData.StrideInBytes  = stride;
-		m_nonPositionData.SizeInBytes    = stride * m_numVertices;
+		m_nonPositionData.StrideInBytes = stride;
+		m_nonPositionData.SizeInBytes = stride * m_numVertices;
 
 		return true;
 
@@ -176,9 +170,9 @@ bool gpu_mesh::load_impl(void)
 
 	if (m && m->load())
 	{
-		using args_tuple = std::tuple<ID3D12Device*, gpu_upload_manager*>;
+		using args_tuple = std::tuple<ID3D12Device*, gpu_command_queue*, gpu_upload_manager*, gpu_ring_buffer*>;
 		args_tuple * args = get_owner_userdata<args_tuple*>();
-		return create(std::get<0>(*args), std::get<1>(*args), m.get());
+		return create(std::get<0>(*args), *std::get<1>(*args), std::get<2>(*args), std::get<3>(*args), m.get());
 	}
 
 	return false;

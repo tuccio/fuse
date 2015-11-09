@@ -16,7 +16,7 @@ struct gbuffer_in
 	Texture2D<float> gbufferDepth;
 };
 
-struct gbuffer
+struct gbuffer_data
 {
 	float3 position;
 	float3 normal;
@@ -28,10 +28,11 @@ struct gbuffer
 	float2 lightmapUV;
 };
 
-void gbuffer_write(in gbuffer data, out gbuffer_out output)
+void gbuffer_write(in gbuffer_data data, out gbuffer_out output)
 {
 
 	output.gbuffer0.xyz = .5f * data.normal + .5f;
+	output.gbuffer0.xyz = data.normal;
 	output.gbuffer0.w   = data.specular;
 	
 	output.gbuffer1.xy  = data.lightmapUV;
@@ -43,8 +44,10 @@ void gbuffer_write(in gbuffer data, out gbuffer_out output)
 
 }
 
-void gbuffer_read(in gbuffer_in input, in SamplerState pointSampler, in float2 uv, out gbuffer data)
+void gbuffer_read(in gbuffer_in input, in SamplerState pointSampler, in float2 uv, out gbuffer_data data)
 {
+
+	data = (gbuffer_data) 0;
 
 	float4 gbuffer0 = input.gbuffer0.Sample(pointSampler, uv);
 	float4 gbuffer1 = input.gbuffer1.Sample(pointSampler, uv);
@@ -60,8 +63,8 @@ void gbuffer_read(in gbuffer_in input, in SamplerState pointSampler, in float2 u
 	data.baseColor  = gbuffer2.xyz;
 	data.roughness  = gbuffer2.w;
 	
-	// TODO: Invert depth to position
-
+	data.depth      = depth;
+	
 }
 
 #endif

@@ -8,6 +8,18 @@
 
 using namespace fuse;
 
+FUSE_DEFINE_ALIGNED_ALLOCATOR_NEW(renderable, 16)
+
+static XMFLOAT3 to_xmfloat3(const aiVector3D & color)
+{
+	return reinterpret_cast<const XMFLOAT3 &>(color);
+
+}
+static XMFLOAT3 to_xmfloat3(const aiColor3D & color)
+{
+	return reinterpret_cast<const XMFLOAT3 &>(color);
+}
+
 static XMMATRIX to_xmmatrix(const aiMatrix4x4 & matrix)
 {
 
@@ -70,12 +82,6 @@ bool scene::import_static_objects(assimp_loader * loader)
 
 	const aiScene * scene = loader->get_scene();
 
-	std::stack<aiNode *> stack;
-	std::stack<XMMATRIX> parentTransform;
-
-	stack.push(scene->mRootNode);
-	parentTransform.push(DirectX::XMMatrixIdentity());
-
 	visit_assimp_scene_dfs(scene, 
 		[&] (const aiScene * scene, const aiNode * node, const XMMATRIX & world, const XMMATRIX & local, const XMMATRIX & worldLocal)
 	{
@@ -133,7 +139,7 @@ bool scene::import_static_objects(assimp_loader * loader)
 
 }
 
-static bool find_camera_node(const aiScene * scene, aiCamera * camera, aiNode ** outNode, XMMATRIX * outTransform)
+static bool find_node_by_name(const aiScene * scene, const aiString & name, aiNode ** outNode, XMMATRIX * outTransform)
 {
 
 	*outNode = nullptr;
@@ -142,9 +148,9 @@ static bool find_camera_node(const aiScene * scene, aiCamera * camera, aiNode **
 		[&] (const aiScene * scene, aiNode * node, const XMMATRIX & world, const XMMATRIX & local, const XMMATRIX & worldLocal)
 	{
 
-		if (node->mName == camera->mName)
+		if (node->mName == name)
 		{
-			*outNode = node;
+			*outNode      = node;
 			*outTransform = world;
 			return false;
 		}
@@ -176,15 +182,15 @@ bool scene::import_cameras(assimp_loader * loader)
 		aiNode * node;
 		XMMATRIX transform;
 
-		XMFLOAT3 position      = reinterpret_cast<const XMFLOAT3&>(scene->mCameras[i]->mPosition);
-		XMFLOAT3 up            = reinterpret_cast<const XMFLOAT3&>(scene->mCameras[i]->mUp);
-		XMFLOAT3 viewDirection = reinterpret_cast<const XMFLOAT3&>(scene->mCameras[i]->mLookAt);
+		XMFLOAT3 position      = to_xmfloat3(scene->mCameras[i]->mPosition);
+		XMFLOAT3 up            = to_xmfloat3(scene->mCameras[i]->mUp);
+		XMFLOAT3 viewDirection = to_xmfloat3(scene->mCameras[i]->mLookAt);
 		
 		position.z = -position.z;
 
 		XMFLOAT3 lookAt = to_float3(to_vector(position) - to_vector(viewDirection));
 
-		if (find_camera_node(scene, scene->mCameras[i], &node, &transform))
+		if (find_node_by_name(scene, scene->mCameras[i]->mName, &node, &transform))
 		{
 			position = to_float3(XMVector3Transform(to_vector(position), transform));
 			up       = to_float3((XMVector3TransformNormal(to_vector(up), transform)));
@@ -211,12 +217,56 @@ bool scene::import_cameras(assimp_loader * loader)
 
 }
 
-std::pair<scene::renderable_iterator, scene::renderable_iterator> scene::get_static_objects_iterators(void)
+bool scene::import_lights(assimp_loader * loader)
+{
+
+	if (!loader->is_loaded())
+	{
+		return false;
+	}
+
+	const aiScene * scene = loader->get_scene();
+
+	for (int i = 0; i < scene->mNumLights; i++)
+	{
+
+		aiNode * node;
+		XMMATRIX transform;
+
+		if (scene->mLights[i]->mType == aiLightSource_DIRECTIONAL &&
+			find_node_by_name(scene, scene->mLights[i]->mName, &node, &transform))
+		{
+
+			XMVECTOR direction = XMVector3Normalize(XMVector3Transform(to_vector(to_xmfloat3(scene->mLights[i]->mDirection)), transform));
+
+			light light;
+
+			light.type      = LIGHT_TYPE_DIRECTIONAL;
+			light.ambient   = to_xmfloat3(scene->mLights[i]->mColorAmbient);
+			light.luminance = to_xmfloat3(scene->mLights[i]->mColorDiffuse);
+			light.direction = XMVector3Equal(direction, XMVectorZero()) ? XMFLOAT3(0, 1, 0) : to_float3(direction);
+
+			m_lights.push_back(light);
+
+		}
+
+	}
+	
+	return true;
+
+}
+
+std::pair<renderable_iterator, renderable_iterator> scene::get_static_objects_iterators(void)
 {
 	return std::make_pair(m_staticObjects.begin(), m_staticObjects.end());
 }
 
-std::pair<scene::camera_iterator, scene::camera_iterator> scene::get_cameras_iterators(void)
+std::pair<camera_iterator, camera_iterator> scene::get_cameras_iterators(void)
 {
 	return std::make_pair(m_cameras.begin(), m_cameras.end());
+}
+
+std::pair<light_iterator, light_iterator> scene::get_lights_iterators(void)
+{
+	return std::make_pair(m_lights.begin(), m_lights.end());
 }

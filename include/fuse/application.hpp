@@ -8,6 +8,7 @@
 #include <fuse/singleton.hpp>
 #include <fuse/gpu_command_queue.hpp>
 #include <fuse/directx_helper.hpp>
+#include <fuse/gpu_global_resource_state.hpp>
 
 #include <queue>
 
@@ -46,7 +47,7 @@ namespace fuse
 
 		inline static void on_configuration_init(application_config * configuration) { }
 
-		inline static bool on_device_created(ID3D12Device * device, ID3D12CommandQueue * commandQueue) { return true; }
+		inline static bool on_device_created(ID3D12Device * device, gpu_command_queue & commandQueue) { return true; }
 		inline static void on_device_released(ID3D12Device * device) { }
 
 		inline static bool on_swap_chain_resized(ID3D12Device * device, IDXGISwapChain * swapChain, const DXGI_SURFACE_DESC * desc) { return true; }
@@ -60,6 +61,7 @@ namespace fuse
 
 		static float get_fps(void);
 
+		static bool is_fullscreen(void);
 		static void set_fullscreen(bool fullscreen);
 		static bool set_cursor(bool clippedFullscreen, bool hidden);
 
@@ -79,6 +81,9 @@ namespace fuse
 
 		inline static UINT get_rtv_descriptor_size(void) { return m_rtvDescriptorSize; }
 		inline static UINT get_dsv_descriptor_size(void) { return m_dsvDescriptorSize; }
+		inline static UINT get_srv_descriptor_size(void) { return m_srvDescriptorSize; }
+		inline static UINT get_uav_descriptor_size(void) { return m_srvDescriptorSize; }
+		inline static UINT get_cbv_descriptor_size(void) { return m_srvDescriptorSize; }
 
 		inline static void set_screen_viewport(ID3D12GraphicsCommandList * cmdList)
 		{
@@ -125,6 +130,7 @@ namespace fuse
 
 		static UINT                                 m_rtvDescriptorSize;
 		static UINT                                 m_dsvDescriptorSize;
+		static UINT                                 m_srvDescriptorSize;
 
 		static std::vector<com_ptr<ID3D12Resource>> m_renderTargets;
 
@@ -155,7 +161,7 @@ namespace fuse
 
 		static void signal_error(const char * error);
 
-		inline static void update_fps_counter(void)
+		inline static float update_fps_counter(void)
 		{
 
 			static LARGE_INTEGER oldTime;
@@ -175,10 +181,14 @@ namespace fuse
 			LARGE_INTEGER newTime;
 			QueryPerformanceCounter(&newTime);
 
-			m_frameSamples[frameIndex] = frequency / static_cast<float>(newTime.QuadPart - oldTime.QuadPart);
+			float dt = static_cast<float>(newTime.QuadPart - oldTime.QuadPart);
+
+			m_frameSamples[frameIndex] = frequency / dt;
 
 			frameIndex = (frameIndex + 1) % FUSE_FPS_SAMPLES;
-			oldTime = newTime;
+			oldTime    = newTime;
+
+			return dt / frequency;
 
 		}
 
@@ -216,7 +226,7 @@ namespace fuse
 
 			bool success = create_device(featureLevel, debug) &&
 				create_command_queue() &&
-				on_device_created(get_device(), get_command_queue()) &&
+				on_device_created(get_device(), m_commandQueue) &&
 				create_swap_chain(debug, get_screen_width(), get_screen_height());
 
 			if (!success) signal_error("Failed to create graphics pipeline.");
@@ -227,12 +237,21 @@ namespace fuse
 
 		static inline void shutdown(void)
 		{
+
+			if (m_commandQueue)
+			{
+				// Wait for the render to finish before shutting down
+				m_commandQueue.wait_for_frame(m_commandQueue.get_frame_index());
+			}
 			
 			if (m_swapChain)
 			{
+
 				on_swap_chain_released(get_device(), get_swap_chain());
+
 				release_swap_chain_buffers();
 				release_render_target_views();
+
 			}
 
 			if (m_device)
@@ -262,10 +281,10 @@ namespace fuse
 				UINT64 frameToWait = lastFrame + 1 < m_configuration.swapChainBufferCount ? 0 : lastFrame + 1 - m_configuration.swapChainBufferCount;
 
 				m_commandQueue.wait_for_frame(frameToWait);
-				//wait_for_last_frame();
-				update_fps_counter();
+				//m_commandQueue.wait_for_frame(lastFrame);
+				float dt = update_fps_counter();
 
-				on_update();
+				on_update(dt);
 				
 				if (!update_swapchain())
 				{
@@ -273,29 +292,17 @@ namespace fuse
 					return;
 				}
 
-				on_render(get_device(), m_commandQueue, get_back_buffer(), get_back_buffer_descriptor(), get_buffer_index());
+				auto backBuffer = get_back_buffer();
+				auto globalState = gpu_global_resource_state::get_singleton_pointer();
 
-				m_swapChain->Present(m_configuration.syncInterval, m_configuration.presentFlags);
+				if (globalState) globalState->set_state(backBuffer, D3D12_RESOURCE_STATE_PRESENT);
+
+				on_render(get_device(), m_commandQueue, backBuffer, get_back_buffer_descriptor(), get_buffer_index());
+
+				FUSE_HR_CHECK(m_swapChain->Present(m_configuration.syncInterval, m_configuration.presentFlags));
 				m_commandQueue.advance_frame_index();
 
 			} while (msg.message != WM_QUIT);
-
-		}
-
-		static inline void wait_for_last_frame(void)
-		{
-			
-			/* Wait for the last frame to complete */
-
-			UINT64 fenceValue = m_fenceValue++;
-
-			FUSE_HR_CHECK(m_commandQueue->Signal(m_fence.get(), fenceValue));
-
-			if (m_fence->GetCompletedValue() < fenceValue)
-			{
-				FUSE_HR_CHECK(m_fence->SetEventOnCompletion(fenceValue, m_fenceEvent));
-				WaitForSingleObject(m_fenceEvent, INFINITE);
-			}
 
 		}
 

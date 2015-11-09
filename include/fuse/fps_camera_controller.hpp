@@ -53,6 +53,7 @@ namespace fuse
 
 		camera   * m_camera;
 
+
 		XMFLOAT3   m_speed;
 
 		XMFLOAT2   m_screenSize;
@@ -61,6 +62,7 @@ namespace fuse
 		float      m_sensitivity;
 
 		bool       m_centerMouse;
+		bool       m_centeringMouse;
 		bool       m_holdToRotate;
 
 		bool       m_rotating;

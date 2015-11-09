@@ -19,6 +19,12 @@ namespace fuse
 	bool compile_shader(const char * filename, const D3D_SHADER_MACRO * defines, const char * entryPoint, const char * target, UINT compileOptions, ID3DBlob ** shader)
 	{
 
+#ifdef FUSE_COMPILE_SHADER_GLOBAL_OPTIONS
+
+		compileOptions |= FUSE_COMPILE_SHADER_GLOBAL_OPTIONS;
+
+#endif
+
 		std::ifstream in(filename);
 
 		if (!in)

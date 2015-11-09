@@ -1,4 +1,5 @@
 #include <fuse/gpu_command_queue.hpp>
+#include <fuse/gpu_global_resource_state.hpp>
 
 #include <d3dx12.h>
 
@@ -11,6 +12,7 @@ gpu_command_queue::gpu_command_queue(void)
 
 gpu_command_queue::~gpu_command_queue(void)
 {
+	shutdown();
 }
 
 bool gpu_command_queue::init(ID3D12Device * device, const D3D12_COMMAND_QUEUE_DESC * queueDesc)
@@ -75,5 +77,65 @@ bool gpu_command_queue::wait_for_frame(UINT64 fenceValue, UINT time) const
 	}
 
 	return false;
+
+}
+
+void gpu_command_queue::execute(gpu_graphics_command_list & commandList)
+{
+
+	if (commandList.m_pending.empty())
+	{
+		get()->ExecuteCommandLists(1, (ID3D12CommandList**)commandList.get_address());
+	}
+	else
+	{
+
+		std::vector<D3D12_RESOURCE_BARRIER> barriers;
+
+		barriers.reserve(commandList.m_pending.size());
+
+		auto globalStateManager = gpu_global_resource_state::get_singleton_pointer();
+
+		for (auto & p : commandList.m_pending)
+		{
+
+			ID3D12Resource * resource = p.first;
+			
+			D3D12_RESOURCE_STATES desiredState = p.second.first;
+			D3D12_RESOURCE_STATES globalState = globalStateManager->get_state(resource);
+
+			if (globalState != desiredState)
+			{
+				barriers.push_back(CD3DX12_RESOURCE_BARRIER::Transition(resource, globalState, desiredState));
+			}
+
+		}
+
+		if (barriers.empty())
+		{
+			get()->ExecuteCommandLists(1, (ID3D12CommandList**)commandList.get_address());
+		}
+		else
+		{
+			
+			FUSE_HR_CHECK(m_auxCommandList->Reset(m_auxCommandAllocator, nullptr));
+			m_auxCommandList->ResourceBarrier(barriers.size(), &barriers[0]);
+
+			ID3D12CommandList * lists[2] = { m_auxCommandList, commandList.get() };
+
+			FUSE_HR_CHECK(m_auxCommandList->Close());
+
+			get()->ExecuteCommandLists(2, lists);
+
+			for (auto & barrier : barriers)
+			{
+				globalStateManager->set_state(barrier.Transition.pResource, barrier.Transition.StateAfter);
+			}
+
+		}
+
+	}
+
+	commandList.m_pending.clear();
 
 }

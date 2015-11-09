@@ -6,8 +6,9 @@ set ( CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/
 set ( EXECUTABLE_OUTPUT_PATH ${CMAKE_SOURCE_DIR}/bin )
 set ( LIBRARY_OUTPUT_PATH ${CMAKE_SOURCE_DIR}/lib )
 
-option ( FUSE_SSE2   "Enables SSE intruction set" ON )
-option ( FUSE_ASSIMP "Enables Assimp support"     ON )
+option ( FUSE_SSE2         "Enables SSE intruction set"                                 ON )
+option ( FUSE_ASSIMP       "Enables Assimp support"                                     ON )
+option ( FUSE_SHADER_DEBUG "Enables shader debugging (disables compiler optimizations)" OFF )
 
 find_package ( Boost     REQUIRED )
 find_package ( DirectX12 REQUIRED )
@@ -27,6 +28,10 @@ if (FUSE_SSE2)
 	set ( CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} /arch:SSE2 )
 
 endif (FUSE_SSE2)
+
+if (FUSE_SHADER_DEBUG)
+	add_definitions ( "-DFUSE_COMPILE_SHADER_GLOBAL_OPTIONS=(D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION | D3DCOMPILE_PREFER_FLOW_CONTROL)" -DD3DCOMPILE_DEBUG=1 )
+endif (FUSE_SHADER_DEBUG)
 
 if ( ASSIMP_FOUND AND FUSE_ASSIMP )
 
@@ -68,6 +73,13 @@ add_library ( fuse
 	include/fuse/debug_ostream.hpp
 	include/fuse/gpu_command_queue.hpp gpu_command_queue.cpp
 	include/fuse/gpu_ring_buffer.hpp gpu_ring_buffer.cpp
+	include/fuse/bitmap_font.hpp bitmap_font.cpp
+	include/fuse/bitmap_font_manager.hpp
+	include/fuse/text_renderer.hpp text_renderer.cpp
+	include/fuse/texture.hpp texture.cpp
+	include/fuse/texture_manager.hpp
+	include/fuse/gpu_graphics_command_list.hpp gpu_graphics_command_list.cpp
+	include/fuse/gpu_global_resource_state.hpp
 )
 
 add_subdirectory ( sample )

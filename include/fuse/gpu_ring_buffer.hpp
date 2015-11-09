@@ -4,8 +4,11 @@
 
 #include <fuse/directx_helper.hpp>
 #include <fuse/gpu_command_queue.hpp>
+#include <fuse/properties_macros.hpp>
 
 #include <queue>
+
+#define FUSE_ALIGN_OFFSET(Offset, Alignment) ((Offset + (Alignment - 1)) & ~(Alignment - 1))
 
 namespace fuse
 {
@@ -19,14 +22,18 @@ namespace fuse
 		gpu_ring_buffer(const gpu_ring_buffer &) = delete;
 		gpu_ring_buffer(gpu_ring_buffer &&) = default;
 
-		bool create(ID3D12Device * device, const D3D12_HEAP_DESC * desc);
+		bool create(ID3D12Device * device, UINT size);
 
-		bool allocate(ID3D12Device * device,
-		              gpu_command_queue & commandQueue,
-		              ID3D12Resource ** resource,
-		              const D3D12_RESOURCE_DESC * desc,
-		              D3D12_RESOURCE_STATES initialState,
-		              const D3D12_CLEAR_VALUE * optimizedClearValue);
+		void * allocate_constant_buffer(ID3D12Device * device,
+		                                gpu_command_queue & commandQueue,
+		                                UINT size,
+		                                D3D12_GPU_VIRTUAL_ADDRESS * outAddress = nullptr,
+		                                UINT64 * offset = nullptr);
+
+		void * allocate_texture(ID3D12Device * device,
+		                        gpu_command_queue & commandQueue,
+		                        const D3D12_SUBRESOURCE_FOOTPRINT & footprint,
+		                        D3D12_PLACED_SUBRESOURCE_FOOTPRINT * placedTex);
 
 
 	private:
@@ -34,11 +41,16 @@ namespace fuse
 		struct allocated_chunk
 		{
 			UINT   offset;
+			UINT   alignedOffset;
 			UINT   size;
+			UINT   alignment;
 			UINT64 frameIndex;
 		};
 
-		com_ptr<ID3D12Heap>       m_heap;
+		com_ptr<ID3D12Resource>   m_buffer;
+		uint8_t                 * m_bufferMap;
+
+		D3D12_GPU_VIRTUAL_ADDRESS m_bufferVAddr;
 
 		UINT m_size;
 		UINT m_alignment;
@@ -47,6 +59,17 @@ namespace fuse
 
 		std::queue<allocated_chunk> m_allocatedChunks;
 
+		allocated_chunk * allocate(gpu_command_queue & commandQueue, UINT size, UINT alignment);
+
+	public:
+
+		FUSE_PROPERTIES_SMART_POINTER_READ_ONLY(
+			(heap, m_buffer)
+		)
+
+		FUSE_PROPERTIES_BY_VALUE_READ_ONLY(
+			(heap_gpu_virtual_address, m_bufferVAddr)
+		)
 
 	};
 

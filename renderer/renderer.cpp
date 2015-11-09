@@ -3,6 +3,9 @@
 #include <fuse/debug_ostream.hpp>
 
 #include <iostream>
+#include <fstream>
+
+using namespace fuse;
 
 int CALLBACK WinMain(HINSTANCE hInstance,
                      HINSTANCE hPrevInstance,
@@ -10,19 +13,16 @@ int CALLBACK WinMain(HINSTANCE hInstance,
                      int       nCmdShow)
 {
 
-	AllocConsole();
-
-	freopen("CONOUT$", "w", stdout);
-	freopen("CONOUT$", "w", stderr);
-
 	debug_ostream debugStream;
+	//std::ofstream fileStream("fuse_renderer.log");
 
 	fuse::logger logger(&debugStream);
+	//fuse::logger logger(&fileStream);
 
 	using app = fuse::application<renderer_application>;
 
 	if (app::init(hInstance) &&
-	    app::create_window(1280, 720, "Sample") &&
+	    app::create_window(1280, 720, "Fuse Renderer") &&
 	    app::create_pipeline(D3D_FEATURE_LEVEL_11_0, true))
 	{
 		app::main_loop();

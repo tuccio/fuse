@@ -11,6 +11,7 @@ fps_camera_controller::fps_camera_controller(void) :
 	m_sensitivity(1.f),
 	m_speed(0.25f, 0.25f, 0.25f),
 	m_centerMouse(false),
+	m_centeringMouse(false),
 	m_holdToRotate(true),
 	m_rotating(false),
 	m_strafingForward(false),
@@ -109,6 +110,12 @@ LRESULT fps_camera_controller::on_mouse(WPARAM wParam, LPARAM lParam)
 	if (wParam == WM_MOUSEMOVE)
 	{
 
+		if (m_centeringMouse)
+		{
+			m_centeringMouse = false;
+			return 0;
+		}
+
 		LRESULT returnValue = 0;
 
 		LPMOUSEHOOKSTRUCT mouseStruct = (LPMOUSEHOOKSTRUCT)lParam;
@@ -119,17 +126,7 @@ LRESULT fps_camera_controller::on_mouse(WPARAM wParam, LPARAM lParam)
 		if (m_rotating)
 		{
 
-			XMVECTOR from;
-
-			if (m_centerMouse)
-			{
-				from = to_vector(m_screenCenter);
-				SetCursorPos(m_screenCenter.x, m_screenCenter.y);
-			}
-			else
-			{
-				from = lastPos;
-			}
+			XMVECTOR from = lastPos;
 
 			XMVECTOR delta = XMVectorATan((to - from) / fuse::to_vector(m_screenSize));
 
@@ -144,7 +141,16 @@ LRESULT fps_camera_controller::on_mouse(WPARAM wParam, LPARAM lParam)
 
 		}
 
-		lastPos = to;
+		if (m_centerMouse)
+		{
+			lastPos = to_vector(m_screenCenter);
+			m_centeringMouse = true;
+			SetCursorPos(m_screenCenter.x, m_screenCenter.y);
+		}
+		else
+		{
+			lastPos = to;
+		}
 
 		return returnValue;
 		

@@ -10,83 +10,83 @@
 #include <fuse/gpu_upload_manager.hpp>
 #include <fuse/properties_macros.hpp>
 #include <fuse/gpu_command_queue.hpp>
+#include <fuse/gpu_graphics_command_list.hpp>
 #include <fuse/gpu_ring_buffer.hpp>
 
 #include "light.hpp"
 #include "scene.hpp"
 #include "renderable.hpp"
 
-class deferred_renderer
+namespace fuse
 {
 
-public:
+	class deferred_renderer
+	{
 
-	deferred_renderer(void);
-	deferred_renderer(const deferred_renderer &) = delete;
+	public:
 
-	bool init(ID3D12Device * device, ID3D12Resource * cbPerFrame, fuse::gpu_upload_manager * uploadManager);
-	void shutdown(void);
+		deferred_renderer(void);
+		deferred_renderer(const deferred_renderer &) = delete;
 
-	void on_resize(uint32_t width, uint32_t height);
+		bool init(ID3D12Device * device);
+		void shutdown(void);
 
-	void render_init(scene * scene);
+		void render_init(scene * scene);
 
-	void render_gbuffer(
-		ID3D12Device * device,
-		fuse::gpu_command_queue & commandQueue,
-		ID3D12CommandAllocator * commandAllocator,
-		ID3D12GraphicsCommandList * commandList,
-		fuse::gpu_ring_buffer & ringBuffer,
-		const D3D12_CPU_DESCRIPTOR_HANDLE * gbuffer,
-		const D3D12_CPU_DESCRIPTOR_HANDLE * dsv);
+		void render_gbuffer(
+			ID3D12Device * device,
+			gpu_command_queue & commandQueue,
+			ID3D12CommandAllocator * commandAllocator,
+			gpu_graphics_command_list & commandList,
+			gpu_ring_buffer * ringBuffer,
+			D3D12_GPU_VIRTUAL_ADDRESS cbPerFrame,
+			const D3D12_CPU_DESCRIPTOR_HANDLE * gbuffer,
+			const D3D12_CPU_DESCRIPTOR_HANDLE * dsv,
+			ID3D12Resource ** gbufferResources);
 
-	void render_directional_light(
-		ID3D12Device * device,
-		ID3D12GraphicsCommandList * commandList,
-		const D3D12_GPU_VIRTUAL_ADDRESS * gbuffer,
-		const D3D12_CPU_DESCRIPTOR_HANDLE * rtv,
-		const light * light);
+		void render_light(
+			ID3D12Device * device,
+			gpu_command_queue & commandQueue,
+			ID3D12CommandAllocator * commandAllocator,
+			gpu_graphics_command_list & commandList,
+			gpu_ring_buffer * ringBuffer,
+			ID3D12DescriptorHeap * gbufferHeap,
+			D3D12_GPU_VIRTUAL_ADDRESS cbPerFrame,
+			const D3D12_GPU_DESCRIPTOR_HANDLE & gbufferSRVDescTable,
+			const D3D12_CPU_DESCRIPTOR_HANDLE * rtv,
+			ID3D12Resource ** gbufferResources,
+			const light * light);
 
-private:
-	
-	std::vector<renderable*> m_staticObjects;
+	private:
 
-	fuse::com_ptr<ID3D12Resource> m_cbPerFrame;
+		std::vector<renderable*> m_staticObjects;
 
-	fuse::com_ptr<ID3D12Fence> m_cbFence;
-	HANDLE                     m_hFenceEvent;
+		com_ptr<ID3D12PipelineState> m_gbufferPSO;
+		com_ptr<ID3D12RootSignature> m_gbufferRS;
 
-	fuse::com_ptr<ID3D12PipelineState> m_gbufferPSO;
-	fuse::com_ptr<ID3D12RootSignature> m_gbufferRS;
+		com_ptr<ID3D12PipelineState> m_shadingPSO;
+		com_ptr<ID3D12RootSignature> m_shadingRS;
 
-	fuse::com_ptr<ID3D12PipelineState> m_finalPSO;
-	fuse::com_ptr<ID3D12RootSignature> m_finalRS;
+		camera * m_camera;
 
-	D3D12_GPU_VIRTUAL_ADDRESS m_cbPerFrameAddress;
+		D3D12_VIEWPORT m_viewport;
+		D3D12_RECT     m_scissorRect;
 
-	fuse::gpu_upload_manager * m_uploadManager;
+		static inline renderable * get_address(renderable * r) { return r; }
+		static inline renderable * get_address(renderable & r) { return &r; }
 
-	bool m_debug;
+		bool create_psos(ID3D12Device * device);
+		bool create_gbuffer_pso(ID3D12Device * device);
+		bool create_shading_pso(ID3D12Device * device);
 
-	fuse::camera * m_camera;
+	public:
 
-	uint32_t m_width;
-	uint32_t m_height;
+		FUSE_PROPERTIES_BY_CONST_REFERENCE(
+			(viewport, m_viewport)
+			(scissor_rect, m_scissorRect)
+		)
 
-	/*uint32_t m_buffers;
-	uint32_t m_bufferIndex;*/
+	};
 
-	static inline renderable * get_address(renderable * r) { return r; }
-	static inline renderable * get_address(renderable & r) { return &r; }
+}
 
-	bool create_psos(ID3D12Device * device);
-	bool create_gbuffer_pso(ID3D12Device * device);
-	bool create_final_pso(ID3D12Device * device);
-
-public:
-
-	FUSE_PROPERTIES_BY_VALUE(
-		(debug, m_debug)
-	)
-
-};

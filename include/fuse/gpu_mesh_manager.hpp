@@ -16,8 +16,8 @@ namespace fuse
 
 	public:
 
-		gpu_mesh_manager(ID3D12Device * device, gpu_upload_manager * uploadManager) :
-			m_argsTuple(device, uploadManager),
+		gpu_mesh_manager(ID3D12Device * device, gpu_command_queue & commandQueue, gpu_upload_manager * uploadManager, gpu_ring_buffer * ringBuffer) :
+			m_argsTuple(device, &commandQueue, uploadManager, ringBuffer),
 			resource_manager(FUSE_RESOURCE_TYPE_GPU_MESH, reinterpret_cast<args_tuple_type*>(&m_argsTuple)) { }
 
 	protected:
@@ -27,7 +27,7 @@ namespace fuse
 
 	private:
 
-		using args_tuple_type = std::tuple<ID3D12Device*, gpu_upload_manager*>;
+		using args_tuple_type = std::tuple<ID3D12Device*, gpu_command_queue*, gpu_upload_manager*, gpu_ring_buffer*>;
 
 		args_tuple_type m_argsTuple;
 

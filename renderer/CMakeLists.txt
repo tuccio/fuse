@@ -10,6 +10,7 @@ add_executable ( renderer WIN32
 	cbuffer_structs.hpp
 	light.hpp
 	renderable.hpp
+	tonemapper.hpp tonemapper.cpp
 )
 
 target_link_libraries ( renderer fuse ${DirectX12_LIBRARY} )

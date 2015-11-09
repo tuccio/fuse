@@ -15,11 +15,10 @@ struct light
 	light_type        type;
 
 	DirectX::XMFLOAT3 luminance;
-	DirectX::XMFLOAT3 ambient;
 
-	DirectX::XMFLOAT3 position;
+	DirectX::XMFLOAT3 ambient;
 	DirectX::XMFLOAT3 direction;
 
 	float             spotAngle;
-	
+
 };

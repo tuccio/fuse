@@ -32,6 +32,7 @@ application_config                   application_base::m_configuration;
 com_ptr<ID3D12DescriptorHeap>        application_base::m_rtvHeap;
 UINT                                 application_base::m_rtvDescriptorSize;
 UINT                                 application_base::m_dsvDescriptorSize;
+UINT                                 application_base::m_srvDescriptorSize;
 
 std::vector<com_ptr<ID3D12Resource>> application_base::m_renderTargets;
 
@@ -57,13 +58,23 @@ LRESULT CALLBACK application_base::window_proc(HWND   hWnd,
 
 	{
 
-		RECT clientRect;
-		GetClientRect(hWnd, &clientRect);
+		if (wParam == SIZE_MINIMIZED)
+		{
+			// Maybe sleep
+		}
+		else
+		{
 
-		m_screenWidth  = clientRect.right - clientRect.left;
-		m_screenHeight = clientRect.bottom - clientRect.top;
+			RECT clientRect;
+			GetClientRect(hWnd, &clientRect);
 
-		m_resizeSwapChain = true;
+			m_screenWidth = clientRect.right - clientRect.left;
+			m_screenHeight = clientRect.bottom - clientRect.top;
+
+			m_resizeSwapChain = true;
+
+		}
+		
 
 		break;
 
@@ -217,9 +228,16 @@ float application_base::get_fps(void)
 
 }
 
+bool application_base::is_fullscreen(void)
+{
+	BOOL fullscreen;
+	FUSE_HR_CHECK(m_swapChain->GetFullscreenState(&fullscreen, nullptr));
+	return fullscreen;
+}
+
 void application_base::set_fullscreen(bool fullscreen)
 {
-	m_swapChain->SetFullscreenState(fullscreen, nullptr);
+	FUSE_HR_CHECK(m_swapChain->SetFullscreenState(fullscreen, nullptr));
 }
 
 bool application_base::set_cursor(bool clippedFullScreen, bool hidden)
@@ -280,6 +298,7 @@ bool application_base::create_device(D3D_FEATURE_LEVEL featureLevel, bool debug)
 
 		m_rtvDescriptorSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 		m_dsvDescriptorSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
+		m_srvDescriptorSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
 		return true;
 
@@ -348,6 +367,9 @@ bool application_base::create_swap_chain(bool debug, int width, int height)
 
 bool application_base::resize_swap_chain(int width, int height)
 {
+
+	// Wait for all the frames to be completed before resizing
+	m_commandQueue.wait_for_frame(m_commandQueue.get_frame_index());
 
 	m_swapChainBufferDesc.Width  = width;
 	m_swapChainBufferDesc.Height = height;
