@@ -28,8 +28,10 @@ namespace fuse
 		DXGI_SAMPLE_DESC sampleDesc;
 		DXGI_RATIONAL    refreshRate;
 
-		UINT       swapChainBufferCount;
-		DXGI_USAGE swapChainBufferUsage;
+		UINT                 swapChainBufferCount;
+		DXGI_USAGE           swapChainBufferUsage;
+		DXGI_SWAP_EFFECT     swapChainSwapEffect;
+		DXGI_SWAP_CHAIN_FLAG swapChainFlags;
 
 	};
 
@@ -55,6 +57,7 @@ namespace fuse
 
 		inline static void on_update(void) { }
 		inline static void on_render(ID3D12Device * device, gpu_command_queue & commandQueue, D3D12_CPU_DESCRIPTOR_HANDLE rtvDescriptor) { }
+		inline static LRESULT on_message(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) { return 0; }
 
 		static LRESULT CALLBACK on_keyboard(int code, WPARAM wParam, LPARAM lParam);
 		static LRESULT CALLBACK on_mouse(int code, WPARAM wParam, LPARAM lParam);
@@ -274,7 +277,12 @@ namespace fuse
 				while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
 				{
 					TranslateMessage(&msg);
-					DispatchMessage(&msg);
+
+					if (!on_message(msg.hwnd, msg.message, msg.wParam, msg.lParam))
+					{
+						DispatchMessage(&msg);
+					}
+
 				}
 
 				UINT64 lastFrame   = m_commandQueue.get_frame_index();
@@ -293,13 +301,10 @@ namespace fuse
 				}
 
 				auto backBuffer = get_back_buffer();
-				auto globalState = gpu_global_resource_state::get_singleton_pointer();
-
-				if (globalState) globalState->set_state(backBuffer, D3D12_RESOURCE_STATE_PRESENT);
 
 				on_render(get_device(), m_commandQueue, backBuffer, get_back_buffer_descriptor(), get_buffer_index());
 
-				FUSE_HR_CHECK(m_swapChain->Present(m_configuration.syncInterval, m_configuration.presentFlags));
+				FUSE_HR_CHECK(m_swapChain->Present1(m_configuration.syncInterval, m_configuration.presentFlags, &DXGI_PRESENT_PARAMETERS{}));
 				m_commandQueue.advance_frame_index();
 
 			} while (msg.message != WM_QUIT);

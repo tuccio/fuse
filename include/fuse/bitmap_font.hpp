@@ -42,6 +42,7 @@ namespace fuse
 
 		texture_ptr m_texture;
 		std::unordered_map<char, bitmap_char> m_characters;
+		UINT m_height;
 
 		com_ptr<ID3D12DescriptorHeap> m_srvHeap;
 		D3D12_GPU_DESCRIPTOR_HANDLE   m_srvDescriptor;
@@ -52,10 +53,12 @@ namespace fuse
 
 		FUSE_PROPERTIES_BY_VALUE_READ_ONLY(
 			(srv_descriptor, m_srvDescriptor)
+			(height, m_height)
 		)
 
 		FUSE_PROPERTIES_SMART_POINTER_READ_ONLY(
 			(srv_heap, m_srvHeap)
+			(texture, m_texture)
 		)
 
 	};

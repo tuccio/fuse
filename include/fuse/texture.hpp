@@ -3,6 +3,7 @@
 #include <fuse/directx_helper.hpp>
 #include <fuse/resource.hpp>
 #include <fuse/image.hpp>
+#include <fuse/gpu_upload_manager.hpp>
 #include <fuse/gpu_ring_buffer.hpp>
 #include <fuse/properties_macros.hpp>
 
@@ -22,11 +23,15 @@ namespace fuse
 
 		bool create(
 			ID3D12Device * device,
-			gpu_command_queue & uploadManager,
+			gpu_command_queue & commandQueue,
+			gpu_upload_manager * uploadManager,
 			gpu_ring_buffer * ringBuffer,
 			image * image,
-			UINT mipmaps,
-			D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE);
+			UINT mipmaps = 1,
+			D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE,
+			bool generateMipmaps = false);
+
+		void clear(void);
 
 	protected:
 

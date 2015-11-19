@@ -4,6 +4,7 @@
 #include <fuse/gpu_graphics_command_list.hpp>
 #include <fuse/properties_macros.hpp>
 
+#include <queue>
 #include <unordered_map>
 
 namespace fuse
@@ -28,14 +29,17 @@ namespace fuse
 		void shutdown(void);
 
 		inline UINT64 get_fence_value(void) const { return m_fenceValue; }
-		inline UINT64 update_fence_value(void) const { return m_fenceValue = m_fence->GetCompletedValue(); }
 
 		bool wait_for_frame(UINT64 fenceValue, UINT time = INFINITE) const;
 
 		inline void advance_frame_index(void) { FUSE_HR_CHECK((*this)->Signal(m_fence.get(), ++m_frameIndex)); }
 		inline UINT64 get_frame_index(void) const { return m_frameIndex; }
 
+		// Executes a command list, adding the necessary resource barriers depending on the global state
 		void execute(gpu_graphics_command_list & commandList);
+
+		// Releases a resource when the current frame is completed by the GPU
+		void safe_release(ID3D12Resource * resource) const;
 
 	private:
 
@@ -46,6 +50,12 @@ namespace fuse
 
 		ID3D12CommandAllocator    * m_auxCommandAllocator;
 		ID3D12GraphicsCommandList * m_auxCommandList;
+
+		typedef std::pair<uint32_t, com_ptr<ID3D12Resource>> garbage_type;
+
+		mutable std::queue<garbage_type> m_garbage;
+
+		void collect_garbage(void) const;
 
 	public:
 

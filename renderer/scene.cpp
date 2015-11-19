@@ -51,7 +51,9 @@ void visit_assimp_scene_dfs(const aiScene * scene, Visitor visitor)
 
 		XMMATRIX world      = parentTransform.top();
 		XMMATRIX local      = XMMatrixTranspose(to_xmmatrix(node->mTransformation)); // Transpose because assimp uses column vector algebra
+		//local = XMMatrixIdentity();
 		XMMATRIX worldLocal = local * world;
+
 
 		if (!visitor(scene, node, world, local, worldLocal))
 		{
@@ -120,11 +122,16 @@ bool scene::import_static_objects(assimp_loader * loader)
 				return false;
 			}
 
-			renderable object;
+			sphere boundingSphere = bounding_sphere(
+				reinterpret_cast<const XMFLOAT3 *>(nodeMesh->get_vertices()),
+				reinterpret_cast<const XMFLOAT3 *>(nodeMesh->get_vertices()) + nodeMesh->get_num_vertices());
 
-			object.set_world_matrix(worldLocal);
-			object.set_material(nodeMaterial);
-			object.set_mesh(nodeGPUMesh);
+			renderable * object = new renderable;
+
+			object->set_world_matrix(worldLocal);
+			object->set_material(nodeMaterial);
+			object->set_mesh(nodeGPUMesh);
+			object->set_bounding_sphere(boundingSphere);
 
 			m_staticObjects.push_back(object);
 
@@ -177,7 +184,7 @@ bool scene::import_cameras(assimp_loader * loader)
 	for (int i = 0; i < scene->mNumCameras; i++)
 	{
 			
-		camera camera;
+		camera * camera = new fuse::camera;
 
 		aiNode * node;
 		XMMATRIX transform;
@@ -197,10 +204,10 @@ bool scene::import_cameras(assimp_loader * loader)
 			lookAt   = to_float3(XMVector3Transform(to_vector(lookAt), transform));
 		}
 
-		camera.look_at(position, up, lookAt);
+		camera->look_at(position, up, lookAt);
 
-		camera.set_znear(scene->mCameras[i]->mClipPlaneNear);
-		camera.set_zfar(scene->mCameras[i]->mClipPlaneFar);
+		camera->set_znear(scene->mCameras[i]->mClipPlaneNear);
+		camera->set_zfar(scene->mCameras[i]->mClipPlaneFar);
 		//camera.set_aspect_ratio(scene->mCameras[i]->mAspect);
 		//camera.set_fovx(scene->mCameras[i]->mHorizontalFOV);
 
@@ -210,7 +217,7 @@ bool scene::import_cameras(assimp_loader * loader)
 
 	if (!m_cameras.empty() && !m_activeCamera)
 	{
-		m_activeCamera = &m_cameras.front();
+		m_activeCamera = m_cameras.front();
 	}
 
 	return true;
@@ -239,12 +246,12 @@ bool scene::import_lights(assimp_loader * loader)
 
 			XMVECTOR direction = XMVector3Normalize(XMVector3Transform(to_vector(to_xmfloat3(scene->mLights[i]->mDirection)), transform));
 
-			light light;
+			light * light = new ::light;
 
-			light.type      = LIGHT_TYPE_DIRECTIONAL;
-			light.ambient   = to_xmfloat3(scene->mLights[i]->mColorAmbient);
-			light.luminance = to_xmfloat3(scene->mLights[i]->mColorDiffuse);
-			light.direction = XMVector3Equal(direction, XMVectorZero()) ? XMFLOAT3(0, 1, 0) : to_float3(direction);
+			light->type      = FUSE_LIGHT_TYPE_DIRECTIONAL;
+			light->ambient   = to_xmfloat3(scene->mLights[i]->mColorAmbient);
+			light->luminance = to_xmfloat3(scene->mLights[i]->mColorDiffuse);
+			light->direction = XMVector3Equal(direction, XMVectorZero()) ? XMFLOAT3(0, 1, 0) : to_float3(direction);
 
 			m_lights.push_back(light);
 
@@ -256,17 +263,29 @@ bool scene::import_lights(assimp_loader * loader)
 
 }
 
-std::pair<renderable_iterator, renderable_iterator> scene::get_static_objects_iterators(void)
+std::pair<renderable_iterator, renderable_iterator> scene::get_static_objects(void)
 {
 	return std::make_pair(m_staticObjects.begin(), m_staticObjects.end());
 }
 
-std::pair<camera_iterator, camera_iterator> scene::get_cameras_iterators(void)
+std::pair<camera_iterator, camera_iterator> scene::get_cameras(void)
 {
 	return std::make_pair(m_cameras.begin(), m_cameras.end());
 }
 
-std::pair<light_iterator, light_iterator> scene::get_lights_iterators(void)
+std::pair<light_iterator, light_iterator> scene::get_lights(void)
 {
 	return std::make_pair(m_lights.begin(), m_lights.end());
+}
+
+void scene::clear(void)
+{
+
+	for (auto r : m_staticObjects)
+	{
+		delete r;
+	}
+
+	m_staticObjects.clear();
+
 }

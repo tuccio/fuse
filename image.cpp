@@ -1,18 +1,41 @@
 #include <fuse/image.hpp>
 #include <fuse/logger.hpp>
 
+#include <IL/il.h>
 #include <IL/ilu.h>
 
 #include <utility>
 
 using namespace fuse;
 
+image::devil_initializer::devil_initializer(void) { ilInit(); }
+image::devil_initializer::~devil_initializer(void) { ilShutDown(); }
+
 image::devil_initializer image::m_initializer;
 
 static std::pair<ILenum, ILenum> get_image_devil_format(image_format format);
 
-image::image(void) :
-	m_handle(IL_INVALID_VALUE) { }
+struct scoped_devil_handle
+{
+
+	ILuint handle;
+
+	operator ILuint () { return handle; }
+
+	scoped_devil_handle(void) : handle(IL_INVALID_VALUE) { }
+	scoped_devil_handle(ILuint handle) : handle(handle) { }
+
+	~scoped_devil_handle(void)
+	{
+		if (handle != IL_INVALID_VALUE)
+		{
+			ilDeleteImage(handle);
+		}
+	}
+
+	scoped_devil_handle & operator= (ILuint handle) { this->handle = handle; }
+
+};
 
 image::image(const char * name, resource_loader * loader, resource_manager * owner) :
 	resource(name, loader, owner) { }
@@ -25,18 +48,16 @@ image::~image(void)
 bool image::load_impl(void)
 {
 
-	bool loaded;
+	bool loaded = false;
 
 	clear();
 
-	m_handle = ilGenImage();
+	scoped_devil_handle handle = ilGenImage();
 
-	if (m_handle != IL_INVALID_VALUE)
+	if (handle != IL_INVALID_VALUE)
 	{
 
-		ilBindImage(m_handle);
-
-		bool exception = false;
+		ilBindImage(handle);
 
 		if (ilLoadImage(get_name()))
 		{
@@ -46,34 +67,36 @@ bool image::load_impl(void)
 
 			auto format = get_parameters().get_optional<int>("format");
 
-			if (!format) format = FUSE_IMAGE_FORMAT_R8G8B8A8_UINT;
+			if (!format)
+			{
+				format = FUSE_IMAGE_FORMAT_R8G8B8A8_UINT;
+			}
 
 			m_format = static_cast<image_format>(*format);
+
 			auto ilFormat = get_image_devil_format(m_format);
 
 			if (!ilFormat.first)
 			{
-				ilFormat.first = IL_RGBA;
-				ilFormat.second = IL_BYTE;
-				m_format = FUSE_IMAGE_FORMAT_R8G8B8A8_UINT;
+				ilFormat.first  = IL_RGBA;
+				ilFormat.second = IL_UNSIGNED_BYTE;
+				m_format        = FUSE_IMAGE_FORMAT_R8G8B8A8_UINT;
 			}
 
-			bool converted = ilConvertImage(ilFormat.first, ilFormat.second);
-
-			if (converted)
+			if (ilGetInteger(IL_IMAGE_ORIGIN) == IL_ORIGIN_LOWER_LEFT)
 			{
-
-				if (ilGetInteger(IL_IMAGE_ORIGIN) == IL_ORIGIN_LOWER_LEFT)
-				{
-					iluFlipImage();
-				}
-
-				loaded = true;
-
-				m_width  = ilGetInteger(IL_IMAGE_WIDTH);
-				m_height = ilGetInteger(IL_IMAGE_HEIGHT);
-
+				iluFlipImage();
 			}
+
+			m_width  = ilGetInteger(IL_IMAGE_WIDTH);
+			m_height = ilGetInteger(IL_IMAGE_HEIGHT);
+
+			size_t size = get_dxgi_format_byte_size(get_dxgi_format(m_format));
+
+			m_data.resize(m_width * m_height * size);
+
+			ILuint copyResult = ilCopyPixels(0, 0, 0, m_width, m_height, 1, ilFormat.first, ilFormat.second, &m_data[0]);
+			loaded = (m_data.size() == copyResult);
 
 		}
 		else
@@ -96,19 +119,12 @@ void image::unload_impl(void)
 
 size_t image::calculate_size_impl(void)
 {
-	ilBindImage(m_handle);
-	return ilGetInteger(IL_IMAGE_SIZE_OF_DATA);
+	return m_data.size();
 }
 
 void image::clear(void)
 {
-
-	if (m_handle != IL_INVALID_VALUE)
-	{
-		ilDeleteImage(m_handle);
-		m_handle = IL_INVALID_VALUE;
-	}
-
+	m_data.clear();
 }
 
 static std::pair<ILenum, ILenum> get_image_devil_format(image_format format)
@@ -132,7 +148,7 @@ static std::pair<ILenum, ILenum> get_image_devil_format(image_format format)
 
 	case FUSE_IMAGE_FORMAT_R8G8B8_UINT:
 		formatChannels = IL_RGB;
-		formatDataType = IL_BYTE;
+		formatDataType = IL_UNSIGNED_BYTE;
 		break;
 
 	case FUSE_IMAGE_FORMAT_R16G16B16A16_FLOAT:
@@ -147,12 +163,12 @@ static std::pair<ILenum, ILenum> get_image_devil_format(image_format format)
 
 	case FUSE_IMAGE_FORMAT_R8G8B8A8_UINT:
 		formatChannels = IL_RGBA;
-		formatDataType = IL_BYTE;
+		formatDataType = IL_UNSIGNED_BYTE;
 		break;
 
 	case FUSE_IMAGE_FORMAT_A8_UINT:
 		formatChannels = IL_ALPHA;
-		formatDataType = IL_BYTE;
+		formatDataType = IL_UNSIGNED_BYTE;
 		break;
 
 	default:
@@ -193,5 +209,23 @@ DXGI_FORMAT fuse::get_dxgi_format(image_format format)
 		return DXGI_FORMAT_A8_UNORM;
 
 	}
+
+}
+
+bool image::create(image_format format, uint32_t width, uint32_t height, const void * data)
+{
+
+	size_t size = width * height * get_dxgi_format_byte_size(get_dxgi_format(format));
+
+	m_data.resize(size);
+
+	m_width = width;
+	m_height = height;
+
+	m_format = format;
+
+	memcpy(&m_data[0], data, size);
+
+	return true;
 
 }

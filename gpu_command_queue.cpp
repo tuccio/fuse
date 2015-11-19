@@ -47,8 +47,16 @@ void gpu_command_queue::shutdown(void)
 	
 	if (m_hFenceEvent)
 	{
+		
+		if (get())
+		{
+			advance_frame_index();
+			wait_for_frame(m_frameIndex);
+		}
+
 		CloseHandle(m_hFenceEvent);
 		m_hFenceEvent = NULL;
+
 	}
 
 	if (m_fence)
@@ -63,7 +71,11 @@ void gpu_command_queue::shutdown(void)
 bool gpu_command_queue::wait_for_frame(UINT64 fenceValue, UINT time) const
 {
 
-	if (update_fence_value() >= fenceValue)
+	collect_garbage();
+
+	m_fenceValue = m_fence->GetCompletedValue();
+
+	if (m_fenceValue >= fenceValue)
 	{
 		return true;
 	}
@@ -138,4 +150,17 @@ void gpu_command_queue::execute(gpu_graphics_command_list & commandList)
 
 	commandList.m_pending.clear();
 
+}
+
+void gpu_command_queue::safe_release(ID3D12Resource * resource) const
+{
+	m_garbage.push(garbage_type(m_frameIndex, com_ptr<ID3D12Resource>(resource)));
+}
+
+void gpu_command_queue::collect_garbage(void) const
+{
+	while (!m_garbage.empty() && m_garbage.front().first < m_fenceValue)
+	{
+		m_garbage.pop();
+	}
 }

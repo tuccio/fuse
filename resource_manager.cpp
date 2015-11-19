@@ -27,11 +27,14 @@ std::shared_ptr<resource> resource_manager::create(const char * name,
 			m_namedResources[name] = newID;
 		}
 
-
 		hResource = std::shared_ptr<resource>(newResource);
 		m_resources[newID] = hResource;
 
+		newResource->set_parameters(parameters);
+
 	}
+
+	
 
 	return hResource;
 

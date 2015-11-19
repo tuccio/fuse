@@ -25,8 +25,19 @@ bool bitmap_font::load_impl(void)
 	std::string imageFile = name + (*imageExt);
 	std::string metaFile  = name + (*metaExt);
 
+	resource::parameters_type imageParams;
+
+	imageParams.put<UINT>("format", static_cast<UINT>(FUSE_IMAGE_FORMAT_A8_UINT));
+
+	resource::parameters_type textureParams;
+	textureParams.put<UINT>("mipmaps", 0);
+	textureParams.put<bool>("generate_mipmaps", true);
+
+	resource_factory::get_singleton_pointer()->
+		create<image>(FUSE_RESOURCE_TYPE_IMAGE, imageFile.c_str(), imageParams);
+
 	m_texture = resource_factory::get_singleton_pointer()->
-		create<texture>(FUSE_RESOURCE_TYPE_TEXTURE, imageFile.c_str());
+		create<texture>(FUSE_RESOURCE_TYPE_TEXTURE, imageFile.c_str(), textureParams);
 
 	if (m_texture->load() && load_metafile(metaFile.c_str()))
 	{
@@ -37,8 +48,8 @@ bool bitmap_font::load_impl(void)
 		D3D12_DESCRIPTOR_HEAP_DESC srvDesc = {};
 
 		srvDesc.NumDescriptors = 1;
-		srvDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-		srvDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+		srvDesc.Type           = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+		srvDesc.Flags          = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 
 		if (!FUSE_HR_FAILED(device->CreateDescriptorHeap(&srvDesc, IID_PPV_ARGS(&m_srvHeap))))
 		{
@@ -81,8 +92,10 @@ bool bitmap_font::load_metafile(const char * metafile)
 		if (font)
 		{
 
-			float width  = (float) m_texture->get_width();
-			float height = (float) m_texture->get_height();
+			m_height = font->get<UINT>("<xmlattr>.height");
+
+			float invWidth  = 1.f / m_texture->get_width();
+			float invHeight = 1.f / m_texture->get_height();
 
 			for (auto character : *font)
 			{
@@ -90,20 +103,28 @@ bool bitmap_font::load_metafile(const char * metafile)
 				if (boost::iequals(character.first, "char"))
 				{
 
-					std::stringstream ssRect(character.second.get<std::string>("<xmlattr>.rect"));
+					auto rectString = character.second.get<std::string>("<xmlattr>.rect");
+					std::stringstream ssRect(rectString);
+					
+					auto offsetString = character.second.get<std::string>("<xmlattr>.offset");
+					std::stringstream ssOffset(offsetString);
 
 					bitmap_char c;
 
 					ssRect >> c.rect.left >> c.rect.top >> c.rect.right >> c.rect.bottom;
+					ssOffset >> c.offset[0] >> c.offset[1];
+
+					c.rect.right  += c.rect.left;
+					c.rect.bottom += c.rect.top;
 
 					c.code = character.second.get<char>("<xmlattr>.code");
 					c.width = character.second.get<unsigned int>("<xmlattr>.width");
 
-					c.minUV[0] = c.rect.left / width;
-					c.minUV[0] = c.rect.top / height;
+					c.minUV[0] = (c.rect.left + .5f) * invWidth;
+					c.minUV[1] = (c.rect.top + .5f) * invHeight;
 
-					c.minUV[1] = c.rect.right / width;
-					c.minUV[1] = c.rect.bottom / height;
+					c.maxUV[0] = (c.rect.right + .5f) * invWidth;
+					c.maxUV[1] = (c.rect.bottom + .5f) * invHeight;
 
 					m_characters[c.code] = c;
 

@@ -9,8 +9,13 @@ void gpu_graphics_command_list::resource_barrier_transition(ID3D12Resource * res
 
 	if (it != m_pending.end())
 	{
-		get()->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(resource, it->second.second, requestedState));
-		it->second.second = requestedState;
+
+		if (it->second.second != requestedState)
+		{
+			get()->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(resource, it->second.second, requestedState));
+			it->second.second = requestedState;
+		}
+		
 	}
 	else
 	{

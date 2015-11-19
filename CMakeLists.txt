@@ -23,6 +23,22 @@ include_directories ( ${IL_INCLUDE_DIR} )
 
 set ( CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} /fp:fast )
 
+set ( libRocket_INCLUDE_DIR libRocket/include )
+
+set (
+	libRocket_LIBRARIES
+	optimized ${CMAKE_SOURCE_DIR}/libRocket/lib/Release/RocketCore.lib
+	optimized ${CMAKE_SOURCE_DIR}/libRocket/lib/Release/RocketControls.lib
+	optimized ${CMAKE_SOURCE_DIR}/libRocket/lib/Release/RocketDebugger.lib
+	debug ${CMAKE_SOURCE_DIR}/libRocket/lib/Debug/RocketCore.lib
+	debug ${CMAKE_SOURCE_DIR}/libRocket/lib/Debug/RocketControls.lib
+	debug ${CMAKE_SOURCE_DIR}/libRocket/lib/Debug/RocketDebugger.lib
+)
+
+set ( freetype_LIBRARY ${CMAKE_SOURCE_DIR}/freetype/lib/freetype240.lib )
+
+add_definitions ( -DROCKET_STATIC_LIB )
+
 if (FUSE_SSE2)
 
 	set ( CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} /arch:SSE2 )
@@ -30,7 +46,7 @@ if (FUSE_SSE2)
 endif (FUSE_SSE2)
 
 if (FUSE_SHADER_DEBUG)
-	add_definitions ( "-DFUSE_COMPILE_SHADER_GLOBAL_OPTIONS=(D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION | D3DCOMPILE_PREFER_FLOW_CONTROL)" -DD3DCOMPILE_DEBUG=1 )
+	add_definitions ( "-DFUSE_COMPILE_SHADER_GLOBAL_OPTIONS=(D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION | D3DCOMPILE_PREFER_FLOW_CONTROL)" )
 endif (FUSE_SHADER_DEBUG)
 
 if ( ASSIMP_FOUND AND FUSE_ASSIMP )
@@ -39,6 +55,8 @@ if ( ASSIMP_FOUND AND FUSE_ASSIMP )
 	include_directories ( ${ASSIMP_INCLUDE_DIR} )
 	
 endif ( ASSIMP_FOUND AND FUSE_ASSIMP )
+
+include_directories ( ${libRocket_INCLUDE_DIR} )
 
 add_library ( fuse
 	include/fuse/singleton.hpp
@@ -80,7 +98,16 @@ add_library ( fuse
 	include/fuse/texture_manager.hpp
 	include/fuse/gpu_graphics_command_list.hpp gpu_graphics_command_list.cpp
 	include/fuse/gpu_global_resource_state.hpp
+	include/fuse/mipmap_generator.hpp mipmap_generator.cpp
+	include/fuse/rocket_interface.hpp rocket_interface.cpp
+	include/fuse/rocket_input.hpp rocket_input.cpp
+	include/fuse/geometry.hpp
+	include/fuse/geometry/sphere.hpp sphere.cpp
+	include/fuse/geometry/aabb.hpp aabb.cpp
+	include/fuse/geometry/frustum.hpp frustum.cpp
+	include/fuse/geometry/plane.hpp plane.cpp
+	include/fuse/geometry/bounding_volumes.hpp
+	include/fuse/geometry/transform_affine.hpp
 )
 
-add_subdirectory ( sample )
 add_subdirectory ( renderer )

@@ -271,6 +271,8 @@ void application_base::set_default_configuration(void)
 	m_configuration.swapChainBufferUsage    = DXGI_USAGE_RENDER_TARGET_OUTPUT;
 	m_configuration.sampleDesc.Count        = 1;
 	m_configuration.refreshRate.Denominator = 1;
+	m_configuration.swapChainFlags          = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
+	m_configuration.swapChainSwapEffect     = DXGI_SWAP_EFFECT_FLIP_DISCARD;
 
 }
 
@@ -335,8 +337,8 @@ bool application_base::create_swap_chain(bool debug, int width, int height)
 	swapChainDesc.BufferUsage                 = m_configuration.swapChainBufferUsage;
 	swapChainDesc.OutputWindow                = m_hWnd;
 	swapChainDesc.Windowed                    = TRUE;
-	swapChainDesc.SwapEffect                  = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL;
-	swapChainDesc.Flags                       = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
+	swapChainDesc.SwapEffect                  = m_configuration.swapChainSwapEffect;
+	swapChainDesc.Flags                       = m_configuration.swapChainFlags;
 
 	swapChainDesc.SampleDesc                  = m_configuration.sampleDesc;
 
@@ -418,6 +420,8 @@ void application_base::release_render_target_views(void)
 bool application_base::get_swap_chain_buffers(void)
 {
 
+	auto globalState = gpu_global_resource_state::get_singleton_pointer();
+
 	m_renderTargets.resize(m_configuration.swapChainBufferCount);
 
 	for (int i = 0; i < m_configuration.swapChainBufferCount; i++)
@@ -425,7 +429,14 @@ bool application_base::get_swap_chain_buffers(void)
 
 		if (!FUSE_HR_FAILED(m_swapChain->GetBuffer(i, IID_PPV_ARGS(&m_renderTargets[i]))))
 		{
+
 			FUSE_HR_CHECK(m_renderTargets[i]->SetName(L"fuse_swapchain_buffer"));
+
+			if (globalState)
+			{
+				globalState->set_state(m_renderTargets[i].get(), D3D12_RESOURCE_STATE_PRESENT);
+			}
+
 		}
 		else
 		{

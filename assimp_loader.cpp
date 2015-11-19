@@ -275,6 +275,7 @@ bool assimp_loader::load_material(material * m)
 
 	if (pMat->Get(AI_MATKEY_SHADING_MODEL, shadingModel) == aiReturn_SUCCESS)
 	{
+
 		switch (shadingModel)
 		{
 

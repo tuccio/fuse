@@ -1,10 +1,6 @@
 #include "scene_data.hlsli"
 
-cbuffer cbPerFrame : register(b0)
-{
-	camera g_camera;
-	screen g_screen;
-};
+USE_CB_PER_FRAME(b0)
 
 struct VSInput
 {
@@ -30,6 +26,11 @@ PSInput text_vs(VSInput input)
 	
 	output.color    = input.color;
 	output.texcoord = input.texcoord;
+	//output.position = mul(float4(input.position, 0, 1), g_screen.orthoProjection);
+	
+	//output.position = float4(input.position / g_screen.resolution - 1.f, 0, 1);
+	//output.position.y = - output.position.y;
+	
 	output.position = mul(float4(input.position, 0, 1), g_screen.orthoProjection);
 
 	return output;

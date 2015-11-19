@@ -1,5 +1,9 @@
 #pragma once
 
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+
 #include <Windows.h>
 
 #include <fuse/logger.hpp>
@@ -125,6 +129,31 @@ namespace fuse
 			assert(false && "get_dxgi_format_size unknown type");
 			return 0;
 		}
+
+	}
+
+	inline D3D12_VIEWPORT make_fullscreen_viewport(float width, float height)
+	{
+
+		D3D12_VIEWPORT viewport = {};
+
+		viewport.Height   = height;
+		viewport.Width    = width;
+		viewport.MaxDepth = 1.f;
+
+		return viewport;
+
+	}
+
+	inline D3D12_RECT make_fullscreen_scissor_rect(UINT width, UINT height)
+	{
+
+		D3D12_RECT scissorRect = {};
+
+		scissorRect.right  = width;
+		scissorRect.bottom = height;
+
+		return scissorRect;
 
 	}
 

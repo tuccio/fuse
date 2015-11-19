@@ -38,9 +38,7 @@ bool gpu_mesh::create(ID3D12Device * device, gpu_command_queue & commandQueue, g
 	float * tmp = (float*)bufferPosition;
 
 	size_t verticesBufferSize = mesh->get_num_vertices() * 3 * sizeof(float);
-	//std::memcpy(intermediateBuffer.get(), mesh->get_vertices(), verticesBufferSize);
 	offset += verticesBufferSize;
-
 
 	std::memcpy(bufferPosition, mesh->get_vertices(), verticesBufferSize);
 	bufferPosition += verticesBufferSize;
@@ -49,7 +47,6 @@ bool gpu_mesh::create(ID3D12Device * device, gpu_command_queue & commandQueue, g
 
 	size_t indicesBufferSize = mesh->get_num_triangles() * 3 * sizeof(uint32_t);
 
-	//std::memcpy(intermediateBuffer.get() + offset, mesh->get_indices(), indicesBufferSize);
 	offset += indicesBufferSize;
 
 	std::memcpy(bufferPosition, mesh->get_indices(), indicesBufferSize);
@@ -98,8 +95,6 @@ bool gpu_mesh::create(ID3D12Device * device, gpu_command_queue & commandQueue, g
 		{
 
 			uint32_t copySize = dataSize[iteratorIndex];
-
-			//std::memcpy(intermediateBuffer.get() + offset, iterators[iteratorIndex], copySize);
 
 			std::memcpy(bufferPosition, iterators[iteratorIndex], copySize);
 			bufferPosition += copySize;
@@ -170,9 +165,12 @@ bool gpu_mesh::load_impl(void)
 
 	if (m && m->load())
 	{
+
 		using args_tuple = std::tuple<ID3D12Device*, gpu_command_queue*, gpu_upload_manager*, gpu_ring_buffer*>;
 		args_tuple * args = get_owner_userdata<args_tuple*>();
+
 		return create(std::get<0>(*args), *std::get<1>(*args), std::get<2>(*args), std::get<3>(*args), m.get());
+
 	}
 
 	return false;
@@ -181,7 +179,14 @@ bool gpu_mesh::load_impl(void)
 
 void gpu_mesh::unload_impl(void)
 {
+
+	using args_tuple = std::tuple<ID3D12Device*, gpu_command_queue*, gpu_upload_manager*, gpu_ring_buffer*>;
+	args_tuple * args = get_owner_userdata<args_tuple*>();
+
+	std::get<1>(*args)->safe_release(m_dataBuffer.get());
+
 	clear();
+
 }
 
 size_t gpu_mesh::calculate_size_impl(void)

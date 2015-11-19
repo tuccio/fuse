@@ -20,6 +20,21 @@
 namespace fuse
 {
 
+	struct deferred_renderer_configuration
+	{
+		DXGI_FORMAT gbufferFormat[4];
+		DXGI_FORMAT dsvFormat;
+		DXGI_FORMAT shadingFormat;
+	};
+
+	struct shadow_map_info
+	{
+		// TODO: Add algorithms
+		ID3D12Resource * shadowMap;
+		D3D12_GPU_DESCRIPTOR_HANDLE shadowMapTable;
+		XMMATRIX lightMatrix;
+	};
+
 	class deferred_renderer
 	{
 
@@ -28,10 +43,8 @@ namespace fuse
 		deferred_renderer(void);
 		deferred_renderer(const deferred_renderer &) = delete;
 
-		bool init(ID3D12Device * device);
+		bool init(ID3D12Device * device, const deferred_renderer_configuration & cfg);
 		void shutdown(void);
-
-		void render_init(scene * scene);
 
 		void render_gbuffer(
 			ID3D12Device * device,
@@ -42,7 +55,10 @@ namespace fuse
 			D3D12_GPU_VIRTUAL_ADDRESS cbPerFrame,
 			const D3D12_CPU_DESCRIPTOR_HANDLE * gbuffer,
 			const D3D12_CPU_DESCRIPTOR_HANDLE * dsv,
-			ID3D12Resource ** gbufferResources);
+			ID3D12Resource ** gbufferResources,
+			const camera * camera,
+			renderable_iterator begin,
+			renderable_iterator end);
 
 		void render_light(
 			ID3D12Device * device,
@@ -55,7 +71,8 @@ namespace fuse
 			const D3D12_GPU_DESCRIPTOR_HANDLE & gbufferSRVDescTable,
 			const D3D12_CPU_DESCRIPTOR_HANDLE * rtv,
 			ID3D12Resource ** gbufferResources,
-			const light * light);
+			const light * light,
+			const shadow_map_info * shadowMapInfo = nullptr);
 
 	private:
 
@@ -67,10 +84,10 @@ namespace fuse
 		com_ptr<ID3D12PipelineState> m_shadingPSO;
 		com_ptr<ID3D12RootSignature> m_shadingRS;
 
-		camera * m_camera;
-
 		D3D12_VIEWPORT m_viewport;
 		D3D12_RECT     m_scissorRect;
+
+		deferred_renderer_configuration m_configuration;
 
 		static inline renderable * get_address(renderable * r) { return r; }
 		static inline renderable * get_address(renderable & r) { return &r; }

@@ -120,8 +120,11 @@ LRESULT fps_camera_controller::on_mouse(WPARAM wParam, LPARAM lParam)
 
 		LPMOUSEHOOKSTRUCT mouseStruct = (LPMOUSEHOOKSTRUCT)lParam;
 
-		static XMVECTOR lastPos = fuse::to_vector(XMFLOAT2(mouseStruct->pt.x, mouseStruct->pt.y));
-		XMVECTOR to = fuse::to_vector(XMFLOAT2(mouseStruct->pt.x, mouseStruct->pt.y));
+		POINT pt = mouseStruct->pt;
+		ScreenToClient(mouseStruct->hwnd, &pt);
+
+		static XMVECTOR lastPos = fuse::to_vector(XMFLOAT2(pt.x, pt.y));
+		XMVECTOR to = fuse::to_vector(XMFLOAT2(pt.x, pt.y));
 
 		if (m_rotating)
 		{
@@ -143,9 +146,15 @@ LRESULT fps_camera_controller::on_mouse(WPARAM wParam, LPARAM lParam)
 
 		if (m_centerMouse)
 		{
+
 			lastPos = to_vector(m_screenCenter);
 			m_centeringMouse = true;
-			SetCursorPos(m_screenCenter.x, m_screenCenter.y);
+
+			POINT screenCenter = { m_screenCenter.x, m_screenCenter.y };
+
+			ClientToScreen(mouseStruct->hwnd, &screenCenter);
+			SetCursorPos(screenCenter.x, screenCenter.y);
+
 		}
 		else
 		{

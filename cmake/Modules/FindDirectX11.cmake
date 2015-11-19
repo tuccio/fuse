@@ -36,7 +36,7 @@ if (WIN32)
 	
 	if (DirectX11_FOUND)
 	
-		set ( DirectX11_LIBRARY "${DirectX11_D3D11_LIBRARY} ${DirectX11_D3DCOMPILER_LIBRARY}" )
+		set ( DirectX11_LIBRARY ${DirectX11_D3D11_LIBRARY} ${DirectX11_D3DCOMPILER_LIBRARY} )
 		
 	elseif (DirectX11_FIND_REQUIRED)
 	

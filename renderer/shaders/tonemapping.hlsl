@@ -9,6 +9,7 @@ void tonemap_cs(uint3 tid : SV_DispatchThreadID)
 	
 	float3 tonemappedColor = color / (1 + color);
 	
+	//g_output[tid.xy] = float4(color, 1);
 	g_output[tid.xy] = float4(tonemappedColor, 1);
 
 }

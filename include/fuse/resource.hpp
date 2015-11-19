@@ -25,6 +25,7 @@ namespace fuse
 
 	struct resource_loader
 	{
+		virtual ~resource_loader(void) = default;
 		virtual bool load(resource *) = 0;
 		virtual void unload(resource *) = 0;
 	};

@@ -13,37 +13,16 @@ using namespace fuse;
 
 deferred_renderer::deferred_renderer(void) { }
 
-bool deferred_renderer::init(ID3D12Device * device)
+bool deferred_renderer::init(ID3D12Device * device, const deferred_renderer_configuration & cfg)
 {
 
+	m_configuration = cfg;
 	return create_psos(device);
 
 }
 
 void deferred_renderer::shutdown(void)
 {
-
-}
-
-void deferred_renderer::render_init(scene * scene)
-{
-
-	m_staticObjects.clear();
-
-	auto staticObjectsIterators = scene->get_static_objects_iterators();
-
-	// TODO: Culling
-
-	for (auto it = staticObjectsIterators.first; it != staticObjectsIterators.second; it++)
-	{
-		m_staticObjects.push_back(&*it);
-	}
-
-	m_camera = scene->get_active_camera();
-
-	assert(m_camera && "No active camera in the scene");
-
-	// TODO: Maybe sort by material
 
 }
 
@@ -56,11 +35,16 @@ void deferred_renderer::render_gbuffer(
 	D3D12_GPU_VIRTUAL_ADDRESS cbPerFrame,
 	const D3D12_CPU_DESCRIPTOR_HANDLE * gbuffer,
 	const D3D12_CPU_DESCRIPTOR_HANDLE * dsv,
-	ID3D12Resource ** gbufferResources)
+	ID3D12Resource ** gbufferResources,
+	const camera * camera,
+	renderable_iterator begin,
+	renderable_iterator end)
 {
 
-	auto view              = m_camera->get_view_matrix();
-	auto projection        = m_camera->get_projection_matrix();
+	/* Maybe sort the object first */
+
+	auto view              = camera->get_view_matrix();
+	auto projection        = camera->get_projection_matrix();
 	auto viewProjection    = XMMatrixMultiply(view, projection);
 	auto invViewProjection = XMMatrixInverse(&XMMatrixDeterminant(viewProjection), viewProjection);
 
@@ -71,9 +55,10 @@ void deferred_renderer::render_gbuffer(
 	commandList.resource_barrier_transition(gbufferResources[0], D3D12_RESOURCE_STATE_RENDER_TARGET);
 	commandList.resource_barrier_transition(gbufferResources[1], D3D12_RESOURCE_STATE_RENDER_TARGET);
 	commandList.resource_barrier_transition(gbufferResources[2], D3D12_RESOURCE_STATE_RENDER_TARGET);
-	commandList.resource_barrier_transition(gbufferResources[3], D3D12_RESOURCE_STATE_DEPTH_WRITE);
+	commandList.resource_barrier_transition(gbufferResources[3], D3D12_RESOURCE_STATE_RENDER_TARGET);
+	commandList.resource_barrier_transition(gbufferResources[4], D3D12_RESOURCE_STATE_DEPTH_WRITE);
 
-	commandList->OMSetRenderTargets(3, gbuffer, false, dsv);
+	commandList->OMSetRenderTargets(4, gbuffer, false, dsv);
 
 	commandList->RSSetViewports(1, &m_viewport);
 	commandList->RSSetScissorRects(1, &m_scissorRect);
@@ -89,22 +74,22 @@ void deferred_renderer::render_gbuffer(
 	material defaultMaterial;
 	defaultMaterial.set_default();
 
-	UINT fenceValue = 0;
-
-	for (auto renderable : m_staticObjects)
+	for (auto it = begin; it != end; it++)
 	{
+
+		renderable * object = *it;
 
 		/* Fill buffer per object */
 
-		auto world = renderable->get_world_matrix();;
+		auto world = object->get_world_matrix();;
 
 		cb_per_object cbPerObject;
 
 		cbPerObject.transform.world               = XMMatrixTranspose(world);
-		cbPerObject.transform.worldView           = XMMatrixTranspose(XMMatrixMultiply(world, view));
-		cbPerObject.transform.worldViewProjection = XMMatrixTranspose(XMMatrixMultiply(world, viewProjection));
+		cbPerObject.transform.worldView           = XMMatrixMultiplyTranspose(world, view);
+		cbPerObject.transform.worldViewProjection = XMMatrixMultiplyTranspose(world, viewProjection);
 
-		auto objectMaterial = renderable->get_material();
+		auto objectMaterial = object->get_material();
 
 		material * materialData = (objectMaterial && objectMaterial->load()) ? objectMaterial.get() : &defaultMaterial;
 
@@ -126,7 +111,7 @@ void deferred_renderer::render_gbuffer(
 
 			/* Draw */
 
-			auto mesh = renderable->get_mesh();
+			auto mesh = object->get_mesh();
 
 			if (mesh && mesh->load())
 			{
@@ -144,7 +129,7 @@ void deferred_renderer::render_gbuffer(
 
 	}
 
-	commandList->Close();
+	FUSE_HR_CHECK(commandList->Close());
 
 	commandQueue.execute(commandList);
 
@@ -156,26 +141,31 @@ void deferred_renderer::render_light(
 	ID3D12CommandAllocator * commandAllocator,
 	gpu_graphics_command_list & commandList,
 	gpu_ring_buffer * ringBuffer,
-	ID3D12DescriptorHeap * gbufferHeap,
+	ID3D12DescriptorHeap * srvHeap,
 	D3D12_GPU_VIRTUAL_ADDRESS cbPerFrame,
 	const D3D12_GPU_DESCRIPTOR_HANDLE & gbufferSRVDescTable,
 	const D3D12_CPU_DESCRIPTOR_HANDLE * rtv,
 	ID3D12Resource ** gbufferResources,
-	const light * light)
+	const light * light,
+	const shadow_map_info * shadowMapInfo)
 {
 
 	D3D12_GPU_VIRTUAL_ADDRESS address;
+
 	void * cbData = ringBuffer->allocate_constant_buffer(device, commandQueue, sizeof(cb_per_light), &address);
 
 	if (cbData)
 	{
 
-		cb_per_light cbPerLight = { };
+		cb_per_light cbPerLight = {};
 
-		//cbPerLight.light.type      = light->type;
-		cbPerLight.light.direction = light->direction;
-		cbPerLight.light.luminance = light->luminance;
-		cbPerLight.light.ambient   = light->ambient;
+		cbPerLight.light.type        = light->type;
+		cbPerLight.light.castShadows = shadowMapInfo ? 1u : 0u;
+		cbPerLight.light.direction   = light->direction;
+		cbPerLight.light.luminance   = light->luminance;
+		cbPerLight.light.ambient     = light->ambient;
+		
+		cbPerLight.shadowMapping.lightMatrix = XMMatrixTranspose(shadowMapInfo->lightMatrix);
 
 		memcpy(cbData, &cbPerLight, sizeof(cb_per_light));
 
@@ -191,8 +181,14 @@ void deferred_renderer::render_light(
 		commandList->SetGraphicsRootConstantBufferView(0, cbPerFrame);
 		commandList->SetGraphicsRootConstantBufferView(1, address);
 		
-		commandList->SetDescriptorHeaps(1, &gbufferHeap);
+		commandList->SetDescriptorHeaps(1, &srvHeap);
 		commandList->SetGraphicsRootDescriptorTable(2, gbufferSRVDescTable);
+
+		if (shadowMapInfo)
+		{
+			commandList.resource_barrier_transition(shadowMapInfo->shadowMap, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+			commandList->SetGraphicsRootDescriptorTable(3, shadowMapInfo->shadowMapTable);
+		}
 
 		commandList->OMSetRenderTargets(1, rtv, false, nullptr);
 
@@ -203,8 +199,6 @@ void deferred_renderer::render_light(
 		commandList->DrawInstanced(4, 1, 0, 0);
 
 		FUSE_HR_CHECK(commandList->Close());
-		
-		//commandQueue->ExecuteCommandLists(1, (ID3D12CommandList**) &commandList);
 
 		commandQueue.execute(commandList);
 
@@ -260,11 +254,12 @@ bool deferred_renderer::create_gbuffer_pso(ID3D12Device * device)
 		psoDesc.BlendState               = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
 		psoDesc.RasterizerState          = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
 		psoDesc.DepthStencilState        = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
-		psoDesc.NumRenderTargets         = 3;
-		psoDesc.RTVFormats[0]            = DXGI_FORMAT_R16G16B16A16_FLOAT;
-		psoDesc.RTVFormats[1]            = DXGI_FORMAT_R16G16B16A16_FLOAT;
-		psoDesc.RTVFormats[2]            = DXGI_FORMAT_R8G8B8A8_UNORM;
-		psoDesc.DSVFormat                = DXGI_FORMAT_D24_UNORM_S8_UINT;
+		psoDesc.NumRenderTargets         = 4;
+		psoDesc.RTVFormats[0]            = m_configuration.gbufferFormat[0];
+		psoDesc.RTVFormats[1]            = m_configuration.gbufferFormat[1];
+		psoDesc.RTVFormats[2]            = m_configuration.gbufferFormat[2];
+		psoDesc.RTVFormats[3]            = m_configuration.gbufferFormat[3];
+		psoDesc.DSVFormat                = m_configuration.dsvFormat;
 		psoDesc.VS                       = { FUSE_BLOB_ARGS(gbufferVS) };
 		psoDesc.PS                       = { FUSE_BLOB_ARGS(gbufferPS) };
 		psoDesc.InputLayout              = make_input_layout_desc(inputLayoutVector);
@@ -284,25 +279,34 @@ bool deferred_renderer::create_gbuffer_pso(ID3D12Device * device)
 bool deferred_renderer::create_shading_pso(ID3D12Device * device)
 {
 
-	com_ptr<ID3DBlob> quadVS, finalPS;
+	com_ptr<ID3DBlob> quadVS, shadingPS;
 	std::vector<D3D12_INPUT_ELEMENT_DESC> inputLayoutVector;
 
 	com_ptr<ID3DBlob> serializedSignature;
 	com_ptr<ID3DBlob> errorsBlob;
 	com_ptr<ID3D12ShaderReflection> shaderReflection;
 
-	CD3DX12_ROOT_PARAMETER rootParameters[3];
+	CD3DX12_ROOT_PARAMETER rootParameters[4];
 
-	CD3DX12_DESCRIPTOR_RANGE srv[1];
+	CD3DX12_DESCRIPTOR_RANGE gbufferSRV;
 
-	srv[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 4, 0);
+	gbufferSRV.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 4, 0);
+
+	CD3DX12_DESCRIPTOR_RANGE shadowMapSRV;
+
+	shadowMapSRV.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 4);
 
 	rootParameters[0].InitAsConstantBufferView(0, 0, D3D12_SHADER_VISIBILITY_PIXEL);
 	rootParameters[1].InitAsConstantBufferView(1, 0, D3D12_SHADER_VISIBILITY_PIXEL);
-	rootParameters[2].InitAsDescriptorTable(_countof(srv), srv, D3D12_SHADER_VISIBILITY_PIXEL);
+	rootParameters[2].InitAsDescriptorTable(1, &gbufferSRV, D3D12_SHADER_VISIBILITY_PIXEL);
+	rootParameters[3].InitAsDescriptorTable(1, &shadowMapSRV, D3D12_SHADER_VISIBILITY_PIXEL);
 
-	CD3DX12_STATIC_SAMPLER_DESC staticSamplers[1] = {
-		CD3DX12_STATIC_SAMPLER_DESC(0, D3D12_FILTER_MIN_MAG_MIP_POINT)
+	CD3DX12_STATIC_SAMPLER_DESC staticSamplers[] = {
+		CD3DX12_STATIC_SAMPLER_DESC(0, D3D12_FILTER_MIN_MAG_MIP_POINT),
+		CD3DX12_STATIC_SAMPLER_DESC(1, D3D12_FILTER_MIN_MAG_MIP_LINEAR),
+		CD3DX12_STATIC_SAMPLER_DESC(2, D3D12_FILTER_MIN_MAG_MIP_LINEAR, 
+			D3D12_TEXTURE_ADDRESS_MODE_BORDER, D3D12_TEXTURE_ADDRESS_MODE_BORDER, D3D12_TEXTURE_ADDRESS_MODE_BORDER,
+			0.f, 1, D3D12_COMPARISON_FUNC_LESS_EQUAL, D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK)
 	};
 
 	CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc(_countof(rootParameters), rootParameters, _countof(staticSamplers), staticSamplers, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
@@ -310,7 +314,7 @@ bool deferred_renderer::create_shading_pso(ID3D12Device * device)
 	UINT compileFlags = 0;
 
 	if (compile_shader("shaders/quad_vs.hlsl", nullptr, "quad_vs", "vs_5_0", compileFlags, &quadVS) &&
-		compile_shader("shaders/deferred_shading_final.hlsl", nullptr, "shading_ps", "ps_5_0", compileFlags, &finalPS) &&
+		compile_shader("shaders/deferred_shading_final.hlsl", nullptr, "shading_ps", "ps_5_0", compileFlags, &shadingPS) &&
 		reflect_input_layout(quadVS.get(), std::back_inserter(inputLayoutVector), &shaderReflection) &&
 		!FUSE_HR_FAILED_BLOB(D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &serializedSignature, &errorsBlob), errorsBlob) &&
 		!FUSE_HR_FAILED(device->CreateRootSignature(0, FUSE_BLOB_ARGS(serializedSignature), IID_PPV_ARGS(&m_shadingRS))))
@@ -326,9 +330,9 @@ bool deferred_renderer::create_shading_pso(ID3D12Device * device)
 		psoDesc.DepthStencilState                      = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
 		psoDesc.DepthStencilState.DepthEnable          = FALSE;
 		psoDesc.NumRenderTargets                       = 1;
-		psoDesc.RTVFormats[0]                          = DXGI_FORMAT_R16G16B16A16_FLOAT;
+		psoDesc.RTVFormats[0]                          = m_configuration.shadingFormat;
 		psoDesc.VS                                     = { FUSE_BLOB_ARGS(quadVS) };
-		psoDesc.PS                                     = { FUSE_BLOB_ARGS(finalPS) };
+		psoDesc.PS                                     = { FUSE_BLOB_ARGS(shadingPS) };
 		psoDesc.InputLayout                            = make_input_layout_desc(inputLayoutVector);
 		psoDesc.pRootSignature                         = m_shadingRS.get();
 		psoDesc.SampleMask                             = UINT_MAX;

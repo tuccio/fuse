@@ -16,7 +16,7 @@ namespace fuse
 
 	public:
 
-		resource_manager(const char * type, void * userdata = nullptr) : m_type(type), m_userdata(userdata) { }
+		resource_manager(const char * type, void * userdata = nullptr) : m_type(type), m_userdata(userdata), m_lastID(0){ }
 
 		virtual ~resource_manager(void) { }
 

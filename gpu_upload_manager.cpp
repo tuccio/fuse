@@ -1,4 +1,5 @@
 #include <fuse/gpu_upload_manager.hpp>
+#include <fuse/mipmap_generator.hpp>
 
 #include <d3dx12.h>
 
@@ -6,6 +7,11 @@ using namespace fuse;
 
 bool gpu_upload_manager::init(ID3D12Device * device, UINT commandLists)
 {
+
+	if (!mipmap_generator::get_singleton_pointer())
+	{
+		new mipmap_generator(device);
+	}
 
 	m_commandAllocators.resize(commandLists);
 	m_commandLists.resize(commandLists);
@@ -58,9 +64,7 @@ void gpu_upload_manager::upload_buffer(
 	m_commandLists[m_index]->CopyBufferRegion(destination, destinationOffset, source, sourceOffset, size);
 
 	FUSE_HR_CHECK(m_commandLists[m_index]->Close());
-
 	commandQueue.execute(m_commandLists[m_index]);
-	//commandQueue->ExecuteCommandLists(1, (ID3D12CommandList**) &m_commandLists[m_index]);
 
 }
 
@@ -70,6 +74,22 @@ void gpu_upload_manager::upload_texture(
 	const D3D12_TEXTURE_COPY_LOCATION * source)
 {
 
+	FUSE_HR_CHECK(m_commandLists[m_index]->Reset(m_commandAllocators[m_index].get(), nullptr));
 
+	m_commandLists[m_index].resource_barrier_transition(destination->pResource, D3D12_RESOURCE_STATE_COPY_DEST);
+	m_commandLists[m_index].resource_barrier_transition(source->pResource, D3D12_RESOURCE_STATE_GENERIC_READ);
+	m_commandLists[m_index]->CopyTextureRegion(destination, 0, 0, 0, source, nullptr);
 
+	FUSE_HR_CHECK(m_commandLists[m_index]->Close());
+
+	commandQueue.execute(m_commandLists[m_index]);
+
+}
+
+bool gpu_upload_manager::generate_mipmaps(
+	ID3D12Device * device,
+	gpu_command_queue & commandQueue,
+	ID3D12Resource * resource)
+{
+	return mipmap_generator::get_singleton_pointer()->generate_mipmaps(device, commandQueue, m_commandAllocators[m_index].get(), m_commandLists[m_index], resource);
 }

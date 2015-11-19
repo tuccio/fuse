@@ -17,7 +17,8 @@ void text_renderer::render(
 	ID3D12Device * device,
 	gpu_command_queue & commandQueue,
 	ID3D12CommandAllocator * commandAllocator,
-	ID3D12GraphicsCommandList * commandList,
+	gpu_graphics_command_list & commandList,
+	ID3D12Resource * rtResource,
 	const D3D12_CPU_DESCRIPTOR_HANDLE * rtv,
 	D3D12_GPU_VIRTUAL_ADDRESS cbPerFrame,
 	gpu_ring_buffer * ringBuffer,
@@ -27,104 +28,123 @@ void text_renderer::render(
 	const XMFLOAT4 & color)
 {
 
-	struct __char
-	{
-		XMFLOAT2 position;
-		XMFLOAT4 color;
-		XMFLOAT2 texcoord;
-	};
-
-	size_t n = strlen(text);
-	std::vector<__char> data;
-
-	data.reserve(6 * n);
-
-	XMFLOAT2 currentPosition = position;
-
-	for (int i = 0; i < n; i++)
+	if (font->load())
 	{
 
-		char c = text[i];
-		auto & charInfo = (*font)[c];
+		struct __char
+		{
+			XMFLOAT2 position;
+			XMFLOAT4 color;
+			XMFLOAT2 texcoord;
+		};
 
-		__char vertices[4];
+		size_t n = strlen(text);
+		std::vector<__char> data;
 
-		vertices[0].color    = color;
-		vertices[0].position = currentPosition;
-		vertices[0].texcoord = XMFLOAT2(charInfo.minUV[0], charInfo.minUV[1]);
+		data.reserve(6 * n);
 
-		vertices[1] = vertices[0];
-		vertices[1].position.x += (charInfo.rect.right - charInfo.rect.left);
-		vertices[1].texcoord.x = charInfo.maxUV[0];
+		XMFLOAT2 currentPosition = position;
 
-		vertices[2] = vertices[0];
-		vertices[2].position.y += (charInfo.rect.bottom - charInfo.rect.top);
-		vertices[2].texcoord.y = charInfo.maxUV[1];
+		UINT lineHeight = font->get_height();
 
-		vertices[3] = vertices[2];
-		vertices[3].position.x += vertices[1].position.x;
-		vertices[3].texcoord.x = vertices[1].texcoord.x;
+		for (int i = 0; i < n; i++)
+		{
 
-		data.push_back(vertices[0]);
-		data.push_back(vertices[2]);
-		data.push_back(vertices[1]);
+			if (text[i] == '\n')
+			{
+				currentPosition.x = position.x;
+				currentPosition.y = position.y + lineHeight;
+			}
+			else
+			{
 
-		data.push_back(vertices[1]);
-		data.push_back(vertices[2]);
-		data.push_back(vertices[3]);
+				char c = text[i];
+				auto & charInfo = (*font)[c];
 
-		currentPosition.x += charInfo.width;
+				XMFLOAT2 offsetPosition = currentPosition;
+				offsetPosition.x += charInfo.offset[0];
+				offsetPosition.y += charInfo.offset[1];
+
+				__char vertices[4];
+
+				vertices[0].color = color;
+				vertices[0].position = offsetPosition;
+				vertices[0].texcoord = XMFLOAT2(charInfo.minUV[0], charInfo.minUV[1]);
+
+				vertices[1] = vertices[0];
+				vertices[1].position.x += (charInfo.rect.right - charInfo.rect.left);
+				vertices[1].texcoord.x = charInfo.maxUV[0];
+
+				vertices[2] = vertices[0];
+				vertices[2].position.y += (charInfo.rect.bottom - charInfo.rect.top);
+				vertices[2].texcoord.y = charInfo.maxUV[1];
+
+				vertices[3] = vertices[2];
+				vertices[3].position.x = vertices[1].position.x;
+				vertices[3].texcoord.x = vertices[1].texcoord.x;
+
+				data.push_back(vertices[0]);
+				data.push_back(vertices[1]);
+				data.push_back(vertices[2]);
+
+				data.push_back(vertices[1]);
+				data.push_back(vertices[3]);
+				data.push_back(vertices[2]);
+
+				currentPosition.x += charInfo.width;
+
+			}
+
+		}
+
+		D3D12_GPU_VIRTUAL_ADDRESS address;
+		
+		size_t size = sizeof(__char) * data.size();
+		void * cbData = ringBuffer->allocate_constant_buffer(device, commandQueue, size, &address);
+
+		if (cbData)
+		{
+
+			memcpy(cbData, &data[0], size);
+
+			FUSE_HR_CHECK(commandList->Reset(commandAllocator, m_pso.get()));
+
+			commandList.resource_barrier_transition(rtResource, D3D12_RESOURCE_STATE_RENDER_TARGET);
+			commandList.resource_barrier_transition(font->get_texture()->get_resource(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+
+			commandList->SetGraphicsRootSignature(m_rs.get());
+
+			commandList->SetGraphicsRootConstantBufferView(0, cbPerFrame);
+
+			auto srvDescriptor = font->get_srv_descriptor();
+			auto srvHeap       = font->get_srv_heap();
+
+			commandList->SetDescriptorHeaps(1, &srvHeap);
+			commandList->SetGraphicsRootDescriptorTable(1, srvDescriptor);
+
+			commandList->OMSetRenderTargets(1, rtv, false, nullptr);
+
+			commandList->RSSetViewports(1, &m_viewport);
+			commandList->RSSetScissorRects(1, &m_scissorRect);
+
+			D3D12_VERTEX_BUFFER_VIEW vb;
+
+			vb.BufferLocation = address;
+			vb.SizeInBytes    = size;
+			vb.StrideInBytes  = sizeof(__char);
+
+			commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+			commandList->IASetVertexBuffers(0, 1, &vb);
+
+			commandList->DrawInstanced(data.size(), 1, 0, 0);
+
+			FUSE_HR_CHECK(commandList->Close());
+			commandQueue.execute(commandList);
+			//commandQueue->ExecuteCommandLists(1, (ID3D12CommandList**)&commandList);
+
+		}
 
 	}
-
-	D3D12_GPU_VIRTUAL_ADDRESS address;
-	void * cbData = ringBuffer->allocate_constant_buffer(device, commandQueue, sizeof(__char) * data.size(), &address);
-	size_t size = sizeof(__char) * data.size();
-
-	if (cbData)
-	{
-
-		memcpy(cbData, &data[0], size);
-
-		FUSE_HR_CHECK(commandList->Reset(commandAllocator, m_pso.get()));
-
-		commandList->SetGraphicsRootSignature(m_rs.get());
-
-		commandList->SetGraphicsRootConstantBufferView(0, cbPerFrame);
-
-		auto srvDescriptor = font->get_srv_descriptor();
-		auto srvHeap       = font->get_srv_heap();
-
-		commandList->SetDescriptorHeaps(1, &srvHeap);
-		commandList->SetGraphicsRootDescriptorTable(1, srvDescriptor);
-
-		commandList->OMSetRenderTargets(1, rtv, false, nullptr);
-
-		commandList->RSSetViewports(1, &m_viewport);
-		commandList->RSSetScissorRects(1, &m_scissorRect);
-
-		D3D12_VERTEX_BUFFER_VIEW vb;
-
-		vb.BufferLocation = address;
-		vb.SizeInBytes    = size;
-		vb.StrideInBytes  = sizeof(__char);
-
-		commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-		commandList->IASetVertexBuffers(0, 1, &vb);
-
-		commandList->DrawInstanced(data.size(), 1, 0, 0);
-
-		FUSE_HR_CHECK(commandList->Close());
-
-		commandQueue->ExecuteCommandLists(1, (ID3D12CommandList**)&commandList);
-
-	}
-
-	// Maybe put an ortho matrix on the cbPerFrame to use
-
-	// create a vertex buffer on the ring buffe
-	// fill with the textured quads
-	// render
 
 }
 
@@ -166,8 +186,8 @@ bool text_renderer::create_pso(ID3D12Device * device)
 
 		psoDesc.BlendState                             = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
 		psoDesc.BlendState.RenderTarget[0].BlendEnable = TRUE;
-		psoDesc.BlendState.RenderTarget[0].SrcBlend    = D3D12_BLEND_INV_DEST_ALPHA;
-		psoDesc.BlendState.RenderTarget[0].DestBlend   = D3D12_BLEND_DEST_ALPHA;
+		psoDesc.BlendState.RenderTarget[0].SrcBlend    = D3D12_BLEND_SRC_ALPHA;
+		psoDesc.BlendState.RenderTarget[0].DestBlend   = D3D12_BLEND_INV_SRC_ALPHA;
 		psoDesc.RasterizerState                        = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
 		psoDesc.DepthStencilState                      = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
 		psoDesc.DepthStencilState.DepthEnable          = FALSE;

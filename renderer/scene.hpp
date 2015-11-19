@@ -13,14 +13,14 @@
 namespace fuse
 {
 
-	using renderable_vector = std::vector<renderable, aligned_allocator<renderable>>;
+	using renderable_vector = std::vector<renderable*>;
 	using renderable_iterator = renderable_vector::iterator;
 
-	using camera_vector = std::vector<camera, aligned_allocator<fuse::camera>>;
+	using camera_vector = std::vector<camera*>;
 	using camera_iterator = camera_vector::iterator;
 
-	using light_vector = std::vector<light>;
-	using light_iterator = std::vector<light>::iterator;
+	using light_vector = std::vector<light*>;
+	using light_iterator = light_vector::iterator;
 
 	class scene
 	{
@@ -31,13 +31,15 @@ namespace fuse
 		scene(const scene &) = delete;
 		scene(scene &&) = default;
 
+		void clear(void);
+
 		bool import_static_objects(assimp_loader * loader);
 		bool import_cameras(fuse::assimp_loader * loader);
 		bool import_lights(fuse::assimp_loader * loader);
 
-		std::pair<renderable_iterator, renderable_iterator> get_static_objects_iterators(void);
-		std::pair<camera_iterator, camera_iterator> get_cameras_iterators(void);
-		std::pair<light_iterator, light_iterator> get_lights_iterators(void);
+		std::pair<renderable_iterator, renderable_iterator> get_static_objects(void);
+		std::pair<camera_iterator, camera_iterator> get_cameras(void);
+		std::pair<light_iterator, light_iterator> get_lights(void);
 
 	private:
 

@@ -72,6 +72,11 @@ namespace fuse
 
 	};
 
+	struct cb_shadowmapping
+	{
+		XMMATRIX lightMatrix;
+	};
+
 	struct cb_per_frame
 	{
 		cb_camera camera;
@@ -86,7 +91,8 @@ namespace fuse
 
 	struct cb_per_light
 	{
-		cb_light light;
+		cb_light         light;
+		cb_shadowmapping shadowMapping;
 	};
 
 }

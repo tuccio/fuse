@@ -21,10 +21,8 @@ struct camera
 
 struct screen
 {
-
 	uint2    resolution;
 	float4x4 orthoProjection;
-
 };
 
 struct transform
@@ -56,6 +54,18 @@ struct light
 	
 	float  spotAngle;
 	
+};
+
+struct shadow_mapping
+{
+	float4x4 lightMatrix;
+};
+
+#define USE_CB_PER_FRAME(Register)\
+cbuffer cbPerFrame : register(Register)\
+{\
+	camera g_camera;\
+	screen g_screen;\
 };
 
 #endif

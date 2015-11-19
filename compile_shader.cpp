@@ -11,6 +11,9 @@
 #include <sstream>
 #include <string>
 
+#include <locale>
+#include <codecvt>
+
 using namespace fuse;
 
 namespace fuse
@@ -38,10 +41,17 @@ namespace fuse
 
 			com_ptr<ID3DBlob> errors;
 
-			if (!FUSE_HR_FAILED(D3DCompile(&data[0], data.size(), filename, defines, D3D_COMPILE_STANDARD_FILE_INCLUDE, entryPoint, target, compileOptions, 0, shader, &errors)))
+			std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
+			std::wstring wFilename = converter.from_bytes(filename);
+
+			if (!FUSE_HR_FAILED(D3DCompileFromFile(wFilename.c_str(), defines, D3D_COMPILE_STANDARD_FILE_INCLUDE, entryPoint, target, compileOptions, 0, shader, &errors)))
+			{
+				return true;			
+			}
+			/*if (!FUSE_HR_FAILED(D3DCompile(&data[0], data.size(), filename, defines, D3D_COMPILE_STANDARD_FILE_INCLUDE, entryPoint, target, compileOptions, 0, shader, &errors)))
 			{
 				return true;
-			}
+			}*/
 			else
 			{
 				const char * msg = static_cast<const char *>(errors->GetBufferPointer());

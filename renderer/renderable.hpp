@@ -7,6 +7,8 @@
 
 #include <fuse/properties_macros.hpp>
 
+#include <fuse/geometry.hpp>
+
 namespace fuse
 {
 
@@ -23,6 +25,8 @@ namespace fuse
 
 		XMMATRIX     m_world;
 
+		sphere       m_boundingSphere;
+
 		gpu_mesh_ptr m_mesh;
 		material_ptr m_material;
 
@@ -32,6 +36,7 @@ namespace fuse
 			(mesh, m_mesh)
 			(material, m_material)
 			(world_matrix, m_world)
+			(bounding_sphere, m_boundingSphere)
 		)
 
 		FUSE_DECLARE_ALIGNED_ALLOCATOR_NEW(16)

@@ -1,6 +1,7 @@
 #include <fuse/bitmap_font.hpp>
 #include <fuse/directx_helper.hpp>
 #include <fuse/gpu_command_queue.hpp>
+#include <fuse/gpu_graphics_command_list.hpp>
 #include <fuse/gpu_ring_buffer.hpp>
 
 #include <fuse/math.hpp>
@@ -22,7 +23,8 @@ namespace fuse
 			ID3D12Device * device,
 			gpu_command_queue & commandQueue,
 			ID3D12CommandAllocator * commandAllocator,
-			ID3D12GraphicsCommandList * commandList,
+			gpu_graphics_command_list & commandList,
+			ID3D12Resource * rtResource,
 			const D3D12_CPU_DESCRIPTOR_HANDLE * rtv,
 			D3D12_GPU_VIRTUAL_ADDRESS cbPerFrame,
 			gpu_ring_buffer * ringBuffer,

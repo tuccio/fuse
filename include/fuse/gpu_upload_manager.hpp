@@ -37,6 +37,11 @@ namespace fuse
 			const D3D12_TEXTURE_COPY_LOCATION * destination,
 			const D3D12_TEXTURE_COPY_LOCATION * source);
 
+		bool generate_mipmaps(
+			ID3D12Device * device,
+			gpu_command_queue & commandQueue,
+			ID3D12Resource * resource);
+
 	private:
 
 		std::vector<com_ptr<ID3D12CommandAllocator>>   m_commandAllocators;

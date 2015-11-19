@@ -3,9 +3,8 @@
 #include <fuse/resource.hpp>
 #include <fuse/directx_helper.hpp>
 
-#include <IL/il.h>
-
 #include <cstdint>
+#include <vector>
 
 enum image_format
 {
@@ -22,6 +21,7 @@ namespace fuse
 {
 
 	DXGI_FORMAT get_dxgi_format(image_format format);
+	DXGI_FORMAT get_dxgi_typeless_format(image_format format);
 
 	class image :
 		public resource
@@ -29,12 +29,15 @@ namespace fuse
 
 	public:
 
-		image(void);
+		image(void) = default;
 		image(const char * name, resource_loader * loader, resource_manager * owner);
 
 		~image(void);
 
-		inline uint8_t * get_data(void) const { return m_data; }
+		bool create(image_format format, uint32_t width, uint32_t height, const void * data = nullptr);
+
+		inline uint8_t * get_data(void) { return &m_data[0]; }
+		inline const uint8_t * get_data(void) const { return &m_data[0]; }
 
 		inline image_format get_format(void) const { return m_format; }
 
@@ -51,17 +54,18 @@ namespace fuse
 
 	private:
 
-		ILuint         m_handle;
-		image_format   m_format;
 
-		uint8_t      * m_data;
+		std::vector<uint8_t> m_data;
 				     
-		uint32_t       m_width;
-		uint32_t       m_height;
+		image_format         m_format;
+
+		uint32_t             m_width;
+		uint32_t             m_height;
 
 		struct devil_initializer
 		{
-			devil_initializer(void) { ilInit(); }
+			devil_initializer(void);
+			~devil_initializer(void);
 		};
 
 		static devil_initializer m_initializer;
