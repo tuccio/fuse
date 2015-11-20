@@ -288,6 +288,14 @@ bool renderer_application::on_device_created(ID3D12Device * device, gpu_command_
 	Rocket::Core::Initialise();
 	Rocket::Controls::Initialise();
 
+	Rocket::Core::FontDatabase::LoadFontFace("ui/QuattrocentoSans-Regular.ttf");
+	Rocket::Core::FontDatabase::LoadFontFace("ui/QuattrocentoSans-Bold.ttf");
+
+	Rocket::Core::FontDatabase::LoadFontFace("ui/demo/Delicious-Roman.otf");
+	Rocket::Core::FontDatabase::LoadFontFace("ui/demo/Delicious-Bold.otf");
+	Rocket::Core::FontDatabase::LoadFontFace("ui/demo/Delicious-Italic.otf");
+	Rocket::Core::FontDatabase::LoadFontFace("ui/demo/Delicious-BoldItalic.otf");
+
 	rocket_interface_configuration rocketCFG;
 
 	rocketCFG.blendDesc                             = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
@@ -303,17 +311,7 @@ bool renderer_application::on_device_created(ID3D12Device * device, gpu_command_
 		!g_editorGUI.init())
 	{
 		return false;
-	}
-
-	Rocket::Core::FontDatabase::LoadFontFace("ui/QuattrocentoSans-Regular.ttf");
-	Rocket::Core::FontDatabase::LoadFontFace("ui/QuattrocentoSans-Bold.ttf");
-
-	Rocket::Core::FontDatabase::LoadFontFace("ui/demo/Delicious-Roman.otf");
-	Rocket::Core::FontDatabase::LoadFontFace("ui/demo/Delicious-Bold.otf");
-	Rocket::Core::FontDatabase::LoadFontFace("ui/demo/Delicious-Italic.otf");
-	Rocket::Core::FontDatabase::LoadFontFace("ui/demo/Delicious-BoldItalic.otf");
-	
-	
+	}	
 
 #endif
 

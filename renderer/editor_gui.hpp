@@ -13,6 +13,31 @@
 namespace fuse
 {
 
+	namespace gui
+	{
+
+		class object_panel :
+			public Rocket::Core::EventListener
+		{
+
+		public:
+
+			bool init(Rocket::Core::Context * context);
+			void shutdown(Rocket::Core::Context * context);
+
+			void set_object(renderable * object);
+
+			void ProcessEvent(Rocket::Core::Event & event) override;
+
+		private:
+
+			renderable                    * m_object;
+			Rocket::Core::ElementDocument * m_panel;
+
+		};
+
+	}
+
 	class editor_gui
 	{
 
@@ -38,14 +63,10 @@ namespace fuse
 
 		void select_object(renderable * object);
 
-		//void on_mouse
-
 	private:
 
-		Rocket::Core::Context         * m_context;
-		Rocket::Core::ElementDocument * m_selectedObject;
-
-		std::list<Rocket::Core::ElementDocument*> m_panels;
+		Rocket::Core::Context * m_context;
+		gui::object_panel       m_objectPanel;
 
 	};
 

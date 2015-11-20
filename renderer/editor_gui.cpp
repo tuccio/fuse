@@ -5,7 +5,11 @@
 #include <fuse/rocket_input.hpp>
 #include <algorithm>
 
+#include <Rocket/Debugger.h>
+#include <Rocket/Controls.h>
+
 using namespace fuse;
+using namespace fuse::gui;
 
 editor_gui::editor_gui(void)
 {
@@ -19,9 +23,13 @@ editor_gui::~editor_gui(void)
 
 bool editor_gui::init(void)
 {
+
 	m_context = Rocket::Core::CreateContext("editor_gui", Rocket::Core::Vector2i(256, 256));
-	m_selectedObject = nullptr;
-	return true;
+
+	Rocket::Debugger::Initialise(m_context);
+	Rocket::Debugger::SetVisible(true);
+
+	return m_objectPanel.init(m_context);
 }
 
 void editor_gui::shutdown(void)
@@ -37,35 +45,8 @@ void editor_gui::shutdown(void)
 
 void editor_gui::on_resize(UINT width, UINT height)
 {
-	
-	auto oldDim = m_context->GetDimensions();
 	assert(m_context && "Can't call editor_gui::on_resize before initialization.");
 	m_context->SetDimensions(Rocket::Core::Vector2i(width, height));
-
-	for (auto panel : m_panels)
-	{
-
-		auto & box = panel->GetBox(0);
-
-		auto offset = panel->GetAbsoluteOffset();
-		auto size   = panel->GetBox(0).GetSize();
-
-		auto bottomRight = offset + size;
-
-		if (bottomRight.x > width)
-		{
-			offset.x = width - size.x;
-		}
-
-		if (bottomRight.y > height)
-		{
-			offset.y = 0.f, height - size.y;
-		}
-
-		panel->SetOffset(offset, nullptr);
-
-	}
-	
 }
 
 void editor_gui::render(void)
@@ -80,22 +61,7 @@ void editor_gui::update(void)
 
 void editor_gui::select_object(renderable * object)
 {
-	if (m_selectedObject)
-	{
-		auto it = std::find(m_panels.begin(), m_panels.end(), m_selectedObject);
-		m_panels.erase(it);
-		m_context->UnloadDocument(m_selectedObject);
-	}
-
-	//m_context->LoadDocument("ui/demo/demo.rml")->Show();
-
-	if (m_selectedObject = m_context->LoadDocument("ui/selected_object.rml"))
-	{
-		m_selectedObject->GetElementById("title")->SetInnerRML(m_selectedObject->GetTitle());
-		m_selectedObject->Show();
-		m_panels.push_back(m_selectedObject);
-	}
-
+	m_objectPanel.set_object(object);
 }
 
 LRESULT editor_gui::on_keyboard(WPARAM wParam, LPARAM lParam)
@@ -185,6 +151,75 @@ LRESULT editor_gui::on_mouse(WPARAM wParam, LPARAM lParam)
 	}
 
 	return 0;
+}
+
+/* object_panel */
+
+bool object_panel::init(Rocket::Core::Context * context)
+{
+
+	m_object = nullptr;
+
+	m_panel = context->LoadDocument("ui/selected_object.rml");
+
+	if (m_panel)
+	{
+
+		m_panel->AddEventListener("click", this);
+		m_panel->AddEventListener("change", this);
+
+		m_panel->GetElementById("title")->SetInnerRML(m_panel->GetTitle());
+
+		return true;
+	}
+	
+	return false;
+}
+
+void object_panel::shutdown(Rocket::Core::Context * context)
+{
+	context->UnloadDocument(m_panel);
+}
+
+void object_panel::set_object(renderable * object)
+{
+	
+	m_object = object;
+
+	if (m_object)
+	{
+		m_panel->Show();
+	}
+	else
+	{
+		m_panel->Hide();
+	}
+	
+}
+
+void object_panel::ProcessEvent(Rocket::Core::Event & event)
+{
+
+	auto element = event.GetTargetElement();
+	auto document = element->GetOwnerDocument();
+
+	if (event.GetType() == "click")
+	{
+		FUSE_LOG("click", event.GetTargetElement()->GetTagName().CString());
+	}
+	else if (event.GetType() == "change")
+	{
+		FUSE_LOG("change", event.GetTargetElement()->GetTagName().CString());
+
+		auto attribute = element->GetAttribute("type");
+
+		if (attribute->Get<Rocket::Core::String>() == "range")
+		{
+			Rocket::Controls::ElementFormControlInput * slider = dynamic_cast<Rocket::Controls::ElementFormControlInput*>(element);
+			//element->SetInnerRML("<span class=\"range_value\">" + slider->GetValue() + "</span>");
+		}
+	}
+
 }
 
 #endif

@@ -113,7 +113,7 @@ bool fuse::rocket_keyboard_input_translate(Rocket::Core::Context * context, WPAR
 	bool propagate = true;
 
 	bool keyDown = KEY_DOWN_LPARAM(lParam);
-	FUSE_LOG("", keyDown ? "Yes" : "No");
+
 	int modifier = rocked_key_modifier();
 
 	if (keyDown)
