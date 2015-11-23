@@ -241,7 +241,7 @@ bool scene::import_lights(assimp_loader * loader)
 		XMMATRIX transform;
 
 		if (scene->mLights[i]->mType == aiLightSource_DIRECTIONAL &&
-			find_node_by_name(scene, scene->mLights[i]->mName, &node, &transform))
+		    find_node_by_name(scene, scene->mLights[i]->mName, &node, &transform))
 		{
 
 			XMVECTOR direction = XMVector3Normalize(XMVector3Transform(to_vector(to_xmfloat3(scene->mLights[i]->mDirection)), transform));
@@ -250,8 +250,25 @@ bool scene::import_lights(assimp_loader * loader)
 
 			light->type      = FUSE_LIGHT_TYPE_DIRECTIONAL;
 			light->ambient   = to_xmfloat3(scene->mLights[i]->mColorAmbient);
-			light->luminance = to_xmfloat3(scene->mLights[i]->mColorDiffuse);
+			light->color.r   = scene->mLights[i]->mColorDiffuse.r;
+			light->color.g   = scene->mLights[i]->mColorDiffuse.g;
+			light->color.b   = scene->mLights[i]->mColorDiffuse.b;
 			light->direction = XMVector3Equal(direction, XMVectorZero()) ? XMFLOAT3(0, 1, 0) : to_float3(direction);
+
+			light->intensity = 1.f;
+
+			float maxColor = std::max(std::max(light->color.r, light->color.g), light->color.b);
+
+			if (maxColor > 1)
+			{
+
+				light->color.r /= maxColor;
+				light->color.g /= maxColor;
+				light->color.b /= maxColor;
+
+				light->intensity = maxColor;
+
+			}
 
 			m_lights.push_back(light);
 

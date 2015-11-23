@@ -1,24 +1,31 @@
 #pragma once
 
+#include <fuse/color.hpp>
 #include <fuse/math.hpp>
 
-enum light_type
-{
-	FUSE_LIGHT_TYPE_DIRECTIONAL,
-	FUSE_LIGHT_TYPE_SPOTLIGHT,
-	FUSE_LIGHT_TYPE_POINTLIGHT
-};
-
-struct light
+namespace fuse
 {
 
-	light_type        type;
+	enum light_type
+	{
+		FUSE_LIGHT_TYPE_DIRECTIONAL,
+		FUSE_LIGHT_TYPE_SPOTLIGHT,
+		FUSE_LIGHT_TYPE_POINTLIGHT
+	};
 
-	DirectX::XMFLOAT3 luminance;
+	struct light
+	{
 
-	DirectX::XMFLOAT3 ambient;
-	DirectX::XMFLOAT3 direction;
+		light_type type;
 
-	float             spotAngle;
+		color_rgb color;
+		float     intensity;
 
-};
+		XMFLOAT3  ambient;
+		XMFLOAT3  direction;
+
+		float spotAngle;
+
+	};
+
+}

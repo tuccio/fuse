@@ -25,6 +25,12 @@ struct screen
 	float4x4 orthoProjection;
 };
 
+struct render_variables
+{
+	float vsmMinVariance;
+	float vsmMinBleeding;
+};
+
 struct transform
 {
 	float4x4 world;
@@ -66,6 +72,7 @@ cbuffer cbPerFrame : register(Register)\
 {\
 	camera g_camera;\
 	screen g_screen;\
+	render_variables R;\
 };
 
 #endif

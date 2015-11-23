@@ -44,7 +44,7 @@ float4 shading_ps(QuadInput input) : SV_Target0
 	
 	float2 moments     = g_shadowMap.Sample(g_shadowMapSampler, shadowMapUV).xy;
 	
-	float visibility = vsm_visibility(moments, lightSpacePosition, 0.00001, 0.55);
+	float visibility = vsm_visibility(moments, lightSpacePosition, R.vsmMinVariance, R.vsmMinBleeding);
 	
 	float3 lightDirection = normalize(float3(-.35, 0.65, -1));
 	

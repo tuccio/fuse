@@ -35,6 +35,7 @@
 #include "shadow_mapper.hpp"
 #include "tonemapper.hpp"
 #include "editor_gui.hpp"
+#include "render_variables.hpp"
 
 #include <algorithm>
 #include <array>
@@ -131,8 +132,13 @@ tonemapper         g_tonemapper;
 text_renderer      g_textRenderer;
 shadow_mapper      g_shadowMapper;
 
+renderer_configuration g_rendererConfiguration;
+
 #ifdef FUSE_USE_EDITOR_GUI
+
 editor_gui g_editorGUI;
+bool       g_showGUI = true;
+
 #endif
 
 gpu_global_resource_state g_globalResourceState;
@@ -181,7 +187,7 @@ bool renderer_application::on_device_created(ID3D12Device * device, gpu_command_
 	auto light = *g_scene.get_lights().first;
 
 	light->direction = XMFLOAT3(-0.281581f, 0.522937f, -0.804518f);
-	light->luminance = to_float3(to_vector(light->luminance) * .2f);
+	light->intensity *= .2f;
 	//g_scene.get_active_camera()->set_zfar(10000.f);
 
 	g_cameraController = std::make_unique<fps_camera_controller>(g_scene.get_active_camera());
@@ -308,10 +314,13 @@ bool renderer_application::on_device_created(ID3D12Device * device, gpu_command_
 	rocketCFG.maxTextures                           = 16;
 
 	if (!g_rocketInterface.init(device, commandQueue, &g_uploadManager, &g_uploadRingBuffer, rocketCFG) ||
-		!g_editorGUI.init())
+		!g_editorGUI.init(&g_scene, &g_rendererConfiguration))
 	{
 		return false;
-	}	
+	}
+
+	g_editorGUI.set_render_options_visibility(true);
+	g_editorGUI.set_light_panel_visibility(true);
 
 #endif
 
@@ -623,23 +632,33 @@ bool renderer_application::on_swap_chain_resized(ID3D12Device * device, IDXGISwa
 LRESULT CALLBACK renderer_application::on_keyboard(int code, WPARAM wParam, LPARAM lParam)
 {
 
+#define __KEY_DOWN(Key) (wParam == Key && ((KF_UP << 16) & lParam) == 0)
+
 	if (!code)
 	{
 
-		if (wParam == VK_F11 && ((KF_UP << 16) & lParam) == 0)
+		if (__KEY_DOWN(VK_F11))
 		{
 			bool goFullscreen = !is_fullscreen();
 			set_fullscreen(goFullscreen);
 			set_cursor(goFullscreen, goFullscreen);
 			g_cameraController->set_auto_center_mouse(goFullscreen);
 		}
-		else if (wParam == VK_F5 && ((KF_UP << 16) & lParam) == 0)
+		/*else if (__KEY_DOWN(VK_F5))
 		{
 			g_editorGUI.select_object(*g_scene.get_static_objects().first);
+		}*/
+		else if (__KEY_DOWN(VK_F9))
+		{
+			g_editorGUI.set_debugger_visibility(!g_editorGUI.get_debugger_visibility());
+		}
+		else if (__KEY_DOWN(VK_F4))
+		{
+			g_showGUI = !g_showGUI;
 		}
 		else
 		{
-			g_editorGUI.on_keyboard(wParam, lParam) ||
+			(g_showGUI && g_editorGUI.on_keyboard(wParam, lParam)) ||
 				g_cameraController->on_keyboard(wParam, lParam);
 		}
 
@@ -654,7 +673,7 @@ LRESULT CALLBACK renderer_application::on_mouse(int code, WPARAM wParam, LPARAM 
 
 	if (!code)
 	{
-		g_editorGUI.on_mouse(wParam, lParam) ||
+		(g_showGUI && g_editorGUI.on_mouse(wParam, lParam)) ||
 			g_cameraController->on_mouse(wParam, lParam);
 	}
 
@@ -674,7 +693,10 @@ void renderer_application::on_update(float dt)
 
 #if FUSE_USE_EDITOR_GUI
 
-	g_editorGUI.update();
+	if (g_showGUI)
+	{
+		g_editorGUI.update();
+	}
 
 #endif
 
@@ -705,8 +727,10 @@ void renderer_application::upload_per_frame_resources(ID3D12Device * device, gpu
 	cbPerFrame.camera.invViewProjection = XMMatrixTranspose(invViewProjection);
 
 	cbPerFrame.screen.resolution        = XMUINT2(get_screen_width(), get_screen_height());
-	//cbPerFrame.screen.orthoProjection   = XMMatrixTranspose(XMMatrixOrthographicOffCenterLH(0, get_screen_width(), 0, get_screen_height(), 0.f, 1.f));
 	cbPerFrame.screen.orthoProjection = XMMatrixTranspose(XMMatrixOrthographicOffCenterLH(0, get_screen_width(), get_screen_height(), 0, 0, 1));
+
+	cbPerFrame.rvars.vsmMinVariance = g_rendererConfiguration.get_vsm_min_variance();
+	cbPerFrame.rvars.vsmMinBleeding = g_rendererConfiguration.get_vsm_min_bleeding();
 
 	D3D12_GPU_VIRTUAL_ADDRESS address;
 	D3D12_GPU_VIRTUAL_ADDRESS heapAddress = g_uploadRingBuffer.get_heap()->GetGPUVirtualAddress();
@@ -936,10 +960,13 @@ void renderer_application::on_render(ID3D12Device * device, gpu_command_queue & 
 
 #ifdef FUSE_USE_EDITOR_GUI
 
-	g_rocketInterface.render_begin(commandAllocator, commandList, cbPerFrameAddress, backBuffer, rtvDescriptor);
-	g_editorGUI.render();
-	g_rocketInterface.render_end();
-
+	if (g_showGUI)
+	{
+		g_rocketInterface.render_begin(commandAllocator, commandList, cbPerFrameAddress, backBuffer, rtvDescriptor);
+		g_editorGUI.render();
+		g_rocketInterface.render_end();
+	}
+	
 #endif
 
 	/* Present */

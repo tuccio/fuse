@@ -31,6 +31,13 @@ namespace fuse
 		XMMATRIX orthoProjection;
 	};
 
+	struct cb_render_variables
+	{
+		float vsmMinVariance;
+		float vsmMinBleeding;
+		float __fill0[2];
+	};
+
 	struct cb_material
 	{
 
@@ -79,8 +86,12 @@ namespace fuse
 
 	struct cb_per_frame
 	{
+
 		cb_camera camera;
 		cb_screen screen;
+
+		cb_render_variables rvars;
+
 	};
 
 	struct cb_per_object

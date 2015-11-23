@@ -1,10 +1,9 @@
 #pragma once
 
+#include <DirectXMath.h>
 #include <boost/math/constants/constants.hpp>
 
 #include <cmath>
-
-#include <DirectXMath.h>
 
 namespace fuse
 {

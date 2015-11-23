@@ -1,5 +1,6 @@
 #pragma once
 
+#include <fuse/color.hpp>
 #include <fuse/resource.hpp>
 #include <fuse/properties_macros.hpp>
 
@@ -17,15 +18,6 @@ enum shading_model
 
 namespace fuse
 {
-
-	union color_rgb
-	{
-		struct
-		{
-			float r, g, b;
-		};
-		float v[3];
-	};
 
 	class material :
 		public resource

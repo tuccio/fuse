@@ -68,6 +68,7 @@ add_library ( fuse
 	include/fuse/resource_manager.hpp resource_manager.cpp
 	include/fuse/image.hpp image.cpp
 	include/fuse/image_manager.hpp
+	include/fuse/color.hpp color.cpp
 	include/fuse/material.hpp material.cpp
 	include/fuse/material_manager.hpp
 	include/fuse/assimp_loader.hpp assimp_loader.cpp

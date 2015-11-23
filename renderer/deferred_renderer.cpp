@@ -162,7 +162,7 @@ void deferred_renderer::render_light(
 		cbPerLight.light.type        = light->type;
 		cbPerLight.light.castShadows = shadowMapInfo ? 1u : 0u;
 		cbPerLight.light.direction   = light->direction;
-		cbPerLight.light.luminance   = light->luminance;
+		cbPerLight.light.luminance   = to_float3(light->color * light->intensity);
 		cbPerLight.light.ambient     = light->ambient;
 		
 		cbPerLight.shadowMapping.lightMatrix = XMMatrixTranspose(shadowMapInfo->lightMatrix);

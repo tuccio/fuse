@@ -8,6 +8,8 @@
 #include <Rocket/Debugger.h>
 #include <Rocket/Controls.h>
 
+#include <cctype>
+
 using namespace fuse;
 using namespace fuse::gui;
 
@@ -21,15 +23,16 @@ editor_gui::~editor_gui(void)
 	shutdown();
 }
 
-bool editor_gui::init(void)
+bool editor_gui::init(scene * scene, renderer_configuration * r)
 {
 
 	m_context = Rocket::Core::CreateContext("editor_gui", Rocket::Core::Vector2i(256, 256));
 
 	Rocket::Debugger::Initialise(m_context);
-	Rocket::Debugger::SetVisible(true);
 
-	return m_objectPanel.init(m_context);
+	return m_objectPanel.init(m_context) &&
+	       m_renderOptions.init(m_context, r) &&
+	       m_lightPanel.init(m_context, scene);
 }
 
 void editor_gui::shutdown(void)
@@ -37,8 +40,15 @@ void editor_gui::shutdown(void)
 	
 	if (m_context)
 	{
+
+		m_objectPanel.shutdown();
+		m_renderOptions.shutdown();
+		m_lightPanel.shutdown();
+
 		m_context->RemoveReference();
+
 		m_context = nullptr;
+
 	}
 
 }
@@ -74,12 +84,15 @@ LRESULT editor_gui::on_message(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lPara
 
 	if (uMsg == WM_CHAR)
 	{
-		m_context->ProcessTextInput(wParam);
+		if (isprint(wParam))
+		{
+			m_context->ProcessTextInput(wParam);
+		}
 	}
-	else if (uMsg == WM_KEYDOWN)
+	/*else if (uMsg == WM_KEYDOWN)
 	{
 		rocket_keyboard_input_translate(m_context, wParam, lParam);
-	}
+	}*/
 
 	return 0;
 
@@ -153,12 +166,104 @@ LRESULT editor_gui::on_mouse(WPARAM wParam, LPARAM lParam)
 	return 0;
 }
 
+void editor_gui::set_debugger_visibility(bool visibility)
+{
+	Rocket::Debugger::SetVisible(visibility);
+}
+
+bool editor_gui::get_debugger_visibility(void) const
+{
+	return Rocket::Debugger::IsVisible();
+}
+
+void editor_gui::set_render_options_visibility(bool visibility)
+{
+	if (visibility)
+	{
+		m_renderOptions.show();
+	}
+	else
+	{
+		m_renderOptions.hide();
+	}
+}
+
+bool editor_gui::get_render_options_visibility(void) const
+{
+	return m_renderOptions.is_visible();
+}
+
+void editor_gui::set_object_panel_visibility(bool visibility)
+{
+	if (visibility)
+	{
+		m_objectPanel.show();
+	}
+	else
+	{
+		m_objectPanel.hide();
+	}
+}
+
+bool editor_gui::get_object_panel_visibility(void) const
+{
+	return m_objectPanel.is_visible();
+}
+
+
+void editor_gui::set_light_panel_visibility(bool visibility)
+{
+	if (visibility)
+	{
+		m_lightPanel.show();
+	}
+	else
+	{
+		m_lightPanel.hide();
+	}
+}
+
+bool editor_gui::get_light_panel_visibility(void) const
+{
+	return m_lightPanel.is_visible();
+}
+
+/* gui_panel */
+
+gui_panel::gui_panel(void) : m_panel(nullptr) { }
+
+gui_panel::~gui_panel(void) { shutdown(); }
+
+void gui_panel::shutdown(void)
+{
+	if (m_panel)
+	{
+		m_panel->Close();
+		m_panel = nullptr;
+	}
+}
+
+void gui_panel::show(int flags)
+{
+	m_panel->Show(flags);
+}
+
+void gui_panel::hide(void)
+{
+	m_panel->Hide();
+}
+
+bool gui_panel::is_visible(void) const
+{
+	return m_panel->IsVisible();
+}
+
 /* object_panel */
 
 bool object_panel::init(Rocket::Core::Context * context)
 {
 
-	m_object = nullptr;
+	m_configuration = nullptr;
 
 	m_panel = context->LoadDocument("ui/selected_object.rml");
 
@@ -176,23 +281,18 @@ bool object_panel::init(Rocket::Core::Context * context)
 	return false;
 }
 
-void object_panel::shutdown(Rocket::Core::Context * context)
-{
-	context->UnloadDocument(m_panel);
-}
-
 void object_panel::set_object(renderable * object)
 {
 	
-	m_object = object;
+	m_configuration = object;
 
-	if (m_object)
+	if (m_configuration)
 	{
-		m_panel->Show();
+		show();
 	}
 	else
 	{
-		m_panel->Hide();
+		hide();
 	}
 	
 }
@@ -201,15 +301,12 @@ void object_panel::ProcessEvent(Rocket::Core::Event & event)
 {
 
 	auto element = event.GetTargetElement();
-	auto document = element->GetOwnerDocument();
 
 	if (event.GetType() == "click")
 	{
-		FUSE_LOG("click", event.GetTargetElement()->GetTagName().CString());
 	}
 	else if (event.GetType() == "change")
 	{
-		FUSE_LOG("change", event.GetTargetElement()->GetTagName().CString());
 
 		auto attribute = element->GetAttribute("type");
 
@@ -221,5 +318,503 @@ void object_panel::ProcessEvent(Rocket::Core::Event & event)
 	}
 
 }
+
+/* color_panel */
+
+bool color_panel::init(Rocket::Core::Context * context)
+{
+
+	m_panel = context->LoadDocument("ui/color_panel.rml");
+
+	if (m_panel)
+	{
+
+		m_panel->AddEventListener("click", this);
+		m_panel->AddEventListener("change", this);
+
+		m_panel->GetElementById("title")->SetInnerRML(m_panel->GetTitle());
+
+		fill();
+
+		return true;
+
+	}
+
+	return false;
+
+}
+
+void color_panel::fill(void)
+{
+
+	m_filling = true;
+
+	auto red   = m_panel->GetElementById("color_picker_red");
+	auto green = m_panel->GetElementById("color_picker_green");
+	auto blue  = m_panel->GetElementById("color_picker_blue");
+
+	Rocket::Core::String redStr, greenStr, blueStr;
+
+	Rocket::Core::TypeConverter<Rocket::Core::byte, Rocket::Core::String>::Convert(m_color.red, redStr);
+	Rocket::Core::TypeConverter<Rocket::Core::byte, Rocket::Core::String>::Convert(m_color.green, greenStr);
+	Rocket::Core::TypeConverter<Rocket::Core::byte, Rocket::Core::String>::Convert(m_color.blue, blueStr);
+
+	dynamic_cast<Rocket::Controls::ElementFormControlInput*>(red)->SetValue(redStr);
+	dynamic_cast<Rocket::Controls::ElementFormControlInput*>(green)->SetValue(greenStr);
+	dynamic_cast<Rocket::Controls::ElementFormControlInput*>(blue)->SetValue(blueStr);
+
+	auto preview = m_panel->GetElementById("color_picker_preview");
+	preview->SetProperty("background-color", Rocket::Core::Property(m_color, Rocket::Core::Property::COLOUR));
+
+	m_filling = false;
+
+}
+
+void color_panel::ProcessEvent(Rocket::Core::Event & event)
+{
+
+	if (m_filling) { return; }
+
+	auto element = event.GetTargetElement();
+
+	if (event.GetType() == "change")
+	{
+
+		auto attribute = element->GetAttribute("type");
+
+		if (element->GetId() == "color_picker_red" ||
+			element->GetId() == "color_picker_green" ||
+			element->GetId() == "color_picker_blue")
+		{
+
+			auto red   = m_panel->GetElementById("color_picker_red");
+			auto green = m_panel->GetElementById("color_picker_green");
+			auto blue  = m_panel->GetElementById("color_picker_blue");
+
+			auto redStr   = dynamic_cast<Rocket::Controls::ElementFormControlInput*>(red)->GetValue();
+			auto greenStr = dynamic_cast<Rocket::Controls::ElementFormControlInput*>(green)->GetValue();
+			auto blueStr  = dynamic_cast<Rocket::Controls::ElementFormControlInput*>(blue)->GetValue();
+
+			int redChannel, greenChannel, blueChannel;
+
+			Rocket::Core::TypeConverter<Rocket::Core::String, int>::Convert(redStr, redChannel);
+			Rocket::Core::TypeConverter<Rocket::Core::String, int>::Convert(greenStr, greenChannel);
+			Rocket::Core::TypeConverter<Rocket::Core::String, int>::Convert(blueStr, blueChannel);
+
+			auto preview = m_panel->GetElementById("color_picker_preview");
+			Rocket::Core::Colourb color(redChannel, greenChannel, blueChannel, 0xFF);
+
+			preview->SetProperty("background-color", Rocket::Core::Property(color, Rocket::Core::Property::COLOUR));
+
+		}
+
+	}
+	else if (event.GetType() == "click")
+	{
+		if (element->GetId() == "color_picker_submit")
+		{
+			auto preview = m_panel->GetElementById("color_picker_preview");
+			m_color = preview->GetProperty("background-color")->Get<Rocket::Core::Colourb>();
+			shutdown();
+		}
+		else if (element->GetId() == "color_picker_cancel")
+		{
+			shutdown();
+		}
+	}
+
+}
+
+/* light_panel */
+
+bool light_panel::init(Rocket::Core::Context * context, scene * scene)
+{
+
+	m_scene = scene;
+
+	m_panel = context->LoadDocument("ui/lights.rml");
+	m_light = nullptr;
+
+	if (m_panel)
+	{
+
+		m_panel->AddEventListener("click", this);
+		m_panel->AddEventListener("change", this);
+
+		m_panel->GetElementById("title")->SetInnerRML(m_panel->GetTitle());
+
+		fill_form();
+
+		return true;
+
+	}
+
+	return false;
+}
+
+void light_panel::shutdown(void)
+{
+	m_colorPanel.shutdown();
+	gui_panel::shutdown();
+}
+
+void light_panel::set_light(light * light)
+{
+
+	m_light = light;
+
+	if (m_light)
+	{
+		fill_form();
+		show();
+	}
+
+}
+
+static void direction_to_elevation_azimuth(const XMFLOAT3 & direction, float & elevation, float & azimuth)
+{
+
+	/*XMVECTOR L = -to_vector(direction);
+
+	XMVECTOR splatY = XMVectorPermute<XM_PERMUTE_0Y, XM_PERMUTE_0Y, XM_PERMUTE_0Y, XM_PERMUTE_0Y>(L, L);
+	XMVECTOR splatX = XMVectorPermute<XM_PERMUTE_0X, XM_PERMUTE_0X, XM_PERMUTE_0X, XM_PERMUTE_0X>(L, L);
+	XMVECTOR theta = XMVectorACos(splatY);
+	XMVECTOR phi = XMVectorATan(XMVectorDivide(splatY, splatX));
+
+	elevation = 90.f - XMConvertToDegrees(XMVectorGetX(phi));
+	azimuth = XMConvertToDegrees(XMVectorGetX(theta));*/
+
+	elevation = XMConvertToDegrees(std::asin(direction.y));
+
+	azimuth = XMConvertToDegrees(std::atan(direction.x / direction.y));
+
+}
+
+void elevation_azimuth_to_direction(float elevation, float azimuth, XMFLOAT3 & direction)
+{
+
+	float sinAzimuth, cosAzimuth;
+	float sinElevation, cosElevation;
+
+	XMScalarSinCos(&sinAzimuth, &cosAzimuth, XMConvertToRadians(azimuth));
+	XMScalarSinCos(&sinElevation, &cosElevation, XMConvertToRadians(elevation));
+
+	direction.y = sinElevation;
+	direction.x = cosElevation * cosAzimuth;
+	direction.z = cosElevation * sinAzimuth;
+
+}
+
+void light_panel::ProcessEvent(Rocket::Core::Event & event)
+{
+
+	auto element = event.GetTargetElement();
+	auto document = element->GetOwnerDocument();
+
+	if (event.GetType() == "unload" && document == m_colorPanel.get_panel())
+	{
+
+		Rocket::Core::Element * element;
+
+		switch (m_light->type)
+		{
+		case FUSE_LIGHT_TYPE_DIRECTIONAL:
+			element = m_panel->GetElementById("directional_color");
+			break;
+		default:
+			return;
+		}
+
+		auto color = m_colorPanel.get_color();
+		element->SetProperty("background-color", Rocket::Core::Property(color, Rocket::Core::Property::COLOUR));
+
+		m_light->color = color_rgb(color.red, color.green, color.blue) / 255.f;
+
+		
+	}
+	else if (event.GetType() == "click")
+	{
+		if (element->GetId() == "next")
+		{
+			next_light();
+		}
+		else if (element->GetId() == "directional_color")
+		{
+			if (m_colorPanel.init(m_panel->GetContext()))
+			{
+				m_colorPanel.show(Rocket::Core::ElementDocument::MODAL);
+				m_colorPanel.get_panel()->AddEventListener("unload", this);
+			}
+		}
+	}
+	else if (event.GetType() == "change")
+	{
+
+		if (m_filling)
+		{
+			return;
+		}
+
+		if (element->GetId() == "directional_elevation" || element->GetId() == "directional_azimuth")
+		{
+
+			float elevation, azimuth;
+			
+			auto elevationText = dynamic_cast<Rocket::Controls::ElementFormControlInput*>(m_panel->GetElementById("directional_elevation"))->GetValue();
+			auto azimuthText = dynamic_cast<Rocket::Controls::ElementFormControlInput*>(m_panel->GetElementById("directional_azimuth"))->GetValue();
+
+			if (Rocket::Core::TypeConverter<Rocket::Core::String, float>::Convert(elevationText, elevation) &&
+				Rocket::Core::TypeConverter<Rocket::Core::String, float>::Convert(azimuthText, azimuth))
+			{
+				elevation_azimuth_to_direction(elevation, azimuth, m_light->direction);
+			}
+
+		}
+		else if (element->GetId() == "directional_intensity")
+		{
+
+			float intensity;
+
+			auto intensityStr = dynamic_cast<Rocket::Controls::ElementFormControlInput*>(element)->GetValue();
+
+			if (Rocket::Core::TypeConverter<Rocket::Core::String, float>::Convert(intensityStr, intensity))
+			{
+				m_light->intensity = intensity;
+			}
+		}
+		
+	}
+
+}
+
+void light_panel::fill_form(void)
+{
+
+	m_filling = true;
+
+	using namespace Rocket::Core;
+
+	String lightType;
+
+	if (m_light)
+	{
+		switch (m_light->type)
+		{
+		case FUSE_LIGHT_TYPE_DIRECTIONAL:
+
+			lightType = "directional";
+			{
+
+				float elevation, azimuth;
+
+				direction_to_elevation_azimuth(m_light->direction, elevation, azimuth);
+				
+				{
+
+					String value;
+
+					TypeConverter<float, String>::Convert(elevation, value);
+					dynamic_cast<Rocket::Controls::ElementFormControlInput*>(m_panel->GetElementById("directional_elevation"))->SetValue(value);
+
+				}
+
+				{
+
+					String value;
+
+					TypeConverter<float, String>::Convert(azimuth, value);
+					dynamic_cast<Rocket::Controls::ElementFormControlInput*>(m_panel->GetElementById("directional_azimuth"))->SetValue(value);
+
+				}
+
+				{
+
+					String value;
+
+					TypeConverter<float, String>::Convert(m_light->intensity, value);
+					dynamic_cast<Rocket::Controls::ElementFormControlInput*>(m_panel->GetElementById("directional_intensity"))->SetValue(value);
+
+				}
+
+				{
+
+					Rocket::Core::String redStr, greenStr, blueStr;
+					Rocket::Core::Colourb color;
+					
+					color.red   = m_light->color.r * 255.f;
+					color.green = m_light->color.g * 255.f;
+					color.blue  = m_light->color.b * 255.f;
+
+					Rocket::Core::Element * colorElement;
+
+					switch (m_light->type)
+					{
+					case FUSE_LIGHT_TYPE_DIRECTIONAL:
+						colorElement = m_panel->GetElementById("directional_color");
+						break;
+					default:
+						return;
+					}
+
+					colorElement->SetProperty("background-color", Rocket::Core::Property(color, Rocket::Core::Property::COLOUR));
+					m_colorPanel.set_color(color);
+
+				}
+
+			}
+
+			break;
+		case FUSE_LIGHT_TYPE_SPOTLIGHT:
+			lightType = "spotlight";
+			break;
+		case FUSE_LIGHT_TYPE_POINTLIGHT:
+			lightType = "pointlight";
+			break;
+		}
+	}
+
+	Rocket::Core::ElementList elements;
+
+	m_panel->GetElementsByClassName(elements, "options");
+
+	for (auto e : elements)
+	{
+		if (e->GetId() != lightType &&
+			e->GetId() != "common")
+		{
+			e->SetProperty("visibility", "hidden");
+		}
+		else
+		{
+			e->SetProperty("visibility", "visible");
+		}
+	}
+
+	m_filling = false;
+
+}
+
+void light_panel::next_light(void)
+{
+
+	auto lights = m_scene->get_lights();
+
+	if (lights.first == lights.second)
+	{
+		return;
+	}
+
+	auto it = std::find(lights.first, lights.second, m_light);
+
+	it = (it == lights.second ? it : std::next(it));
+
+	if (it == lights.second)
+	{
+		it = lights.first;
+	}
+
+	m_light = *it;
+
+	fill_form();
+
+}
+
+/* render_options */
+
+bool render_options::init(Rocket::Core::Context * context, renderer_configuration * r)
+{
+
+	m_configuration = r;
+
+	if (m_configuration)
+	{
+
+		m_panel = context->LoadDocument("ui/render_options.rml");
+
+		if (m_panel)
+		{
+
+			m_panel->AddEventListener("click", this);
+			m_panel->AddEventListener("change", this);
+
+			m_panel->GetElementById("title")->SetInnerRML(m_panel->GetTitle());
+
+			fill_form();
+
+			return true;
+		}
+
+	}
+
+	return false;
+
+}
+
+void render_options::fill_form(void)
+{
+
+	using namespace Rocket::Core;
+
+	{
+
+		String value;
+		float vsmMinVariance = m_configuration->get_vsm_min_variance();
+
+		TypeConverter<float, String>::Convert(vsmMinVariance, value);
+		dynamic_cast<Rocket::Controls::ElementFormControlInput*>(m_panel->GetElementById("vsm_min_variance"))->SetValue(value);
+
+	}
+
+	{
+
+		String value;
+		float vsmMinVariance = m_configuration->get_vsm_min_bleeding();
+
+		TypeConverter<float, String>::Convert(vsmMinVariance, value);
+		dynamic_cast<Rocket::Controls::ElementFormControlInput*>(m_panel->GetElementById("vsm_min_bleeding"))->SetValue(value);
+
+	}
+	
+
+}
+
+void render_options::ProcessEvent(Rocket::Core::Event & event)
+{
+
+	auto element = event.GetTargetElement();
+	auto document = element->GetOwnerDocument();
+
+	if (event.GetType() == "change")
+	{
+
+		if (element->GetId() == "vsm_min_variance")
+		{
+
+			float value;
+			auto text = dynamic_cast<Rocket::Controls::ElementFormControlInput*>(element)->GetValue();
+
+			if (Rocket::Core::TypeConverter<Rocket::Core::String, float>::Convert(text, value))
+			{
+				m_configuration->set_vsm_min_variance(value);
+			}
+
+		}
+		else if (element->GetId() == "vsm_min_bleeding")
+		{
+
+			float value;
+			auto text = dynamic_cast<Rocket::Controls::ElementFormControlInput*>(element)->GetValue();
+
+			if (Rocket::Core::TypeConverter<Rocket::Core::String, float>::Convert(text, value))
+			{
+				m_configuration->set_vsm_min_bleeding(value);
+			}
+
+		}
+		
+	}
+
+}
+
 
 #endif
