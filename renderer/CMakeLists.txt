@@ -17,6 +17,7 @@ add_executable (
 	shadow_mapper.hpp shadow_mapper.cpp
 	editor_gui.hpp editor_gui.cpp
 	render_variables.hpp render_variables.cpp
+	blur.hpp blur.cpp
 )
 
 target_link_libraries ( renderer fuse ${DirectX12_LIBRARY} )

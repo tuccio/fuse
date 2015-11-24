@@ -22,7 +22,6 @@ namespace fuse
 		bool generate_mipmaps(
 			ID3D12Device * device,
 			gpu_command_queue & commandQueue,
-			ID3D12CommandAllocator * commandAllocator,
 			gpu_graphics_command_list & commandList,
 			ID3D12Resource * resource);
 

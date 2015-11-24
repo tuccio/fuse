@@ -16,7 +16,6 @@ bool text_renderer::init(ID3D12Device * device)
 void text_renderer::render(
 	ID3D12Device * device,
 	gpu_command_queue & commandQueue,
-	ID3D12CommandAllocator * commandAllocator,
 	gpu_graphics_command_list & commandList,
 	ID3D12Resource * rtResource,
 	const D3D12_CPU_DESCRIPTOR_HANDLE * rtv,
@@ -107,7 +106,8 @@ void text_renderer::render(
 
 			memcpy(cbData, &data[0], size);
 
-			FUSE_HR_CHECK(commandList->Reset(commandAllocator, m_pso.get()));
+			//FUSE_HR_CHECK(commandList->Reset(commandAllocator, m_pso.get()));
+			commandList.reset_command_list(m_pso.get());
 
 			commandList.resource_barrier_transition(rtResource, D3D12_RESOURCE_STATE_RENDER_TARGET);
 			commandList.resource_barrier_transition(font->get_texture()->get_resource(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);

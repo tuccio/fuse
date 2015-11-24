@@ -40,9 +40,8 @@ float vsm_chebyshev_upperbound(in float2 moments, in float t, in float minVarian
 
 }
 
-float vsm_visibility(in float2 moments, in float4 lightSpacePosition, in float minVariance, in float minBleeding)
+float vsm_visibility(in float2 moments, in float depth, in float minVariance, in float minBleeding)
 {
-	float  depth = lightSpacePosition.z / lightSpacePosition.w;
 	return vsm_chebyshev_upperbound(moments, depth, minVariance, minBleeding);
 }
 

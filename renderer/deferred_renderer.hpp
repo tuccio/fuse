@@ -49,7 +49,6 @@ namespace fuse
 		void render_gbuffer(
 			ID3D12Device * device,
 			gpu_command_queue & commandQueue,
-			ID3D12CommandAllocator * commandAllocator,
 			gpu_graphics_command_list & commandList,
 			gpu_ring_buffer * ringBuffer,
 			D3D12_GPU_VIRTUAL_ADDRESS cbPerFrame,
@@ -63,7 +62,6 @@ namespace fuse
 		void render_light(
 			ID3D12Device * device,
 			gpu_command_queue & commandQueue,
-			ID3D12CommandAllocator * commandAllocator,
 			gpu_graphics_command_list & commandList,
 			gpu_ring_buffer * ringBuffer,
 			ID3D12DescriptorHeap * gbufferHeap,

@@ -2,12 +2,25 @@
 #define __EVSM2__
 
 #include "vsm.hlsli"
-#include "scene_data.hlsli"
+#include "esm.hlsli"
 
-float evsm2_visibility(in float2 moments, in float4 lightSpacePosition, in float exponent, in float minVariance, in float minBleeding)
+float evsm2_visibility(in float2 moments, in float depth, in float exponent, in float minVariance, in float minBleeding)
 {
-	float  depth = lightSpacePosition.z / lightSpacePosition.w;
-	return vsm_chebyshev_upperbound(moments, depth, minVariance, minBleeding);
+
+	float wDepth = esm_warp(depth, exponent);
+	
+	float depthScale = minVariance * exponent * wDepth;
+	float scaledMinVariance = depthScale * depthScale;
+	
+	return vsm_chebyshev_upperbound(moments, wDepth, scaledMinVariance, minBleeding);
+	
+}
+
+float evsm2_moments(in float depth, in float exponent)
+{
+	float wDepth = esm_warp(depth, exponent);
+	return float2(wDepth, wDepth * wDepth);
+	//return vsm_moments(wDepth);
 }
 
 #endif

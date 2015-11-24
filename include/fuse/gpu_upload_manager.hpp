@@ -44,10 +44,10 @@ namespace fuse
 
 	private:
 
-		std::vector<com_ptr<ID3D12CommandAllocator>>   m_commandAllocators;
-		std::vector<gpu_graphics_command_list>         m_commandLists;
+		//std::vector<com_ptr<ID3D12CommandAllocator>> m_commandAllocators;
+		std::vector<gpu_graphics_command_list> m_commandLists;
 
-		UINT                                           m_index;
+		UINT                                   m_index;
 
 	};
 

@@ -22,7 +22,6 @@ namespace fuse
 		void render(
 			ID3D12Device * device,
 			gpu_command_queue & commandQueue,
-			ID3D12CommandAllocator * commandAllocator,
 			gpu_graphics_command_list & commandList,
 			ID3D12Resource * rtResource,
 			const D3D12_CPU_DESCRIPTOR_HANDLE * rtv,

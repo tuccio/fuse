@@ -33,9 +33,16 @@ namespace fuse
 
 	struct cb_render_variables
 	{
+
 		float vsmMinVariance;
 		float vsmMinBleeding;
-		float __fill0[2];
+
+		float evsm2MinVariance;
+		float evsm2MinBleeding;
+		float evsm2Exponent;
+
+		float __fill0[3];
+
 	};
 
 	struct cb_material
@@ -82,6 +89,8 @@ namespace fuse
 	struct cb_shadowmapping
 	{
 		XMMATRIX lightMatrix;
+		uint32_t algorithm;
+		uint32_t __fill[3];
 	};
 
 	struct cb_per_frame

@@ -16,7 +16,6 @@ mipmap_generator::mipmap_generator(ID3D12Device * device)
 bool mipmap_generator::generate_mipmaps(
 	ID3D12Device * device,
 	gpu_command_queue & commandQueue,
-	ID3D12CommandAllocator * commandAllocator,
 	gpu_graphics_command_list & commandList,
 	ID3D12Resource * resource)
 {
@@ -84,7 +83,7 @@ bool mipmap_generator::generate_mipmaps(
 	UINT rtvDescSize = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 	UINT srvDescSize = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
-	FUSE_HR_CHECK(commandList->Reset(commandAllocator, pso));
+	commandList.reset_command_list(pso);
 	commandList->SetGraphicsRootSignature(m_rs.get());
 
 	commandList.resource_barrier_transition(resource, D3D12_RESOURCE_STATE_RENDER_TARGET);
@@ -104,6 +103,8 @@ bool mipmap_generator::generate_mipmaps(
 	UINT height = desc.Height;
 
 	commandList->SetDescriptorHeaps(1, &srvHeap);
+
+	const float black[4] = { 0 };
 
 	for (int i = 0; i < desc.MipLevels - 1; i++)
 	{
@@ -127,6 +128,8 @@ bool mipmap_generator::generate_mipmaps(
 
 		device->CreateRenderTargetView(resource, &rtvDesc, rtv);
 
+		commandList->ClearRenderTargetView(rtv, black, 0, nullptr);
+
 		commandList->OMSetRenderTargets(1, &rtv, false, nullptr);
 		commandList->RSSetViewports(1, &viewport);
 		commandList->RSSetScissorRects(1, &scissorRect);
@@ -145,88 +148,9 @@ bool mipmap_generator::generate_mipmaps(
 	FUSE_HR_CHECK(commandList->Close());
 	commandQueue.execute(commandList);
 
-	// Wait for it to finish with a fence before freeing the heaps
+	commandQueue.safe_release(srvHeap.get());
+	commandQueue.safe_release(rtvHeap.get());
 
-	commandQueue->Signal(m_fence.get(), ++m_mipID);
-
-	m_fence->SetEventOnCompletion(m_mipID, m_hFenceEvent);
-	WaitForSingleObject(m_hFenceEvent, INFINITE);
-
-	// Get the resource desc
-	// Create the srv for the highest mip
-	// For each mip
-	// Create the uav for the mip
-	// Dispatch
-
-	//D3D12_RESOURCE_DESC desc = resource->GetDesc();
-
-	//D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
-
-	//srvHeapDesc.NumDescriptors = desc.MipLevels + 1;
-	//srvHeapDesc.Type           = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-	//srvHeapDesc.Flags          = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-
-	//com_ptr<ID3D12DescriptorHeap> srvHeap;
-
-	//FUSE_HR_CHECK(device->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&srvHeap)));
-
-	//D3D12_CPU_DESCRIPTOR_HANDLE srvDescriptor = srvHeap->GetCPUDescriptorHandleForHeapStart();
-
-	//D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-
-	//srvDesc.Format                    = desc.Format;
-	//srvDesc.ViewDimension             = D3D12_SRV_DIMENSION_TEXTURE2D;
-	//srvDesc.Shader4ComponentMapping   = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-	//srvDesc.Texture2D.MostDetailedMip = 0;
-	//srvDesc.Texture2D.MipLevels       = 1;
-
-	//device->CreateShaderResourceView(resource, &srvDesc, srvDescriptor);
-
-	//UINT descSize = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-
-	//D3D12_CPU_DESCRIPTOR_HANDLE uavDescriptor = CD3DX12_CPU_DESCRIPTOR_HANDLE(srvDescriptor, descSize);
-
-	//UINT width  = desc.Width;
-	//UINT height = desc.Height;
-
-	//D3D12_GPU_DESCRIPTOR_HANDLE srvGPUDesc = srvHeap->GetGPUDescriptorHandleForHeapStart();
-
-	//for (int i = 0; i < desc.MipLevels; i++)
-	//{
-
-	//	width /= 2;
-	//	height /= 2;
-
-	//	FUSE_HR_CHECK(commandList->Reset(commandAllocator, m_pso.get()));
-	//	commandList.resource_barrier_transition(resource, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);		
-
-	//	D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
-
-	//	uavDesc.Format               = desc.Format;
-	//	uavDesc.ViewDimension        = D3D12_UAV_DIMENSION_TEXTURE2D;
-	//	uavDesc.Texture2D.MipSlice   = i;
-	//	uavDesc.Texture2D.PlaneSlice = 0;
-
-	//	device->CreateUnorderedAccessView(resource, nullptr, &uavDesc, CD3DX12_CPU_DESCRIPTOR_HANDLE(srvDescriptor, 1 + i, descSize));
-
-	//	UINT groupSize = 32;
-
-	//	UINT gridWidth = (width + groupSize - 1) / groupSize;
-	//	UINT gridHeight = (height + groupSize - 1) / groupSize;
-
-	//	commandList->SetComputeRootSignature(m_rs.get());
-	//	commandList->SetDescriptorHeaps(1, &srvHeap);
-	//	commandList->SetComputeRootDescriptorTable(0, srvGPUDesc);
-	//	commandList->SetComputeRootDescriptorTable(1, CD3DX12_GPU_DESCRIPTOR_HANDLE(srvGPUDesc, 1, descSize));
-
-	//	commandList->Dispatch(gridWidth, gridHeight, 1);
-
-	//	FUSE_HR_CHECK(commandList->Close());
-	//	commandQueue.execute(commandList);
-
-	//}
-
-	//srvHeap.release(); // TODO memory management
 	return true;
 
 }

@@ -130,12 +130,13 @@ void gpu_command_queue::execute(gpu_graphics_command_list & commandList)
 		else
 		{
 			
-			FUSE_HR_CHECK(m_auxCommandList->Reset(m_auxCommandAllocator, nullptr));
-			m_auxCommandList->ResourceBarrier(barriers.size(), &barriers[0]);
+			//FUSE_HR_CHECK(m_auxCommandList->Reset(m_auxCommandAllocator, nullptr));
+			m_auxCommandList->reset_command_list(nullptr);
+			(*m_auxCommandList)->ResourceBarrier(barriers.size(), &barriers[0]);
 
-			ID3D12CommandList * lists[2] = { m_auxCommandList, commandList.get() };
+			ID3D12CommandList * lists[2] = { m_auxCommandList->get(), commandList.get() };
 
-			FUSE_HR_CHECK(m_auxCommandList->Close());
+			FUSE_HR_CHECK((*m_auxCommandList)->Close());
 
 			get()->ExecuteCommandLists(2, lists);
 
@@ -152,9 +153,9 @@ void gpu_command_queue::execute(gpu_graphics_command_list & commandList)
 
 }
 
-void gpu_command_queue::safe_release(ID3D12Resource * resource) const
+void gpu_command_queue::safe_release(IUnknown * resource) const
 {
-	m_garbage.push(garbage_type(m_frameIndex, com_ptr<ID3D12Resource>(resource)));
+	m_garbage.push(garbage_type(m_frameIndex, com_ptr<IUnknown>(resource)));
 }
 
 void gpu_command_queue::collect_garbage(void) const
@@ -163,4 +164,9 @@ void gpu_command_queue::collect_garbage(void) const
 	{
 		m_garbage.pop();
 	}
+}
+
+void gpu_command_queue::set_aux_command_list(gpu_graphics_command_list & commandList)
+{
+	m_auxCommandList = &commandList;
 }

@@ -27,8 +27,14 @@ struct screen
 
 struct render_variables
 {
+
 	float vsmMinVariance;
 	float vsmMinBleeding;
+	
+	float evsm2MinVariance;
+	float evsm2MinBleeding;
+	float evsm2Exponent;
+	
 };
 
 struct transform
@@ -74,5 +80,10 @@ cbuffer cbPerFrame : register(Register)\
 	screen g_screen;\
 	render_variables R;\
 };
+
+#define SHADOW_MAPPING_NONE  0
+#define SHADOW_MAPPING_VSM   1
+#define SHADOW_MAPPING_EVSM2 2
+#define SHADOW_MAPPING_EVSM4 3
 
 #endif

@@ -30,7 +30,7 @@ namespace fuse
 		bool init(ID3D12Device * device, gpu_command_queue & commandQueue, gpu_upload_manager * uploadManager, gpu_ring_buffer * ringBuffer, const rocket_interface_configuration & cfg);
 		void shutdown(void);
 
-		void render_begin(ID3D12CommandAllocator * commandAllocator, gpu_graphics_command_list & commandList, D3D12_GPU_VIRTUAL_ADDRESS cbPerFrame, ID3D12Resource * renderTarget, const D3D12_CPU_DESCRIPTOR_HANDLE & rtv);
+		void render_begin(gpu_graphics_command_list & commandList, D3D12_GPU_VIRTUAL_ADDRESS cbPerFrame, ID3D12Resource * renderTarget, const D3D12_CPU_DESCRIPTOR_HANDLE & rtv);
 		void render_end(void);
 
 		void on_resize(UINT width, UINT height);

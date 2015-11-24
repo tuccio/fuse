@@ -158,12 +158,12 @@ Rocket::Core::CompiledGeometryHandle rocket_interface::CompileGeometry(Rocket::C
 
 }
 
-void rocket_interface::render_begin(ID3D12CommandAllocator * commandAllocator, gpu_graphics_command_list & commandList, D3D12_GPU_VIRTUAL_ADDRESS cbPerFrame, ID3D12Resource * renderTarget, const D3D12_CPU_DESCRIPTOR_HANDLE & rtv)
+void rocket_interface::render_begin(gpu_graphics_command_list & commandList, D3D12_GPU_VIRTUAL_ADDRESS cbPerFrame, ID3D12Resource * renderTarget, const D3D12_CPU_DESCRIPTOR_HANDLE & rtv)
 {
 
 	m_commandList = &commandList;
 
-	FUSE_HR_CHECK(commandList->Reset(commandAllocator, m_pso.get()));
+	commandList.reset_command_list(m_pso.get());
 
 	commandList.resource_barrier_transition(renderTarget, D3D12_RESOURCE_STATE_RENDER_TARGET);
 

@@ -13,6 +13,13 @@ namespace fuse
 		FUSE_LIGHT_TYPE_POINTLIGHT
 	};
 
+	enum shadow_mapping_algorithm
+	{
+		FUSE_SHADOW_MAPPING_NONE,
+		FUSE_SHADOW_MAPPING_VSM,
+		FUSE_SHADOW_MAPPING_EVSM2
+	};
+
 	struct light
 	{
 
@@ -25,6 +32,8 @@ namespace fuse
 		XMFLOAT3  direction;
 
 		float spotAngle;
+
+		shadow_mapping_algorithm shadowMappingAlgorithm;
 
 	};
 

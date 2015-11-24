@@ -29,8 +29,14 @@ bool texture::create(
 		dataDesc.pData    = image->get_data();
 		dataDesc.RowPitch = image->get_size();
 
+		float black[4] = { 0 };
+
+		D3D12_CLEAR_VALUE * clearValue = nullptr;
+		CD3DX12_CLEAR_VALUE rtvClearValue(format, black);
+
 		if (generateMipmaps)
 		{
+			clearValue = &rtvClearValue;
 			flags |= D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
 		}
 
@@ -40,7 +46,7 @@ bool texture::create(
 				D3D12_HEAP_FLAG_NONE,
 				&CD3DX12_RESOURCE_DESC::Tex2D(format, m_width, m_height, 1, m_mipmaps, 1, 0, flags),
 				D3D12_RESOURCE_STATE_COPY_DEST,
-				nullptr,
+				clearValue,
 				IID_PPV_ARGS(&m_buffer)))
 		{
 

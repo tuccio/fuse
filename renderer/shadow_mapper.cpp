@@ -14,7 +14,6 @@ bool shadow_mapper::init(ID3D12Device * device, const shadow_mapper_configuratio
 void shadow_mapper::render(
 	ID3D12Device * device,
 	gpu_command_queue & commandQueue,
-	ID3D12CommandAllocator * commandAllocator,
 	gpu_graphics_command_list & commandList,
 	gpu_ring_buffer * ringBuffer,
 	D3D12_GPU_VIRTUAL_ADDRESS cbPerFrame,
@@ -34,18 +33,20 @@ void shadow_mapper::render(
 
 	switch (algorithm)
 	{
-	case FUSE_SHADOW_MAPPING:
-		pso = m_regularShadowMapPSO.get();
-		break;
+	case FUSE_SHADOW_MAPPING_NONE:
+		return;
 	case FUSE_SHADOW_MAPPING_VSM:
 		pso = m_vsmPSO.get();
 		break;
 	case FUSE_SHADOW_MAPPING_EVSM2:
 		pso = m_evsm2PSO.get();
 		break;
+	default:
+		pso = m_regularShadowMapPSO.get();
+		break;
 	}
 
-	FUSE_HR_CHECK(commandList->Reset(commandAllocator, pso));
+	commandList.reset_command_list(pso);
 
 	commandList.resource_barrier_transition(depthBuffer, D3D12_RESOURCE_STATE_DEPTH_WRITE);
 
@@ -57,10 +58,14 @@ void shadow_mapper::render(
 	}
 	else
 	{
+
 		float black[4] = { 0 };
-		commandList->ClearRenderTargetView(*rtv, black, 0, nullptr);
+
 		commandList.resource_barrier_transition(renderTarget, D3D12_RESOURCE_STATE_RENDER_TARGET);
+
+		commandList->ClearRenderTargetView(*rtv, black, 0, nullptr);
 		commandList->OMSetRenderTargets(1, rtv, false, dsv);
+
 	}
 
 	commandList->RSSetViewports(1, &m_viewport);

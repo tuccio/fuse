@@ -29,7 +29,6 @@ void deferred_renderer::shutdown(void)
 void deferred_renderer::render_gbuffer(
 	ID3D12Device * device,
 	gpu_command_queue & commandQueue,
-	ID3D12CommandAllocator * commandAllocator,
 	gpu_graphics_command_list & commandList,
 	gpu_ring_buffer * ringBuffer,
 	D3D12_GPU_VIRTUAL_ADDRESS cbPerFrame,
@@ -50,7 +49,8 @@ void deferred_renderer::render_gbuffer(
 
 	/* Setup the pipeline state */
 
-	FUSE_HR_CHECK(commandList->Reset(commandAllocator, m_gbufferPSO.get()));
+	//FUSE_HR_CHECK(commandList->Reset(commandAllocator, m_gbufferPSO.get()));
+	commandList.reset_command_list(m_gbufferPSO.get());
 
 	commandList.resource_barrier_transition(gbufferResources[0], D3D12_RESOURCE_STATE_RENDER_TARGET);
 	commandList.resource_barrier_transition(gbufferResources[1], D3D12_RESOURCE_STATE_RENDER_TARGET);
@@ -138,7 +138,6 @@ void deferred_renderer::render_gbuffer(
 void deferred_renderer::render_light(
 	ID3D12Device * device,
 	gpu_command_queue & commandQueue,
-	ID3D12CommandAllocator * commandAllocator,
 	gpu_graphics_command_list & commandList,
 	gpu_ring_buffer * ringBuffer,
 	ID3D12DescriptorHeap * srvHeap,
@@ -169,7 +168,7 @@ void deferred_renderer::render_light(
 
 		memcpy(cbData, &cbPerLight, sizeof(cb_per_light));
 
-		FUSE_HR_CHECK(commandList->Reset(commandAllocator, m_shadingPSO.get()));
+		commandList.reset_command_list(m_shadingPSO.get());
 
 		commandList.resource_barrier_transition(gbufferResources[0], D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 		commandList.resource_barrier_transition(gbufferResources[1], D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
@@ -186,8 +185,10 @@ void deferred_renderer::render_light(
 
 		if (shadowMapInfo)
 		{
+			cbPerLight.shadowMapping.algorithm = static_cast<uint32_t>(light->shadowMappingAlgorithm);
 			commandList.resource_barrier_transition(shadowMapInfo->shadowMap, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 			commandList->SetGraphicsRootDescriptorTable(3, shadowMapInfo->shadowMapTable);
+			commandList->SetGraphicsRoot32BitConstant(4, static_cast<UINT>(light->shadowMappingAlgorithm), 0);
 		}
 
 		commandList->OMSetRenderTargets(1, rtv, false, nullptr);
@@ -286,7 +287,7 @@ bool deferred_renderer::create_shading_pso(ID3D12Device * device)
 	com_ptr<ID3DBlob> errorsBlob;
 	com_ptr<ID3D12ShaderReflection> shaderReflection;
 
-	CD3DX12_ROOT_PARAMETER rootParameters[4];
+	CD3DX12_ROOT_PARAMETER rootParameters[5];
 
 	CD3DX12_DESCRIPTOR_RANGE gbufferSRV;
 
@@ -300,13 +301,12 @@ bool deferred_renderer::create_shading_pso(ID3D12Device * device)
 	rootParameters[1].InitAsConstantBufferView(1, 0, D3D12_SHADER_VISIBILITY_PIXEL);
 	rootParameters[2].InitAsDescriptorTable(1, &gbufferSRV, D3D12_SHADER_VISIBILITY_PIXEL);
 	rootParameters[3].InitAsDescriptorTable(1, &shadowMapSRV, D3D12_SHADER_VISIBILITY_PIXEL);
+	rootParameters[4].InitAsConstants(1, 2, 0, D3D12_SHADER_VISIBILITY_PIXEL);
 
 	CD3DX12_STATIC_SAMPLER_DESC staticSamplers[] = {
 		CD3DX12_STATIC_SAMPLER_DESC(0, D3D12_FILTER_MIN_MAG_MIP_POINT),
 		CD3DX12_STATIC_SAMPLER_DESC(1, D3D12_FILTER_MIN_MAG_MIP_LINEAR),
-		CD3DX12_STATIC_SAMPLER_DESC(2, D3D12_FILTER_MIN_MAG_MIP_LINEAR, 
-			D3D12_TEXTURE_ADDRESS_MODE_BORDER, D3D12_TEXTURE_ADDRESS_MODE_BORDER, D3D12_TEXTURE_ADDRESS_MODE_BORDER,
-			0.f, 1, D3D12_COMPARISON_FUNC_LESS_EQUAL, D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK)
+		CD3DX12_STATIC_SAMPLER_DESC(2, D3D12_FILTER_ANISOTROPIC)
 	};
 
 	CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc(_countof(rootParameters), rootParameters, _countof(staticSamplers), staticSamplers, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);

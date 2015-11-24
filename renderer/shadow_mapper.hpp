@@ -7,13 +7,6 @@
 
 #include "scene.hpp"
 
-enum shadow_mapping_algorithm
-{
-	FUSE_SHADOW_MAPPING,
-	FUSE_SHADOW_MAPPING_VSM,
-	FUSE_SHADOW_MAPPING_EVSM2
-};
-
 namespace fuse
 {
 	
@@ -35,7 +28,6 @@ namespace fuse
 		void render(
 			ID3D12Device * device,
 			gpu_command_queue & commandQueue,
-			ID3D12CommandAllocator * commandAllocator,
 			gpu_graphics_command_list & commandList,
 			gpu_ring_buffer * ringBuffer,
 			D3D12_GPU_VIRTUAL_ADDRESS cbPerFrame,

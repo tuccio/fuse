@@ -10,9 +10,9 @@ bool tonemapper::init(ID3D12Device * device)
 	return create_pso(device);
 }
 
-void tonemapper::run(ID3D12Device * device,
+void tonemapper::render(
+	ID3D12Device * device,
 	gpu_command_queue & commandQueue,
-	ID3D12CommandAllocator * commandAllocator,
 	gpu_graphics_command_list & commandList,
 	ID3D12DescriptorHeap * descriptorHeap,
 	const D3D12_GPU_DESCRIPTOR_HANDLE & input,
@@ -23,7 +23,7 @@ void tonemapper::run(ID3D12Device * device,
 	UINT height)
 {
 	
-	FUSE_HR_CHECK(commandList->Reset(commandAllocator, m_pso.get()));
+	commandList.reset_command_list(m_pso.get());
 
 	commandList.resource_barrier_transition(source, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 	commandList.resource_barrier_transition(destination, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
@@ -44,7 +44,6 @@ void tonemapper::run(ID3D12Device * device,
 	FUSE_HR_CHECK(commandList->Close());
 
 	commandQueue.execute(commandList);
-	//commandQueue->ExecuteCommandLists(1, (ID3D12CommandList**) &commandList);
 
 }
 

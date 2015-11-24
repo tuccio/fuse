@@ -39,7 +39,9 @@ namespace fuse
 		void execute(gpu_graphics_command_list & commandList);
 
 		// Releases a resource when the current frame is completed by the GPU
-		void safe_release(ID3D12Resource * resource) const;
+		void safe_release(IUnknown * resource) const;
+
+		void set_aux_command_list(gpu_graphics_command_list & commandList);
 
 	private:
 
@@ -48,21 +50,13 @@ namespace fuse
 		UINT64                      m_frameIndex;
 		mutable UINT64              m_fenceValue;
 
-		ID3D12CommandAllocator    * m_auxCommandAllocator;
-		ID3D12GraphicsCommandList * m_auxCommandList;
+		gpu_graphics_command_list * m_auxCommandList;
 
-		typedef std::pair<uint32_t, com_ptr<ID3D12Resource>> garbage_type;
+		typedef std::pair<uint32_t, com_ptr<IUnknown>> garbage_type;
 
 		mutable std::queue<garbage_type> m_garbage;
 
 		void collect_garbage(void) const;
-
-	public:
-
-		FUSE_PROPERTIES_BY_VALUE(
-			(aux_command_allocator, m_auxCommandAllocator)
-			(aux_command_list, m_auxCommandList)
-		)
 		
 
 	};

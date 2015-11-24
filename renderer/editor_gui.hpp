@@ -77,6 +77,7 @@ namespace fuse
 		private:
 
 			renderer_configuration * m_configuration;
+			bool m_filling;
 
 			void fill_form(void);
 

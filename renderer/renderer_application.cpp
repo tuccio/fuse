@@ -36,6 +36,7 @@
 #include "tonemapper.hpp"
 #include "editor_gui.hpp"
 #include "render_variables.hpp"
+#include "blur.hpp"
 
 #include <algorithm>
 #include <array>
@@ -46,7 +47,7 @@ using namespace fuse;
 
 #define NUM_BUFFERS      (2u)
 #define NUM_RTVS         (6u)
-#define NUM_SRVS_UAVS    (8u)
+#define NUM_SRVS_UAVS    (11u)
 #define NUM_DSVS         (2u)
 #define UPLOAD_HEAP_SIZE (16 << 20)
 
@@ -59,23 +60,27 @@ using namespace fuse;
 #define RTV_RGBA8U0(FrameIndex)   RTV_HANDLE(FrameIndex, 2)
 #define RTV_RGBA16F2(FrameIndex)  RTV_HANDLE(FrameIndex, 3)
 #define RTV_RGBA16F3(FrameIndex)  RTV_HANDLE(FrameIndex, 4)
-#define RTV_RG16F0(FrameIndex)    RTV_HANDLE(FrameIndex, 5) 
 
-#define SRV_RGBA16F0(FrameIndex)  SRV_UAV_HANDLE(FrameIndex, 0)
-#define SRV_RGBA16F1(FrameIndex)  SRV_UAV_HANDLE(FrameIndex, 1)
-#define SRV_RGBA8U0(FrameIndex)   SRV_UAV_HANDLE(FrameIndex, 2)
-#define SRV_RGBA16F3(FrameIndex)  SRV_UAV_HANDLE(FrameIndex, 3)
-#define SRV_RGBA16F2(FrameIndex)  SRV_UAV_HANDLE(FrameIndex, 4)
-#define SRV_SHADOWMAP(FrameIndex) SRV_UAV_HANDLE(FrameIndex, 5)
-#define SRV_RG16F0(FrameIndex)    SRV_UAV_HANDLE(FrameIndex, 6)
-#define SRV_GBUFFER(FrameIndex)   SRV_RGBA16F0(FrameIndex)
+#define RTV_SHADOWMAP_RG16F0(FrameIndex) RTV_HANDLE(FrameIndex, 5) 
 
-#define UAV_RGBA8U0(FrameIndex)   SRV_UAV_HANDLE(FrameIndex, 7)
+#define SRV_RGBA16F0(FrameIndex)   SRV_UAV_HANDLE(FrameIndex, 0)
+#define SRV_RGBA16F1(FrameIndex)   SRV_UAV_HANDLE(FrameIndex, 1)
+#define SRV_RGBA8U0(FrameIndex)    SRV_UAV_HANDLE(FrameIndex, 2)
+#define SRV_RGBA16F3(FrameIndex)   SRV_UAV_HANDLE(FrameIndex, 3)
+#define SRV_RGBA16F2(FrameIndex)   SRV_UAV_HANDLE(FrameIndex, 4)
+#define SRV_SHADOWMAP0(FrameIndex) SRV_UAV_HANDLE(FrameIndex, 5)
+#define SRV_GBUFFER(FrameIndex)    SRV_RGBA16F0(FrameIndex)
+
+#define UAV_RGBA8U0(FrameIndex)   SRV_UAV_HANDLE(FrameIndex, 6)
+
+#define SRV_SHADOWMAP_RG16F0(FrameIndex) SRV_UAV_HANDLE(FrameIndex, 7)
+#define SRV_SHADOWMAP_RG16F1(FrameIndex) SRV_UAV_HANDLE(FrameIndex, 8)
+
+#define UAV_SHADOWMAP_RG16F0(FrameIndex) SRV_UAV_HANDLE(FrameIndex, 9)
+#define UAV_SHADOWMAP_RG16F1(FrameIndex) SRV_UAV_HANDLE(FrameIndex, 10)
 
 #define DSV_DEPTH(FrameIndex)     DSV_HANDLE(FrameIndex, 0)
 #define DSV_SHADOWMAP(FrameIndex) DSV_HANDLE(FrameIndex, 1)
-
-#define SHADOW_MAP_RESOLUTION 1024
 
 std::array<com_ptr<ID3D12CommandAllocator>, NUM_BUFFERS> g_commandAllocator;
 std::array<gpu_graphics_command_list,       NUM_BUFFERS> g_commandList;
@@ -94,9 +99,6 @@ std::array<com_ptr<ID3D12Resource>, NUM_BUFFERS> g_cbPerFrame;
 
 gpu_ring_buffer    g_uploadRingBuffer;
 gpu_upload_manager g_uploadManager;
-								   	   
-//com_ptr<ID3D12Resource>                g_fullresRGBA16F[2];
-//com_ptr<ID3D12Resource>                g_fullresRGBA8U;
 
 std::array<com_ptr<ID3D12Resource>, NUM_BUFFERS> g_fullresRGBA16F0;
 std::array<com_ptr<ID3D12Resource>, NUM_BUFFERS> g_fullresRGBA16F1;
@@ -107,7 +109,8 @@ std::array<com_ptr<ID3D12Resource>, NUM_BUFFERS> g_fullresRGBA8U1;
 std::array<com_ptr<ID3D12Resource>, NUM_BUFFERS> g_depthBuffer;
 
 std::array<com_ptr<ID3D12Resource>, NUM_BUFFERS> g_shadowmap32F;
-std::array<com_ptr<ID3D12Resource>, NUM_BUFFERS> g_shadowmapRG16F;
+std::array<com_ptr<ID3D12Resource>, NUM_BUFFERS> g_shadowmapRG16F0;
+std::array<com_ptr<ID3D12Resource>, NUM_BUFFERS> g_shadowmapRG16F1;
 
 std::unique_ptr<mipmap_generator> g_mipmapGenerator;
 std::unique_ptr<assimp_loader>    g_sceneLoader;
@@ -120,7 +123,7 @@ std::unique_ptr<gpu_mesh_manager>    g_gpuMeshManager;
 std::unique_ptr<texture_manager>     g_textureManager;
 std::unique_ptr<bitmap_font_manager> g_bitmapFontManager;
 
-std::unique_ptr<fps_camera_controller> g_cameraController;
+fps_camera_controller g_cameraController;
 
 rocket_interface   g_rocketInterface;
 
@@ -133,6 +136,9 @@ text_renderer      g_textRenderer;
 shadow_mapper      g_shadowMapper;
 
 renderer_configuration g_rendererConfiguration;
+
+box_blur g_vsmBlur;
+box_blur g_evsm2Blur;
 
 #ifdef FUSE_USE_EDITOR_GUI
 
@@ -190,8 +196,10 @@ bool renderer_application::on_device_created(ID3D12Device * device, gpu_command_
 	light->intensity *= .2f;
 	//g_scene.get_active_camera()->set_zfar(10000.f);
 
-	g_cameraController = std::make_unique<fps_camera_controller>(g_scene.get_active_camera());
-	g_cameraController->set_speed(XMFLOAT3(200, 200, 200));
+	//g_cameraController = std::make_unique<fps_camera_controller>(g_scene.get_active_camera());
+
+	g_cameraController.set_camera(g_scene.get_active_camera());
+	g_cameraController.set_speed(XMFLOAT3(200, 200, 200));
 
 	g_scene.get_active_camera()->set_orientation(XMQuaternionIdentity());
 
@@ -201,10 +209,12 @@ bool renderer_application::on_device_created(ID3D12Device * device, gpu_command_
 	{
 		
 		FUSE_HR_CHECK(device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&g_commandAllocator[bufferIndex])));
-		FUSE_HR_CHECK(device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, g_commandAllocator[bufferIndex].get(), nullptr, IID_PPV_ARGS(g_commandList[bufferIndex].get_address())));
+		g_commandList[bufferIndex].init(device, 0, D3D12_COMMAND_LIST_TYPE_DIRECT, g_commandAllocator[bufferIndex].get(), nullptr);
+		//FUSE_HR_CHECK(device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, g_commandAllocator[bufferIndex].get(), nullptr, IID_PPV_ARGS(g_commandList[bufferIndex].get_address())));
 
 		FUSE_HR_CHECK(device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&g_auxCommandAllocator[bufferIndex])));
-		FUSE_HR_CHECK(device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, g_auxCommandAllocator[bufferIndex].get(), nullptr, IID_PPV_ARGS(g_auxCommandList[bufferIndex].get_address())));
+		g_auxCommandList[bufferIndex].init(device, 0, D3D12_COMMAND_LIST_TYPE_DIRECT, g_auxCommandAllocator[bufferIndex].get(), nullptr);
+		//FUSE_HR_CHECK(device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, g_auxCommandAllocator[bufferIndex].get(), nullptr, IID_PPV_ARGS(g_auxCommandList[bufferIndex].get_address())));
 
 		FUSE_HR_CHECK(g_commandAllocator[bufferIndex]->SetName(L"main_command_allocator"));
 		FUSE_HR_CHECK(g_commandList[bufferIndex]->SetName(L"main_command_list"));
@@ -324,10 +334,39 @@ bool renderer_application::on_device_created(ID3D12Device * device, gpu_command_
 
 #endif
 
-	return g_deferredRenderer.init(device, rendererCFG) &&
-	       g_tonemapper.init(device) &&
-	       g_textRenderer.init(device) &&
-	       g_shadowMapper.init(device, shadowMapperCFG);
+	if (g_deferredRenderer.init(device, rendererCFG) &&
+	    g_tonemapper.init(device) &&
+	    g_textRenderer.init(device) &&
+	    g_shadowMapper.init(device, shadowMapperCFG) &&
+	    g_vsmBlur.init(device,
+			"float2",
+			g_rendererConfiguration.get_vsm_blur_kernel_size(),
+			g_rendererConfiguration.get_shadow_map_resolution(), g_rendererConfiguration.get_shadow_map_resolution()) &&
+		g_evsm2Blur.init(device,
+			"float2",
+			g_rendererConfiguration.get_evsm2_blur_kernel_size(),
+			g_rendererConfiguration.get_shadow_map_resolution(), g_rendererConfiguration.get_shadow_map_resolution()))
+	{
+
+		/* Wait for the initialization operations to be done on the GPU
+		   before starting the rendering and resetting the command allocator */
+
+		com_ptr<ID3D12Fence> initFence;
+		HANDLE hEvent = CreateEventEx(nullptr, nullptr, 0, EVENT_ALL_ACCESS);
+		device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&initFence));
+
+		commandQueue->Signal(initFence.get(), 1u);
+		initFence->SetEventOnCompletion(1u, hEvent);
+
+		bool result = WAIT_OBJECT_0 == WaitForSingleObject(hEvent, INFINITE);
+
+		CloseHandle(hEvent);
+
+		return result;
+
+	}
+
+	return false;
 
 }
 
@@ -382,7 +421,7 @@ bool renderer_application::on_swap_chain_resized(ID3D12Device * device, IDXGISwa
 	g_textRenderer.set_viewport(viewport);
 	g_textRenderer.set_scissor_rect(scissorRect);
 
-	g_cameraController->on_resize(desc->Width, desc->Height);
+	g_cameraController.on_resize(desc->Width, desc->Height);
 
 	camera * mainCamera = g_scene.get_active_camera();
 
@@ -642,7 +681,7 @@ LRESULT CALLBACK renderer_application::on_keyboard(int code, WPARAM wParam, LPAR
 			bool goFullscreen = !is_fullscreen();
 			set_fullscreen(goFullscreen);
 			set_cursor(goFullscreen, goFullscreen);
-			g_cameraController->set_auto_center_mouse(goFullscreen);
+			g_cameraController.set_auto_center_mouse(goFullscreen);
 		}
 		/*else if (__KEY_DOWN(VK_F5))
 		{
@@ -659,7 +698,7 @@ LRESULT CALLBACK renderer_application::on_keyboard(int code, WPARAM wParam, LPAR
 		else
 		{
 			(g_showGUI && g_editorGUI.on_keyboard(wParam, lParam)) ||
-				g_cameraController->on_keyboard(wParam, lParam);
+				g_cameraController.on_keyboard(wParam, lParam);
 		}
 
 	}
@@ -674,7 +713,7 @@ LRESULT CALLBACK renderer_application::on_mouse(int code, WPARAM wParam, LPARAM 
 	if (!code)
 	{
 		(g_showGUI && g_editorGUI.on_mouse(wParam, lParam)) ||
-			g_cameraController->on_mouse(wParam, lParam);
+			g_cameraController.on_mouse(wParam, lParam);
 	}
 
 	return base_type::on_mouse(code, wParam, lParam);
@@ -689,7 +728,7 @@ LRESULT renderer_application::on_message(HWND hWnd, UINT uMsg, WPARAM wParam, LP
 void renderer_application::on_update(float dt)
 {
 
-	g_cameraController->on_update(dt);
+	g_cameraController.on_update(dt);
 
 #if FUSE_USE_EDITOR_GUI
 
@@ -699,6 +738,45 @@ void renderer_application::on_update(float dt)
 	}
 
 #endif
+
+}
+
+void renderer_application::update_renderer_configuration(ID3D12Device * device, gpu_command_queue & commandQueue)
+{
+
+	auto updates = g_rendererConfiguration.get_updates();
+
+	for (auto variable : updates)
+	{
+
+		switch (variable)
+		{
+
+		case FUSE_RVAR_SHADOW_MAP_RESOLUTION:
+			commandQueue.wait_for_frame(commandQueue.get_frame_index());
+			create_shadow_map_buffers(device);
+
+		case FUSE_RVAR_VSM_BLUR_KERNEL_SIZE:
+			g_vsmBlur.shutdown();
+			g_vsmBlur.init(
+				device,
+				"float2",
+				g_rendererConfiguration.get_vsm_blur_kernel_size(),
+				g_rendererConfiguration.get_shadow_map_resolution(), g_rendererConfiguration.get_shadow_map_resolution());
+
+		case FUSE_RVAR_EVSM2_BLUR_KERNEL_SIZE:
+			g_evsm2Blur.shutdown();
+			g_evsm2Blur.init(
+				device,
+				"float2",
+				g_rendererConfiguration.get_evsm2_blur_kernel_size(),
+				g_rendererConfiguration.get_shadow_map_resolution(), g_rendererConfiguration.get_shadow_map_resolution());
+
+			break;
+
+		}
+
+	}
 
 }
 
@@ -716,6 +794,8 @@ void renderer_application::upload_per_frame_resources(ID3D12Device * device, gpu
 
 	cb_per_frame cbPerFrame;
 
+	/* Camera */
+
 	cbPerFrame.camera.position          = to_float3(camera->get_position());
 	cbPerFrame.camera.fovy              = camera->get_fovy();
 	cbPerFrame.camera.aspectRatio       = camera->get_aspect_ratio();
@@ -726,11 +806,20 @@ void renderer_application::upload_per_frame_resources(ID3D12Device * device, gpu
 	cbPerFrame.camera.viewProjection    = XMMatrixTranspose(viewProjection);
 	cbPerFrame.camera.invViewProjection = XMMatrixTranspose(invViewProjection);
 
+	/* Screen settings */
+
 	cbPerFrame.screen.resolution        = XMUINT2(get_screen_width(), get_screen_height());
 	cbPerFrame.screen.orthoProjection = XMMatrixTranspose(XMMatrixOrthographicOffCenterLH(0, get_screen_width(), get_screen_height(), 0, 0, 1));
 
-	cbPerFrame.rvars.vsmMinVariance = g_rendererConfiguration.get_vsm_min_variance();
-	cbPerFrame.rvars.vsmMinBleeding = g_rendererConfiguration.get_vsm_min_bleeding();
+	/* Render variables */
+
+	cbPerFrame.rvars.vsmMinVariance   = g_rendererConfiguration.get_vsm_min_variance();
+	cbPerFrame.rvars.vsmMinBleeding   = g_rendererConfiguration.get_vsm_min_bleeding();
+	cbPerFrame.rvars.evsm2MinVariance = g_rendererConfiguration.get_evsm2_min_variance();
+	cbPerFrame.rvars.evsm2MinBleeding = g_rendererConfiguration.get_evsm2_min_bleeding();
+	cbPerFrame.rvars.evsm2Exponent    = g_rendererConfiguration.get_evsm2_exponent();
+
+	/* Upload */
 
 	D3D12_GPU_VIRTUAL_ADDRESS address;
 	D3D12_GPU_VIRTUAL_ADDRESS heapAddress = g_uploadRingBuffer.get_heap()->GetGPUVirtualAddress();
@@ -746,20 +835,18 @@ void renderer_application::upload_per_frame_resources(ID3D12Device * device, gpu
 void renderer_application::on_render(ID3D12Device * device, gpu_command_queue & commandQueue, ID3D12Resource * backBuffer, D3D12_CPU_DESCRIPTOR_HANDLE rtvDescriptor, UINT bufferIndex)
 {
 
+	update_renderer_configuration(device, commandQueue);
+
 	/* Reset command list and command allocator */
 
-	ID3D12CommandAllocator    * commandAllocator = g_commandAllocator[bufferIndex].get();
-	gpu_graphics_command_list & commandList      = g_commandList[bufferIndex];
-
-	ID3D12CommandAllocator    * auxCommandAllocator = g_auxCommandAllocator[bufferIndex].get();
-	gpu_graphics_command_list & auxCommandList      = g_auxCommandList[bufferIndex];
+	gpu_graphics_command_list & commandList    = g_commandList[bufferIndex];
+	gpu_graphics_command_list & auxCommandList = g_auxCommandList[bufferIndex];
 
 	g_uploadManager.set_command_list_index(bufferIndex);
-	commandQueue.set_aux_command_allocator(auxCommandAllocator);
-	commandQueue.set_aux_command_list(auxCommandList.get());
+	commandQueue.set_aux_command_list(auxCommandList);
 
-	FUSE_HR_CHECK(commandAllocator->Reset());
-	FUSE_HR_CHECK(auxCommandAllocator->Reset());
+	auxCommandList.reset_command_allocator();
+	commandList.reset_command_allocator();
 
 	/* Setup render */
 
@@ -780,7 +867,7 @@ void renderer_application::on_render(ID3D12Device * device, gpu_command_queue & 
 	
 	float clearColor[4] = { 0.f };
 
-	FUSE_HR_CHECK(commandList->Reset(commandAllocator, nullptr));
+	commandList.reset_command_list(nullptr);
 
 	commandList->ClearRenderTargetView(gbufferHandles[0], clearColor, 0, nullptr);
 	commandList->ClearRenderTargetView(gbufferHandles[1], clearColor, 0, nullptr);
@@ -809,7 +896,6 @@ void renderer_application::on_render(ID3D12Device * device, gpu_command_queue & 
 	g_deferredRenderer.render_gbuffer(
 		device,
 		commandQueue,
-		commandAllocator,
 		commandList,
 		&g_uploadRingBuffer,
 		cbPerFrameAddress,
@@ -822,7 +908,7 @@ void renderer_application::on_render(ID3D12Device * device, gpu_command_queue & 
 
 	/* Prepare for shading */
 
-	FUSE_HR_CHECK(commandList->Reset(commandAllocator, nullptr));
+	commandList.reset_command_list(nullptr);
 
 	CD3DX12_CPU_DESCRIPTOR_HANDLE finalRTV(g_rtvHandle, RTV_RGBA16F2(bufferIndex), get_rtv_descriptor_size());
 
@@ -871,28 +957,69 @@ void renderer_application::on_render(ID3D12Device * device, gpu_command_queue & 
 
 			XMMATRIX orthoMatrix = XMMatrixOrthographicOffCenterLH(aabbMin.x, aabbMax.x, aabbMin.y, aabbMax.y, aabbMax.z, aabbMin.z);
 
-			shadowMapInfo.shadowMap      = g_shadowmapRG16F[bufferIndex].get();
-			shadowMapInfo.shadowMapTable = CD3DX12_GPU_DESCRIPTOR_HANDLE(g_srvHandle, SRV_RG16F0(bufferIndex), get_srv_descriptor_size());
+			shadowMapInfo.shadowMap      = g_shadowmapRG16F0[bufferIndex].get();
+			shadowMapInfo.shadowMapTable = CD3DX12_GPU_DESCRIPTOR_HANDLE(g_srvHandle, SRV_SHADOWMAP_RG16F0(bufferIndex), get_srv_descriptor_size());
 			shadowMapInfo.lightMatrix    = XMMatrixMultiply(viewMatrix, orthoMatrix);
 
 			g_shadowMapper.render(
 				device,
 				commandQueue,
-				commandAllocator,
 				commandList,
 				&g_uploadRingBuffer,
 				cbPerFrameAddress,
 				shadowMapInfo.lightMatrix,
-				&CD3DX12_CPU_DESCRIPTOR_HANDLE(g_rtvHandle, RTV_RG16F0(bufferIndex), get_rtv_descriptor_size()),
+				&CD3DX12_CPU_DESCRIPTOR_HANDLE(g_rtvHandle, RTV_SHADOWMAP_RG16F0(bufferIndex), get_rtv_descriptor_size()),
 				&CD3DX12_CPU_DESCRIPTOR_HANDLE(g_dsvHandle, DSV_SHADOWMAP(bufferIndex), get_dsv_descriptor_size()),
-				g_shadowmapRG16F[bufferIndex].get(),
+				g_shadowmapRG16F0[bufferIndex].get(),
 				g_shadowmap32F[bufferIndex].get(),
-				FUSE_SHADOW_MAPPING_VSM,
+				currentLight->shadowMappingAlgorithm,
 				staticObjects.first,
 				staticObjects.second);
 
-			
-			// maybe add algorithm
+			switch (currentLight->shadowMappingAlgorithm)
+			{
+
+			case FUSE_SHADOW_MAPPING_VSM:
+
+				g_vsmBlur.render(
+					commandQueue,
+					commandList,
+					g_srvHeap.get(),
+					&std::array<ID3D12Resource*, 2> { g_shadowmapRG16F0[bufferIndex].get(), g_shadowmapRG16F1[bufferIndex].get() }[0],
+					&std::array<CD3DX12_GPU_DESCRIPTOR_HANDLE, 2> {
+						CD3DX12_GPU_DESCRIPTOR_HANDLE(g_srvHandle, SRV_SHADOWMAP_RG16F0(bufferIndex), get_srv_descriptor_size()),
+						CD3DX12_GPU_DESCRIPTOR_HANDLE(g_srvHandle, SRV_SHADOWMAP_RG16F1(bufferIndex), get_srv_descriptor_size())
+					}[0],
+					&std::array<CD3DX12_GPU_DESCRIPTOR_HANDLE, 2> {
+						CD3DX12_GPU_DESCRIPTOR_HANDLE(g_srvHandle, UAV_SHADOWMAP_RG16F0(bufferIndex), get_srv_descriptor_size()),
+						CD3DX12_GPU_DESCRIPTOR_HANDLE(g_srvHandle, UAV_SHADOWMAP_RG16F1(bufferIndex), get_srv_descriptor_size())
+					}[0]);
+
+				g_mipmapGenerator->generate_mipmaps(device, commandQueue, commandList, g_shadowmapRG16F0[bufferIndex].get());
+
+				break;
+
+			case FUSE_SHADOW_MAPPING_EVSM2:
+
+				g_evsm2Blur.render(
+					commandQueue,
+					commandList,
+					g_srvHeap.get(),
+					&std::array<ID3D12Resource*, 2> { g_shadowmapRG16F0[bufferIndex].get(), g_shadowmapRG16F1[bufferIndex].get() }[0],
+					&std::array<CD3DX12_GPU_DESCRIPTOR_HANDLE, 2> {
+						CD3DX12_GPU_DESCRIPTOR_HANDLE(g_srvHandle, SRV_SHADOWMAP_RG16F0(bufferIndex), get_srv_descriptor_size()),
+						CD3DX12_GPU_DESCRIPTOR_HANDLE(g_srvHandle, SRV_SHADOWMAP_RG16F1(bufferIndex), get_srv_descriptor_size())
+					}[0],
+					&std::array<CD3DX12_GPU_DESCRIPTOR_HANDLE, 2> {
+						CD3DX12_GPU_DESCRIPTOR_HANDLE(g_srvHandle, UAV_SHADOWMAP_RG16F0(bufferIndex), get_srv_descriptor_size()),
+						CD3DX12_GPU_DESCRIPTOR_HANDLE(g_srvHandle, UAV_SHADOWMAP_RG16F1(bufferIndex), get_srv_descriptor_size())
+					}[0]);
+
+				g_mipmapGenerator->generate_mipmaps(device, commandQueue, commandList, g_shadowmapRG16F0[bufferIndex].get());
+
+				break;
+
+			}
 
 			pShadowMapInfo = &shadowMapInfo;
 
@@ -901,7 +1028,6 @@ void renderer_application::on_render(ID3D12Device * device, gpu_command_queue & 
 		g_deferredRenderer.render_light(
 			device,
 			commandQueue,
-			commandAllocator,
 			commandList,
 			&g_uploadRingBuffer,
 			g_srvHeap.get(),
@@ -916,17 +1042,21 @@ void renderer_application::on_render(ID3D12Device * device, gpu_command_queue & 
 
 	/* Tonemap */
 
-	g_tonemapper.run(device, commandQueue, commandAllocator, commandList,
+	g_tonemapper.render(
+		device,
+		commandQueue,
+		commandList,
 		g_srvHeap.get(),
 		CD3DX12_GPU_DESCRIPTOR_HANDLE(g_srvHandle, SRV_RGBA16F2(bufferIndex), get_srv_descriptor_size()),
 		CD3DX12_GPU_DESCRIPTOR_HANDLE(g_srvHandle, UAV_RGBA8U0(bufferIndex), get_uav_descriptor_size()),
 		g_fullresRGBA16F2[bufferIndex].get(),
 		g_fullresRGBA8U0[bufferIndex].get(),
-		get_screen_width(), get_screen_height());
+		get_screen_width(),
+		get_screen_height());
 
 	/* Finally copy to backbuffer */
 
-	FUSE_HR_CHECK(commandList->Reset(commandAllocator, nullptr));
+	commandList.reset_command_list(nullptr);
 
 	commandList.resource_barrier_transition(g_fullresRGBA8U0[bufferIndex].get(), D3D12_RESOURCE_STATE_COPY_SOURCE);
 	commandList.resource_barrier_transition(backBuffer, D3D12_RESOURCE_STATE_COPY_DEST);
@@ -945,7 +1075,6 @@ void renderer_application::on_render(ID3D12Device * device, gpu_command_queue & 
 	g_textRenderer.render(
 		device,
 		commandQueue,
-		commandAllocator,
 		commandList,
 		backBuffer,
 		&rtvDescriptor,
@@ -962,7 +1091,7 @@ void renderer_application::on_render(ID3D12Device * device, gpu_command_queue & 
 
 	if (g_showGUI)
 	{
-		g_rocketInterface.render_begin(commandAllocator, commandList, cbPerFrameAddress, backBuffer, rtvDescriptor);
+		g_rocketInterface.render_begin(commandList, cbPerFrameAddress, backBuffer, rtvDescriptor);
 		g_editorGUI.render();
 		g_rocketInterface.render_end();
 	}
@@ -971,7 +1100,7 @@ void renderer_application::on_render(ID3D12Device * device, gpu_command_queue & 
 
 	/* Present */
 
-	FUSE_HR_CHECK(commandList->Reset(commandAllocator, nullptr));
+	commandList.reset_command_list(nullptr);
 
 	commandList.resource_barrier_transition(backBuffer, D3D12_RESOURCE_STATE_PRESENT);
 
@@ -1005,7 +1134,7 @@ bool renderer_application::create_shadow_map_buffers(ID3D12Device * device)
 			D3D12_HEAP_FLAG_NONE,
 			&CD3DX12_RESOURCE_DESC::Tex2D(
 				DXGI_FORMAT_R32_TYPELESS,
-				SHADOW_MAP_RESOLUTION, SHADOW_MAP_RESOLUTION,
+				g_rendererConfiguration.get_shadow_map_resolution(), g_rendererConfiguration.get_shadow_map_resolution(),
 				1, 1, 1, 0,
 				D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL),
 			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
@@ -1039,7 +1168,7 @@ bool renderer_application::create_shadow_map_buffers(ID3D12Device * device)
 	for (int i = 0; i < NUM_BUFFERS; i++)
 	{
 
-		auto & r = g_shadowmapRG16F[i];
+		auto & r = g_shadowmapRG16F0[i];
 
 		r.reset();
 
@@ -1049,9 +1178,9 @@ bool renderer_application::create_shadow_map_buffers(ID3D12Device * device)
 			D3D12_HEAP_FLAG_NONE,
 			&CD3DX12_RESOURCE_DESC::Tex2D(
 				DXGI_FORMAT_R16G16_FLOAT,
-				SHADOW_MAP_RESOLUTION, SHADOW_MAP_RESOLUTION,
-				1, 1, 1, 0,
-				D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET),
+				g_rendererConfiguration.get_shadow_map_resolution(), g_rendererConfiguration.get_shadow_map_resolution(),
+				1, 0, 1, 0,
+				D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET | D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS),
 			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
 			&CD3DX12_CLEAR_VALUE(DXGI_FORMAT_R16G16_FLOAT, reinterpret_cast<const float*>(&XMFLOAT4(0, 0, 0, 0))),
 			IID_PPV_ARGS(&r)))
@@ -1063,17 +1192,60 @@ bool renderer_application::create_shadow_map_buffers(ID3D12Device * device)
 
 		device->CreateRenderTargetView(r.get(),
 			nullptr,
-			CD3DX12_CPU_DESCRIPTOR_HANDLE(g_rtvHandle, RTV_RG16F0(i), get_rtv_descriptor_size()));
+			CD3DX12_CPU_DESCRIPTOR_HANDLE(g_rtvHandle, RTV_SHADOWMAP_RG16F0(i), get_rtv_descriptor_size()));
 
 		device->CreateShaderResourceView(r.get(),
 			nullptr,
-			CD3DX12_CPU_DESCRIPTOR_HANDLE(srvHandle, SRV_RG16F0(i), get_srv_descriptor_size()));
+			CD3DX12_CPU_DESCRIPTOR_HANDLE(srvHandle, SRV_SHADOWMAP_RG16F0(i), get_srv_descriptor_size()));
+
+		device->CreateUnorderedAccessView(r.get(),
+			nullptr,
+			nullptr,
+			CD3DX12_CPU_DESCRIPTOR_HANDLE(srvHandle, UAV_SHADOWMAP_RG16F0(i), get_uav_descriptor_size()));
 
 	}
 
-	g_shadowMapper.set_viewport(make_fullscreen_viewport(SHADOW_MAP_RESOLUTION, SHADOW_MAP_RESOLUTION));
-	g_shadowMapper.set_scissor_rect(make_fullscreen_scissor_rect(SHADOW_MAP_RESOLUTION, SHADOW_MAP_RESOLUTION));
+	for (int i = 0; i < NUM_BUFFERS; i++)
+	{
 
-	return true;
+		auto & r = g_shadowmapRG16F1[i];
+
+		r.reset();
+
+		if (!gpu_global_resource_state::get_singleton_pointer()->create_committed_resource(
+			device,
+			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+			D3D12_HEAP_FLAG_NONE,
+			&CD3DX12_RESOURCE_DESC::Tex2D(
+				DXGI_FORMAT_R16G16_FLOAT,
+				g_rendererConfiguration.get_shadow_map_resolution(), g_rendererConfiguration.get_shadow_map_resolution(),
+				1, 1, 1, 0,
+				D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET | D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS),
+			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+			&CD3DX12_CLEAR_VALUE(DXGI_FORMAT_R16G16_FLOAT, reinterpret_cast<const float*>(&XMFLOAT4(0, 0, 0, 0))),
+			IID_PPV_ARGS(&r)))
+		{
+			return false;
+		}
+
+		r->SetName(L"shadow_map_r16g16f1");
+
+		/*device->CreateRenderTargetView(r.get(),
+			nullptr,
+			CD3DX12_CPU_DESCRIPTOR_HANDLE(g_rtvHandle, RTV_SHADOWMAP_RG16F1(i), get_rtv_descriptor_size()));*/
+
+		device->CreateShaderResourceView(r.get(),
+			nullptr,
+			CD3DX12_CPU_DESCRIPTOR_HANDLE(srvHandle, SRV_SHADOWMAP_RG16F1(i), get_srv_descriptor_size()));
+
+		device->CreateUnorderedAccessView(r.get(),
+			nullptr,
+			nullptr,
+			CD3DX12_CPU_DESCRIPTOR_HANDLE(srvHandle, UAV_SHADOWMAP_RG16F1(i), get_uav_descriptor_size()));
+
+	}
+
+	g_shadowMapper.set_viewport(make_fullscreen_viewport(g_rendererConfiguration.get_shadow_map_resolution(), g_rendererConfiguration.get_shadow_map_resolution()));
+	g_shadowMapper.set_scissor_rect(make_fullscreen_scissor_rect(g_rendererConfiguration.get_shadow_map_resolution(), g_rendererConfiguration.get_shadow_map_resolution()));
 
 }

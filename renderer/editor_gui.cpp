@@ -755,31 +755,45 @@ void render_options::fill_form(void)
 
 	using namespace Rocket::Core;
 
-	{
+	m_filling = true;
 
-		String value;
-		float vsmMinVariance = m_configuration->get_vsm_min_variance();
-
-		TypeConverter<float, String>::Convert(vsmMinVariance, value);
-		dynamic_cast<Rocket::Controls::ElementFormControlInput*>(m_panel->GetElementById("vsm_min_variance"))->SetValue(value);
-
+#define __RENDER_OPTIONS_FILL(Type, Property) \
+	{\
+		String value;\
+		Type variable = m_configuration->get_ ## Property ();\
+		TypeConverter<Type, String>::Convert(variable, value);\
+		dynamic_cast<Rocket::Controls::ElementFormControlInput*>(m_panel->GetElementById(#Property))->SetValue(value);\
 	}
 
-	{
+	__RENDER_OPTIONS_FILL(float, shadow_map_resolution);
+	__RENDER_OPTIONS_FILL(float, vsm_min_variance);
+	__RENDER_OPTIONS_FILL(float, vsm_min_bleeding);
+	__RENDER_OPTIONS_FILL(float, vsm_blur_kernel_size);
 
-		String value;
-		float vsmMinVariance = m_configuration->get_vsm_min_bleeding();
+	__RENDER_OPTIONS_FILL(float, evsm2_exponent);
+	__RENDER_OPTIONS_FILL(float, evsm2_min_variance);
+	__RENDER_OPTIONS_FILL(float, evsm2_min_bleeding);
+	__RENDER_OPTIONS_FILL(float, evsm2_blur_kernel_size);
 
-		TypeConverter<float, String>::Convert(vsmMinVariance, value);
-		dynamic_cast<Rocket::Controls::ElementFormControlInput*>(m_panel->GetElementById("vsm_min_bleeding"))->SetValue(value);
-
-	}
-	
+	m_filling = false;
 
 }
 
 void render_options::ProcessEvent(Rocket::Core::Event & event)
 {
+
+	if (m_filling) { return; }
+
+#define __RENDER_OPTIONS_CHANGE(Type, Property) \
+	if (element->GetId() == #Property)\
+	{\
+		float value;\
+		auto text = dynamic_cast<Rocket::Controls::ElementFormControlInput*>(element)->GetValue();\
+		if (Rocket::Core::TypeConverter<Rocket::Core::String, Type>::Convert(text, value))\
+		{\
+			m_configuration->set_ ## Property (value);\
+		}\
+	}	
 
 	auto element = event.GetTargetElement();
 	auto document = element->GetOwnerDocument();
@@ -787,7 +801,17 @@ void render_options::ProcessEvent(Rocket::Core::Event & event)
 	if (event.GetType() == "change")
 	{
 
-		if (element->GetId() == "vsm_min_variance")
+		__RENDER_OPTIONS_CHANGE(float, shadow_map_resolution);
+		__RENDER_OPTIONS_CHANGE(float, vsm_min_variance);
+		__RENDER_OPTIONS_CHANGE(float, vsm_min_bleeding);
+		__RENDER_OPTIONS_CHANGE(float, vsm_blur_kernel_size);
+
+		__RENDER_OPTIONS_CHANGE(float, evsm2_exponent);
+		__RENDER_OPTIONS_CHANGE(float, evsm2_min_variance);
+		__RENDER_OPTIONS_CHANGE(float, evsm2_min_bleeding);
+		__RENDER_OPTIONS_CHANGE(float, evsm2_blur_kernel_size);
+
+		/*if (element->GetId() == "vsm_min_variance")
 		{
 
 			float value;
@@ -810,7 +834,7 @@ void render_options::ProcessEvent(Rocket::Core::Event & event)
 				m_configuration->set_vsm_min_bleeding(value);
 			}
 
-		}
+		}*/
 		
 	}
 
