@@ -14,10 +14,12 @@ add_executable (
 	light.hpp
 	renderable.hpp
 	tonemapper.hpp tonemapper.cpp
+	shadow_mapping.hpp
 	shadow_mapper.hpp shadow_mapper.cpp
 	editor_gui.hpp editor_gui.cpp
 	render_variables.hpp render_variables.cpp
 	blur.hpp blur.cpp
+	alpha_composer.hpp alpha_composer.cpp
 )
 
 target_link_libraries ( renderer fuse ${DirectX12_LIBRARY} )

@@ -4,8 +4,7 @@
 
 #include <fuse/compile_shader.hpp>
 #include <fuse/pipeline_state.hpp>
-
-#include <d3dx12.h>
+#include <fuse/descriptor_heap.hpp>
 
 #include "cbuffer_structs.hpp"
 
@@ -24,6 +23,22 @@ bool deferred_renderer::init(ID3D12Device * device, const deferred_renderer_conf
 void deferred_renderer::shutdown(void)
 {
 
+	m_staticObjects.clear();
+
+	m_gbufferPSO.reset();
+	m_gbufferRS.reset();
+
+	m_shadingPSO.reset();
+	m_shadingRS.reset();
+
+}
+
+bool deferred_renderer::set_shadow_mapping_algorithm(shadow_mapping_algorithm algorithm)
+{
+	com_ptr<ID3D12Device> device;
+	m_shadingPSO->GetDevice(IID_PPV_ARGS(&device));
+	m_configuration.shadowMappingAlgorithm = algorithm;
+	return create_shading_pso(device.get());
 }
 
 void deferred_renderer::render_gbuffer(
@@ -32,9 +47,8 @@ void deferred_renderer::render_gbuffer(
 	gpu_graphics_command_list & commandList,
 	gpu_ring_buffer * ringBuffer,
 	D3D12_GPU_VIRTUAL_ADDRESS cbPerFrame,
-	const D3D12_CPU_DESCRIPTOR_HANDLE * gbuffer,
-	const D3D12_CPU_DESCRIPTOR_HANDLE * dsv,
-	ID3D12Resource ** gbufferResources,
+	render_resource * const * gbuffer,
+	const render_resource & depthBuffer,
 	const camera * camera,
 	renderable_iterator begin,
 	renderable_iterator end)
@@ -49,16 +63,25 @@ void deferred_renderer::render_gbuffer(
 
 	/* Setup the pipeline state */
 
-	//FUSE_HR_CHECK(commandList->Reset(commandAllocator, m_gbufferPSO.get()));
 	commandList.reset_command_list(m_gbufferPSO.get());
 
-	commandList.resource_barrier_transition(gbufferResources[0], D3D12_RESOURCE_STATE_RENDER_TARGET);
-	commandList.resource_barrier_transition(gbufferResources[1], D3D12_RESOURCE_STATE_RENDER_TARGET);
-	commandList.resource_barrier_transition(gbufferResources[2], D3D12_RESOURCE_STATE_RENDER_TARGET);
-	commandList.resource_barrier_transition(gbufferResources[3], D3D12_RESOURCE_STATE_RENDER_TARGET);
-	commandList.resource_barrier_transition(gbufferResources[4], D3D12_RESOURCE_STATE_DEPTH_WRITE);
+	commandList.resource_barrier_transition(gbuffer[0]->get(), D3D12_RESOURCE_STATE_RENDER_TARGET);
+	commandList.resource_barrier_transition(gbuffer[1]->get(), D3D12_RESOURCE_STATE_RENDER_TARGET);
+	commandList.resource_barrier_transition(gbuffer[2]->get(), D3D12_RESOURCE_STATE_RENDER_TARGET);
+	commandList.resource_barrier_transition(gbuffer[3]->get(), D3D12_RESOURCE_STATE_RENDER_TARGET);
 
-	commandList->OMSetRenderTargets(4, gbuffer, false, dsv);
+	commandList.resource_barrier_transition(depthBuffer.get(), D3D12_RESOURCE_STATE_DEPTH_WRITE);
+
+	auto dsv = depthBuffer.get_dsv_cpu_descriptor_handle();
+
+	D3D12_CPU_DESCRIPTOR_HANDLE gbufferRTV[] = {
+		gbuffer[0]->get_rtv_cpu_descriptor_handle(),
+		gbuffer[1]->get_rtv_cpu_descriptor_handle(),
+		gbuffer[2]->get_rtv_cpu_descriptor_handle(),
+		gbuffer[3]->get_rtv_cpu_descriptor_handle()
+	};
+	
+	commandList->OMSetRenderTargets(_countof(gbufferRTV), gbufferRTV, false, &dsv);
 
 	commandList->RSSetViewports(1, &m_viewport);
 	commandList->RSSetScissorRects(1, &m_scissorRect);
@@ -140,11 +163,9 @@ void deferred_renderer::render_light(
 	gpu_command_queue & commandQueue,
 	gpu_graphics_command_list & commandList,
 	gpu_ring_buffer * ringBuffer,
-	ID3D12DescriptorHeap * srvHeap,
 	D3D12_GPU_VIRTUAL_ADDRESS cbPerFrame,
-	const D3D12_GPU_DESCRIPTOR_HANDLE & gbufferSRVDescTable,
-	const D3D12_CPU_DESCRIPTOR_HANDLE * rtv,
-	ID3D12Resource ** gbufferResources,
+	const render_resource & renderTarget,
+	render_resource * const * gbuffer,
 	const light * light,
 	const shadow_map_info * shadowMapInfo)
 {
@@ -170,28 +191,26 @@ void deferred_renderer::render_light(
 
 		commandList.reset_command_list(m_shadingPSO.get());
 
-		commandList.resource_barrier_transition(gbufferResources[0], D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-		commandList.resource_barrier_transition(gbufferResources[1], D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-		commandList.resource_barrier_transition(gbufferResources[2], D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-		commandList.resource_barrier_transition(gbufferResources[3], D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+		commandList.resource_barrier_transition(gbuffer[0]->get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+		commandList.resource_barrier_transition(gbuffer[1]->get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+		commandList.resource_barrier_transition(gbuffer[2]->get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+		commandList.resource_barrier_transition(gbuffer[3]->get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
 		commandList->SetGraphicsRootSignature(m_shadingRS.get());
 
 		commandList->SetGraphicsRootConstantBufferView(0, cbPerFrame);
 		commandList->SetGraphicsRootConstantBufferView(1, address);
 		
-		commandList->SetDescriptorHeaps(1, &srvHeap);
-		commandList->SetGraphicsRootDescriptorTable(2, gbufferSRVDescTable);
+		commandList->SetDescriptorHeaps(1, cbv_uav_srv_descriptor_heap::get_singleton_pointer()->get_address());
+		commandList->SetGraphicsRootDescriptorTable(2, gbuffer[0]->get_srv_gpu_descriptor_handle());
 
 		if (shadowMapInfo)
 		{
-			cbPerLight.shadowMapping.algorithm = static_cast<uint32_t>(light->shadowMappingAlgorithm);
-			commandList.resource_barrier_transition(shadowMapInfo->shadowMap, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-			commandList->SetGraphicsRootDescriptorTable(3, shadowMapInfo->shadowMapTable);
-			commandList->SetGraphicsRoot32BitConstant(4, static_cast<UINT>(light->shadowMappingAlgorithm), 0);
+			commandList.resource_barrier_transition(shadowMapInfo->shadowMap->get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+			commandList->SetGraphicsRootDescriptorTable(3, shadowMapInfo->shadowMap->get_srv_gpu_descriptor_handle());
 		}
 
-		commandList->OMSetRenderTargets(1, rtv, false, nullptr);
+		commandList->OMSetRenderTargets(1, &renderTarget.get_rtv_cpu_descriptor_handle(), false, nullptr);
 
 		commandList->RSSetViewports(1, &m_viewport);
 		commandList->RSSetScissorRects(1, &m_scissorRect);
@@ -287,7 +306,7 @@ bool deferred_renderer::create_shading_pso(ID3D12Device * device)
 	com_ptr<ID3DBlob> errorsBlob;
 	com_ptr<ID3D12ShaderReflection> shaderReflection;
 
-	CD3DX12_ROOT_PARAMETER rootParameters[5];
+	CD3DX12_ROOT_PARAMETER rootParameters[4];
 
 	CD3DX12_DESCRIPTOR_RANGE gbufferSRV;
 
@@ -301,7 +320,6 @@ bool deferred_renderer::create_shading_pso(ID3D12Device * device)
 	rootParameters[1].InitAsConstantBufferView(1, 0, D3D12_SHADER_VISIBILITY_PIXEL);
 	rootParameters[2].InitAsDescriptorTable(1, &gbufferSRV, D3D12_SHADER_VISIBILITY_PIXEL);
 	rootParameters[3].InitAsDescriptorTable(1, &shadowMapSRV, D3D12_SHADER_VISIBILITY_PIXEL);
-	rootParameters[4].InitAsConstants(1, 2, 0, D3D12_SHADER_VISIBILITY_PIXEL);
 
 	CD3DX12_STATIC_SAMPLER_DESC staticSamplers[] = {
 		CD3DX12_STATIC_SAMPLER_DESC(0, D3D12_FILTER_MIN_MAG_MIP_POINT),
@@ -313,8 +331,15 @@ bool deferred_renderer::create_shading_pso(ID3D12Device * device)
 
 	UINT compileFlags = 0;
 
+	std::string algorithmValue = std::to_string(static_cast<uint32_t>(m_configuration.shadowMappingAlgorithm));
+
+	D3D_SHADER_MACRO shadingDefines[] = {
+		"SHADOW_MAPPING_ALGORITHM", algorithmValue.c_str(),
+		{ NULL, NULL }
+	};
+
 	if (compile_shader("shaders/quad_vs.hlsl", nullptr, "quad_vs", "vs_5_0", compileFlags, &quadVS) &&
-		compile_shader("shaders/deferred_shading_final.hlsl", nullptr, "shading_ps", "ps_5_0", compileFlags, &shadingPS) &&
+		compile_shader("shaders/deferred_shading_final.hlsl", shadingDefines, "shading_ps", "ps_5_0", compileFlags, &shadingPS) &&
 		reflect_input_layout(quadVS.get(), std::back_inserter(inputLayoutVector), &shaderReflection) &&
 		!FUSE_HR_FAILED_BLOB(D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &serializedSignature, &errorsBlob), errorsBlob) &&
 		!FUSE_HR_FAILED(device->CreateRootSignature(0, FUSE_BLOB_ARGS(serializedSignature), IID_PPV_ARGS(&m_shadingRS))))

@@ -14,7 +14,6 @@ namespace fuse
 	{
 		D3D12_BLEND_DESC         blendDesc;
 		DXGI_FORMAT              rtvFormat;
-		uint32_t                 maxTextures;
 	};
 
 	class rocket_interface :
@@ -82,12 +81,10 @@ namespace fuse
 
 		struct loaded_texture
 		{
-			texture_ptr                 texture;
-			D3D12_GPU_DESCRIPTOR_HANDLE srv;
-			bool                        generated;
+			texture_ptr texture;
+			UINT        srvToken;
+			bool        generated;
 		};
-
-		com_ptr<ID3D12DescriptorHeap> m_srvHeap;
 
 		std::unordered_map<Rocket::Core::CompiledGeometryHandle, compiled_geometry> m_geometry;
 		std::unordered_map<Rocket::Core::TextureHandle, loaded_texture>             m_textures;

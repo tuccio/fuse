@@ -14,6 +14,25 @@ namespace fuse
 {
 
 	bool compile_shader(const char * filename, const D3D_SHADER_MACRO * defines, const char * entryPoint, const char * target, UINT compileOptions, ID3DBlob ** shader);
+
+
+	template <typename MacroIterator, typename ShaderIterator>
+	uint32_t compile_shader_variations(const char * filename, uint32_t n, MacroIterator definesIterator, const char * entryPoint, const char * target, UINT compileOptions, ShaderIterator shaderIterator)
+	{
+
+		for (uint32_t i = 0; i < n; i++)
+		{
+
+			if (!compile_shader(filename, *definesIterator, entryPoint, target, compileOptions, *shaderIterator))
+			{
+				return i;
+			}
+
+		}
+
+		return n;
+		
+	}
 	
 	DXGI_FORMAT get_dxgi_format(D3D_REGISTER_COMPONENT_TYPE componentType, BYTE mask);
 

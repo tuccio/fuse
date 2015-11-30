@@ -8,7 +8,13 @@ using namespace fuse;
 bool shadow_mapper::init(ID3D12Device * device, const shadow_mapper_configuration & cfg)
 {
 	m_configuration = cfg;
-	return create_psos(device);
+	return create_rs(device) && create_psos(device);
+}
+
+void shadow_mapper::shutdown(void)
+{
+	m_pso.reset();
+	m_rs.reset();
 }
 
 void shadow_mapper::render(
@@ -18,53 +24,37 @@ void shadow_mapper::render(
 	gpu_ring_buffer * ringBuffer,
 	D3D12_GPU_VIRTUAL_ADDRESS cbPerFrame,
 	const XMMATRIX & lightMatrix,
-	const D3D12_CPU_DESCRIPTOR_HANDLE * rtv,
-	const D3D12_CPU_DESCRIPTOR_HANDLE * dsv,
-	ID3D12Resource * renderTarget,
-	ID3D12Resource * depthBuffer,
-	shadow_mapping_algorithm algorithm,
+	const render_resource & renderTarget,
+	const render_resource & depthBuffer,
 	renderable_iterator begin,
 	renderable_iterator end)
 {
 
 	/* Setup the pipeline state */
 
-	ID3D12PipelineState * pso;
+	commandList.reset_command_list(m_pso.get());
 
-	switch (algorithm)
-	{
-	case FUSE_SHADOW_MAPPING_NONE:
-		return;
-	case FUSE_SHADOW_MAPPING_VSM:
-		pso = m_vsmPSO.get();
-		break;
-	case FUSE_SHADOW_MAPPING_EVSM2:
-		pso = m_evsm2PSO.get();
-		break;
-	default:
-		pso = m_regularShadowMapPSO.get();
-		break;
-	}
+	commandList.resource_barrier_transition(depthBuffer.get(), D3D12_RESOURCE_STATE_DEPTH_WRITE);
 
-	commandList.reset_command_list(pso);
+	D3D12_CPU_DESCRIPTOR_HANDLE dsv = depthBuffer.get_dsv_cpu_descriptor_handle();
 
-	commandList.resource_barrier_transition(depthBuffer, D3D12_RESOURCE_STATE_DEPTH_WRITE);
-
-	commandList->ClearDepthStencilView(*dsv, D3D12_CLEAR_FLAG_DEPTH, 1.f, 0, 0, nullptr);
+	commandList->ClearDepthStencilView(dsv, D3D12_CLEAR_FLAG_DEPTH, 1.f, 0, 0, nullptr);
 
 	if (!renderTarget)
 	{
-		commandList->OMSetRenderTargets(0, nullptr, false, dsv);
+		commandList->OMSetRenderTargets(0, nullptr, false, &dsv);
 	}
 	else
 	{
 
 		float black[4] = { 0 };
 
-		commandList.resource_barrier_transition(renderTarget, D3D12_RESOURCE_STATE_RENDER_TARGET);
+		commandList.resource_barrier_transition(renderTarget.get(), D3D12_RESOURCE_STATE_RENDER_TARGET);
 
-		commandList->ClearRenderTargetView(*rtv, black, 0, nullptr);
-		commandList->OMSetRenderTargets(1, rtv, false, dsv);
+		auto rtv = renderTarget.get_rtv_cpu_descriptor_handle();
+
+		commandList->ClearRenderTargetView(rtv, black, 0, nullptr);
+		commandList->OMSetRenderTargets(1, &rtv, false, &dsv);
 
 	}
 
@@ -73,7 +63,7 @@ void shadow_mapper::render(
 
 	commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-	commandList->SetGraphicsRootSignature(m_shadowMapRS.get());
+	commandList->SetGraphicsRootSignature(m_rs.get());
 	commandList->SetGraphicsRootConstantBufferView(0, cbPerFrame);
 
 	/* Render loop */
@@ -124,10 +114,19 @@ void shadow_mapper::render(
 bool shadow_mapper::create_psos(ID3D12Device * device)
 {
 
-	return create_rs(device) &&
-		create_regular_pso(device) &&
-		create_vsm_pso(device) &&
-		create_evsm2_pso(device);
+	switch (m_configuration.algorithm)
+	{
+	case FUSE_SHADOW_MAPPING_NONE:
+		return true;
+	case FUSE_SHADOW_MAPPING_VSM:
+		return create_vsm_pso(device);
+	case FUSE_SHADOW_MAPPING_EVSM2:
+		return create_evsm2_pso(device);
+	case FUSE_SHADOW_MAPPING_EVSM4:
+		return create_evsm4_pso(device);
+	default:
+		return create_regular_pso(device);
+	}
 
 }
 
@@ -145,7 +144,7 @@ bool shadow_mapper::create_rs(ID3D12Device * device)
 	CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc(_countof(rootParameters), rootParameters, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
 	return !FUSE_HR_FAILED_BLOB(D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &serializedSignature, &errorsBlob), errorsBlob) &&
-		!FUSE_HR_FAILED(device->CreateRootSignature(0, FUSE_BLOB_ARGS(serializedSignature), IID_PPV_ARGS(&m_shadowMapRS)));
+	       !FUSE_HR_FAILED(device->CreateRootSignature(0, FUSE_BLOB_ARGS(serializedSignature), IID_PPV_ARGS(&m_rs)));
 
 }
 
@@ -172,12 +171,12 @@ bool shadow_mapper::create_regular_pso(ID3D12Device * device)
 		psoDesc.DSVFormat                = m_configuration.dsvFormat;
 		psoDesc.VS                       = { FUSE_BLOB_ARGS(shadowMapVS) };
 		psoDesc.InputLayout              = make_input_layout_desc(inputLayoutVector);
-		psoDesc.pRootSignature           = m_shadowMapRS.get();
+		psoDesc.pRootSignature           = m_rs.get();
 		psoDesc.SampleMask               = UINT_MAX;
 		psoDesc.SampleDesc               = { 1, 0 };
 		psoDesc.PrimitiveTopologyType    = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 
-		return !FUSE_HR_FAILED(device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_regularShadowMapPSO)));
+		return !FUSE_HR_FAILED(device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_pso)));
 
 	}
 
@@ -207,17 +206,17 @@ bool shadow_mapper::create_vsm_pso(ID3D12Device * device)
 		psoDesc.RasterizerState.CullMode           = m_configuration.cullMode;
 		psoDesc.DepthStencilState                  = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
 		psoDesc.NumRenderTargets                   = 1;
-		psoDesc.RTVFormats[0]                      = m_configuration.evsm2Format;
+		psoDesc.RTVFormats[0]                      = m_configuration.rtvFormat;
 		psoDesc.DSVFormat                          = m_configuration.dsvFormat;
 		psoDesc.VS                                 = { FUSE_BLOB_ARGS(shadowMapVS) };
 		psoDesc.PS                                 = { FUSE_BLOB_ARGS(vsmPS) };
 		psoDesc.InputLayout                        = make_input_layout_desc(inputLayoutVector);
-		psoDesc.pRootSignature                     = m_shadowMapRS.get();
+		psoDesc.pRootSignature                     = m_rs.get();
 		psoDesc.SampleMask                         = UINT_MAX;
 		psoDesc.SampleDesc                         = { 1, 0 };
 		psoDesc.PrimitiveTopologyType              = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 
-		return !FUSE_HR_FAILED(device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_vsmPSO)));
+		return !FUSE_HR_FAILED(device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_pso)));
 
 	}
 
@@ -247,17 +246,57 @@ bool shadow_mapper::create_evsm2_pso(ID3D12Device * device)
 		psoDesc.RasterizerState.CullMode = m_configuration.cullMode;
 		psoDesc.DepthStencilState        = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
 		psoDesc.NumRenderTargets         = 1;
-		psoDesc.RTVFormats[0]            = m_configuration.evsm2Format;
+		psoDesc.RTVFormats[0]            = m_configuration.rtvFormat;
 		psoDesc.DSVFormat                = m_configuration.dsvFormat;
 		psoDesc.VS                       = { FUSE_BLOB_ARGS(shadowMapVS) };
 		psoDesc.PS                       = { FUSE_BLOB_ARGS(evsm2PS) };
 		psoDesc.InputLayout              = make_input_layout_desc(inputLayoutVector);
-		psoDesc.pRootSignature           = m_shadowMapRS.get();
+		psoDesc.pRootSignature           = m_rs.get();
 		psoDesc.SampleMask               = UINT_MAX;
 		psoDesc.SampleDesc               = { 1, 0 };
 		psoDesc.PrimitiveTopologyType    = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 
-		return !FUSE_HR_FAILED(device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_evsm2PSO)));
+		return !FUSE_HR_FAILED(device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_pso)));
+
+	}
+
+	return false;
+
+}
+
+bool shadow_mapper::create_evsm4_pso(ID3D12Device * device)
+{
+
+	com_ptr<ID3DBlob> shadowMapVS, evsm4PS;
+	std::vector<D3D12_INPUT_ELEMENT_DESC> inputLayoutVector;
+
+	com_ptr<ID3D12ShaderReflection> shaderReflection;
+
+	UINT compileFlags = 0;
+
+	if (compile_shader("shaders/shadow_mapping.hlsl", nullptr, "shadow_map_vs", "vs_5_0", compileFlags, &shadowMapVS) &&
+		compile_shader("shaders/shadow_mapping.hlsl", nullptr, "evsm4_ps", "ps_5_0", compileFlags, &evsm4PS) &&
+		reflect_input_layout(shadowMapVS.get(), std::back_inserter(inputLayoutVector), &shaderReflection))
+	{
+
+		D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
+
+		psoDesc.BlendState               = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+		psoDesc.RasterizerState          = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+		psoDesc.RasterizerState.CullMode = m_configuration.cullMode;
+		psoDesc.DepthStencilState        = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+		psoDesc.NumRenderTargets         = 1;
+		psoDesc.RTVFormats[0]            = m_configuration.rtvFormat;
+		psoDesc.DSVFormat                = m_configuration.dsvFormat;
+		psoDesc.VS                       = { FUSE_BLOB_ARGS(shadowMapVS) };
+		psoDesc.PS                       = { FUSE_BLOB_ARGS(evsm4PS) };
+		psoDesc.InputLayout              = make_input_layout_desc(inputLayoutVector);
+		psoDesc.pRootSignature           = m_rs.get();
+		psoDesc.SampleMask               = UINT_MAX;
+		psoDesc.SampleDesc               = { 1, 0 };
+		psoDesc.PrimitiveTopologyType    = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+
+		return !FUSE_HR_FAILED(device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_pso)));
 
 	}
 

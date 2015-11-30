@@ -29,6 +29,12 @@ SamplerState g_linearSampler : register(s1);
 
 SamplerState g_shadowMapSampler : register(s2);
 
+float mipmap_level(float2 uv)
+{
+
+	
+}
+
 float4 shading_ps(QuadInput input) : SV_Target0
 {
 
@@ -41,11 +47,11 @@ float4 shading_ps(QuadInput input) : SV_Target0
 	
 	float visibility;
 	
-	if (g_shadowMapAlgorithm == SHADOW_MAPPING_NONE)
+	#if (SHADOW_MAPPING_ALGORITHM == SHADOW_MAPPING_NONE)
 	{
 		visibility = 1.f;
 	}
-	else
+	#else
 	{
 	
 		float4 lightSpacePosition = mul(float4(data.position, 1), g_shadowMapping.lightMatrix);
@@ -53,18 +59,27 @@ float4 shading_ps(QuadInput input) : SV_Target0
 		
 		float2 shadowMapUV = { .5f + lightSpacePosition.x * .5f, .5f - lightSpacePosition.y * .5f };
 		
-		if (g_shadowMapAlgorithm == SHADOW_MAPPING_VSM)
+		float lod = g_shadowMap.CalculateLevelOfDetail(g_shadowMapSampler, shadowMapUV);
+		
+		#if (SHADOW_MAPPING_ALGORITHM == SHADOW_MAPPING_VSM)
 		{
-			float2 moments = g_shadowMap.Sample(g_shadowMapSampler, shadowMapUV).xy;
+			float2 moments = g_shadowMap.SampleLevel(g_shadowMapSampler, shadowMapUV, lod).xy;
 			visibility = vsm_visibility(moments, lightSpaceDepth, R.vsmMinVariance, R.vsmMinBleeding);
 		}
-		else if (g_shadowMapAlgorithm == SHADOW_MAPPING_EVSM2)
+		#elif (SHADOW_MAPPING_ALGORITHM == SHADOW_MAPPING_EVSM2)
 		{
-			float2 moments = g_shadowMap.Sample(g_shadowMapSampler, shadowMapUV).xy;
+			float2 moments = g_shadowMap.SampleLevel(g_shadowMapSampler, shadowMapUV, lod).xy;
 			visibility = evsm2_visibility(moments, lightSpaceDepth, R.evsm2Exponent, R.evsm2MinVariance, R.evsm2MinBleeding);
 		}
+		#elif (SHADOW_MAPPING_ALGORITHM == SHADOW_MAPPING_EVSM4)
+		{
+			float4 moments = g_shadowMap.SampleLevel(g_shadowMapSampler, shadowMapUV, lod);
+			visibility = evsm4_visibility(moments, lightSpaceDepth, R.evsm4PosExponent, R.evsm4NegExponent, R.evsm4MinVariance, R.evsm4MinBleeding);
+		}
+		#endif
 		
 	}
+	#endif
 	
 	float NoL = max(0, dot(data.normal, g_light.direction));
 	

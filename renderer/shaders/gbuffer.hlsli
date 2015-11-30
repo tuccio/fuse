@@ -28,7 +28,6 @@ struct gbuffer_data
 	float  metallic;
 	float  roughness;
 	float  specular;
-	float2 lightmapUV;
 };
 
 /*
@@ -52,11 +51,10 @@ float gbuffer_unpack_depth(float4 rgba)
 void gbuffer_write(in gbuffer_data data, out gbuffer_out output)
 {
 
-	output.gbuffer0.xyz = .5f * data.normal + .5f;
 	output.gbuffer0.xyz = data.normal;
 	output.gbuffer0.w   = data.specular;
 	
-	output.gbuffer1.xy  = data.lightmapUV;
+	output.gbuffer1.xy  = 0; // ??
 	output.gbuffer1.z   = 0; // ?? maybe material id
 	output.gbuffer1.w   = data.metallic;
 	
@@ -79,10 +77,9 @@ void gbuffer_read(in gbuffer_in input, in SamplerState pointSampler, in float2 u
 	float4 gbuffer2 = input.gbuffer2.Sample(pointSampler, uv);
 	float4 gbuffer3 = input.gbuffer3.Sample(pointSampler, uv);
 
-	data.normal     = (gbuffer0.xyz - .5f) * 2.f;
+	data.normal     = gbuffer0.xyz;
 	data.specular   = gbuffer0.w;
 	
-	data.lightmapUV = gbuffer1.xy;
 	data.metallic   = gbuffer1.w;
 	
 	data.baseColor  = gbuffer2.xyz;

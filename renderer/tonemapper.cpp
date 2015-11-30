@@ -2,6 +2,7 @@
 
 #include <fuse/compile_shader.hpp>
 #include <fuse/pipeline_state.hpp>
+#include <fuse/descriptor_heap.hpp>
 
 using namespace fuse;
 
@@ -14,25 +15,22 @@ void tonemapper::render(
 	ID3D12Device * device,
 	gpu_command_queue & commandQueue,
 	gpu_graphics_command_list & commandList,
-	ID3D12DescriptorHeap * descriptorHeap,
-	const D3D12_GPU_DESCRIPTOR_HANDLE & input,
-	const D3D12_GPU_DESCRIPTOR_HANDLE & output,
-	ID3D12Resource * source,
-	ID3D12Resource * destination,
+	const render_resource & source,
+	const render_resource & destination,
 	UINT width,
 	UINT height)
 {
 	
 	commandList.reset_command_list(m_pso.get());
 
-	commandList.resource_barrier_transition(source, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-	commandList.resource_barrier_transition(destination, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+	commandList.resource_barrier_transition(source.get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+	commandList.resource_barrier_transition(destination.get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
-	commandList->SetDescriptorHeaps(1, &descriptorHeap);
+	commandList->SetDescriptorHeaps(1, cbv_uav_srv_descriptor_heap::get_singleton_pointer()->get_address());
 
 	commandList->SetComputeRootSignature(m_rs.get());
-	commandList->SetComputeRootDescriptorTable(0, input);
-	commandList->SetComputeRootDescriptorTable(1, output);
+	commandList->SetComputeRootDescriptorTable(0, source.get_srv_gpu_descriptor_handle());
+	commandList->SetComputeRootDescriptorTable(1, destination.get_uav_gpu_descriptor_handle());
 
 	UINT groupSize = 32;
 

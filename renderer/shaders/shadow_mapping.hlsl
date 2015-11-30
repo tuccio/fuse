@@ -1,6 +1,7 @@
 #include "scene_data.hlsli"
 #include "vsm.hlsli"
 #include "evsm2.hlsli"
+#include "evsm4.hlsli"
 
 USE_CB_PER_FRAME(b0)
 
@@ -31,4 +32,10 @@ float2 evsm2_ps(PSInput input) : SV_Target0
 {
 	float depth = input.positionCS.z / input.positionCS.w;
 	return evsm2_moments(depth, R.evsm2Exponent);
+}
+
+float4 evsm4_ps(PSInput input) : SV_Target0
+{
+	float depth = input.positionCS.z / input.positionCS.w;
+	return evsm4_moments(depth, R.evsm4PosExponent, R.evsm4NegExponent);
 }

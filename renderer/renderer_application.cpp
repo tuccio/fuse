@@ -7,7 +7,8 @@
 
 #include <fuse/gpu_upload_manager.hpp>
 #include <fuse/gpu_graphics_command_list.hpp>
-#include <fuse/gpu_global_resource_state.hpp>
+
+#include <fuse/render_resource.hpp>
 
 #include <fuse/resource_factory.hpp>
 #include <fuse/image_manager.hpp>
@@ -24,11 +25,12 @@
 
 #include <fuse/camera.hpp>
 #include <fuse/fps_camera_controller.hpp>
-
+#include <fuse/descriptor_heap.hpp>
 #include <fuse/rocket_interface.hpp>
 
 #include <Rocket/Controls.h>
 
+#include "alpha_composer.hpp"
 #include "cbuffer_structs.hpp"
 #include "deferred_renderer.hpp"
 #include "scene.hpp"
@@ -45,72 +47,40 @@
 
 using namespace fuse;
 
+#define FAIL_IF(Condition) { if (Condition) return false; }
+
+#define MAX_DSV 8
+#define MAX_RTV 1024
+#define MAX_SRV 1024
+
 #define NUM_BUFFERS      (2u)
-#define NUM_RTVS         (6u)
-#define NUM_SRVS_UAVS    (11u)
-#define NUM_DSVS         (2u)
 #define UPLOAD_HEAP_SIZE (16 << 20)
-
-#define RTV_HANDLE(FrameIndex, Index)     ((NUM_RTVS * FrameIndex) + Index)
-#define SRV_UAV_HANDLE(FrameIndex, Index) ((NUM_SRVS_UAVS * FrameIndex) + Index)
-#define DSV_HANDLE(FrameIndex, Index)     ((NUM_DSVS * FrameIndex) + Index)
-
-#define RTV_RGBA16F0(FrameIndex)  RTV_HANDLE(FrameIndex, 0)
-#define RTV_RGBA16F1(FrameIndex)  RTV_HANDLE(FrameIndex, 1)
-#define RTV_RGBA8U0(FrameIndex)   RTV_HANDLE(FrameIndex, 2)
-#define RTV_RGBA16F2(FrameIndex)  RTV_HANDLE(FrameIndex, 3)
-#define RTV_RGBA16F3(FrameIndex)  RTV_HANDLE(FrameIndex, 4)
-
-#define RTV_SHADOWMAP_RG16F0(FrameIndex) RTV_HANDLE(FrameIndex, 5) 
-
-#define SRV_RGBA16F0(FrameIndex)   SRV_UAV_HANDLE(FrameIndex, 0)
-#define SRV_RGBA16F1(FrameIndex)   SRV_UAV_HANDLE(FrameIndex, 1)
-#define SRV_RGBA8U0(FrameIndex)    SRV_UAV_HANDLE(FrameIndex, 2)
-#define SRV_RGBA16F3(FrameIndex)   SRV_UAV_HANDLE(FrameIndex, 3)
-#define SRV_RGBA16F2(FrameIndex)   SRV_UAV_HANDLE(FrameIndex, 4)
-#define SRV_SHADOWMAP0(FrameIndex) SRV_UAV_HANDLE(FrameIndex, 5)
-#define SRV_GBUFFER(FrameIndex)    SRV_RGBA16F0(FrameIndex)
-
-#define UAV_RGBA8U0(FrameIndex)   SRV_UAV_HANDLE(FrameIndex, 6)
-
-#define SRV_SHADOWMAP_RG16F0(FrameIndex) SRV_UAV_HANDLE(FrameIndex, 7)
-#define SRV_SHADOWMAP_RG16F1(FrameIndex) SRV_UAV_HANDLE(FrameIndex, 8)
-
-#define UAV_SHADOWMAP_RG16F0(FrameIndex) SRV_UAV_HANDLE(FrameIndex, 9)
-#define UAV_SHADOWMAP_RG16F1(FrameIndex) SRV_UAV_HANDLE(FrameIndex, 10)
-
-#define DSV_DEPTH(FrameIndex)     DSV_HANDLE(FrameIndex, 0)
-#define DSV_SHADOWMAP(FrameIndex) DSV_HANDLE(FrameIndex, 1)
 
 std::array<com_ptr<ID3D12CommandAllocator>, NUM_BUFFERS> g_commandAllocator;
 std::array<gpu_graphics_command_list,       NUM_BUFFERS> g_commandList;
 std::array<com_ptr<ID3D12CommandAllocator>, NUM_BUFFERS> g_auxCommandAllocator;
 std::array<gpu_graphics_command_list,       NUM_BUFFERS> g_auxCommandList;
-								       
-com_ptr<ID3D12DescriptorHeap> g_dsvHeap;
-com_ptr<ID3D12DescriptorHeap> g_rtvHeap;
-com_ptr<ID3D12DescriptorHeap> g_srvHeap;
-
-D3D12_CPU_DESCRIPTOR_HANDLE   g_dsvHandle;
-D3D12_CPU_DESCRIPTOR_HANDLE   g_rtvHandle;
-D3D12_GPU_DESCRIPTOR_HANDLE   g_srvHandle;
 
 std::array<com_ptr<ID3D12Resource>, NUM_BUFFERS> g_cbPerFrame;
 
 gpu_ring_buffer    g_uploadRingBuffer;
 gpu_upload_manager g_uploadManager;
 
-std::array<com_ptr<ID3D12Resource>, NUM_BUFFERS> g_fullresRGBA16F0;
-std::array<com_ptr<ID3D12Resource>, NUM_BUFFERS> g_fullresRGBA16F1;
-std::array<com_ptr<ID3D12Resource>, NUM_BUFFERS> g_fullresRGBA16F2;
-std::array<com_ptr<ID3D12Resource>, NUM_BUFFERS> g_fullresRGBA8U0;
-std::array<com_ptr<ID3D12Resource>, NUM_BUFFERS> g_fullresRGBA8U1;
+std::array<UINT, NUM_BUFFERS> g_gbufferSRVTable;
 
-std::array<com_ptr<ID3D12Resource>, NUM_BUFFERS> g_depthBuffer;
+std::array<render_resource, NUM_BUFFERS> g_fullresRGBA16F0;
+std::array<render_resource, NUM_BUFFERS> g_fullresRGBA16F1;
+std::array<render_resource, NUM_BUFFERS> g_fullresRGBA16F2;
+std::array<render_resource, NUM_BUFFERS> g_fullresRGBA8U0;
+std::array<render_resource, NUM_BUFFERS> g_fullresRGBA8U1;
 
-std::array<com_ptr<ID3D12Resource>, NUM_BUFFERS> g_shadowmap32F;
-std::array<com_ptr<ID3D12Resource>, NUM_BUFFERS> g_shadowmapRG16F0;
-std::array<com_ptr<ID3D12Resource>, NUM_BUFFERS> g_shadowmapRG16F1;
+std::array<render_resource, NUM_BUFFERS> g_fullresGUI;
+
+std::array<render_resource, NUM_BUFFERS> g_depthBuffer;
+
+std::array<render_resource, NUM_BUFFERS> g_shadowmap32F;
+std::array<render_resource, NUM_BUFFERS> g_shadowmap0;
+std::array<render_resource, NUM_BUFFERS> g_shadowmap1;
 
 std::unique_ptr<mipmap_generator> g_mipmapGenerator;
 std::unique_ptr<assimp_loader>    g_sceneLoader;
@@ -137,8 +107,8 @@ shadow_mapper      g_shadowMapper;
 
 renderer_configuration g_rendererConfiguration;
 
-box_blur g_vsmBlur;
-box_blur g_evsm2Blur;
+blur           g_shadowMapBlur;
+alpha_composer g_alphaComposer;
 
 #ifdef FUSE_USE_EDITOR_GUI
 
@@ -146,8 +116,6 @@ editor_gui g_editorGUI;
 bool       g_showGUI = true;
 
 #endif
-
-gpu_global_resource_state g_globalResourceState;
 
 bool renderer_application::on_device_created(ID3D12Device * device, gpu_command_queue & commandQueue)
 {
@@ -183,12 +151,11 @@ bool renderer_application::on_device_created(ID3D12Device * device, gpu_command_
 
 	//g_sceneLoader = std::make_unique<assimp_loader>("scene/sponza.fbx", ppsteps);
 
-	if (!g_scene.import_static_objects(g_sceneLoader.get()) ||
-		!g_scene.import_cameras(g_sceneLoader.get()) ||
-		!g_scene.import_lights(g_sceneLoader.get()))
-	{
-		return false;
-	}
+	FAIL_IF (
+	    !g_scene.import_static_objects(g_sceneLoader.get()) ||
+	    !g_scene.import_cameras(g_sceneLoader.get()) ||
+	    !g_scene.import_lights(g_sceneLoader.get())
+	)
 
 	auto light = *g_scene.get_lights().first;
 
@@ -210,11 +177,9 @@ bool renderer_application::on_device_created(ID3D12Device * device, gpu_command_
 		
 		FUSE_HR_CHECK(device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&g_commandAllocator[bufferIndex])));
 		g_commandList[bufferIndex].init(device, 0, D3D12_COMMAND_LIST_TYPE_DIRECT, g_commandAllocator[bufferIndex].get(), nullptr);
-		//FUSE_HR_CHECK(device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, g_commandAllocator[bufferIndex].get(), nullptr, IID_PPV_ARGS(g_commandList[bufferIndex].get_address())));
 
 		FUSE_HR_CHECK(device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&g_auxCommandAllocator[bufferIndex])));
 		g_auxCommandList[bufferIndex].init(device, 0, D3D12_COMMAND_LIST_TYPE_DIRECT, g_auxCommandAllocator[bufferIndex].get(), nullptr);
-		//FUSE_HR_CHECK(device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, g_auxCommandAllocator[bufferIndex].get(), nullptr, IID_PPV_ARGS(g_auxCommandList[bufferIndex].get_address())));
 
 		FUSE_HR_CHECK(g_commandAllocator[bufferIndex]->SetName(L"main_command_allocator"));
 		FUSE_HR_CHECK(g_commandList[bufferIndex]->SetName(L"main_command_list"));
@@ -225,55 +190,31 @@ bool renderer_application::on_device_created(ID3D12Device * device, gpu_command_
 		FUSE_HR_CHECK(g_commandList[bufferIndex]->Close());
 		FUSE_HR_CHECK(g_auxCommandList[bufferIndex]->Close());
 
-	}	
-
-	/* Create descriptor heaps */
-
-	D3D12_DESCRIPTOR_HEAP_DESC gbufferRTVDesc = { };
-
-	gbufferRTVDesc.NumDescriptors = NUM_RTVS * NUM_BUFFERS;
-	gbufferRTVDesc.Type           = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
-	gbufferRTVDesc.Flags          = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-
-	D3D12_DESCRIPTOR_HEAP_DESC gbufferDSVDesc = {};
-
-	gbufferDSVDesc.NumDescriptors = NUM_DSVS * NUM_BUFFERS;
-	gbufferDSVDesc.Type           = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
-	gbufferDSVDesc.Flags          = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-
-	D3D12_DESCRIPTOR_HEAP_DESC srvDesc = {};
-
-	srvDesc.NumDescriptors = NUM_SRVS_UAVS * NUM_BUFFERS;
-	srvDesc.Type           = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-	srvDesc.Flags          = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-
-	if (FUSE_HR_FAILED(device->CreateDescriptorHeap(&gbufferRTVDesc, IID_PPV_ARGS(&g_rtvHeap))) ||
-	    FUSE_HR_FAILED(device->CreateDescriptorHeap(&gbufferDSVDesc, IID_PPV_ARGS(&g_dsvHeap))) ||
-	    FUSE_HR_FAILED(device->CreateDescriptorHeap(&srvDesc, IID_PPV_ARGS(&g_srvHeap))))
-	{
-		return false;
 	}
 
-	g_dsvHandle = g_dsvHeap->GetCPUDescriptorHandleForHeapStart();
-	g_rtvHandle = g_rtvHeap->GetCPUDescriptorHandleForHeapStart();
-	g_srvHandle = g_srvHeap->GetGPUDescriptorHandleForHeapStart();
+	/* Create gbuffer desc tables */
+
+	for (int i = 0; i < NUM_BUFFERS; i++)
+	{
+		g_gbufferSRVTable[i] = cbv_uav_srv_descriptor_heap::get_singleton_pointer()->allocate(4);
+	}
 
 	/* Create constant buffers */
 
 	for (int i = 0; i < NUM_BUFFERS; i++)
 	{
 
-		if (!gpu_global_resource_state::get_singleton_pointer()->create_committed_resource(
-			device,
-			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
-			D3D12_HEAP_FLAG_NONE,
-			&CD3DX12_RESOURCE_DESC::Buffer(sizeof(cb_per_frame)),
-			D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER,
-			nullptr,
-			IID_PPV_ARGS(&g_cbPerFrame[i])))
-		{
-			return false;
-		}
+		FAIL_IF (!gpu_global_resource_state::get_singleton_pointer()->
+			create_committed_resource(
+				device,
+				&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+				D3D12_HEAP_FLAG_NONE,
+				&CD3DX12_RESOURCE_DESC::Buffer(sizeof(cb_per_frame)),
+				D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER,
+				nullptr,
+				IID_PPV_ARGS(&g_cbPerFrame[i])
+			)
+		)
 
 	}
 
@@ -283,18 +224,13 @@ bool renderer_application::on_device_created(ID3D12Device * device, gpu_command_
 
 	deferred_renderer_configuration rendererCFG;
 
-	rendererCFG.gbufferFormat[0] = DXGI_FORMAT_R16G16B16A16_FLOAT;
-	rendererCFG.gbufferFormat[1] = DXGI_FORMAT_R16G16B16A16_FLOAT;
-	rendererCFG.gbufferFormat[2] = DXGI_FORMAT_R8G8B8A8_UNORM;
-	rendererCFG.gbufferFormat[3] = DXGI_FORMAT_R16G16B16A16_FLOAT;
-	rendererCFG.dsvFormat        = DXGI_FORMAT_D24_UNORM_S8_UINT;
-	rendererCFG.shadingFormat    = DXGI_FORMAT_R16G16B16A16_FLOAT;
-
-	shadow_mapper_configuration shadowMapperCFG;
-
-	shadowMapperCFG.cullMode    = D3D12_CULL_MODE_NONE;
-	shadowMapperCFG.evsm2Format = DXGI_FORMAT_R16G16_FLOAT;
-	shadowMapperCFG.dsvFormat   = DXGI_FORMAT_D32_FLOAT;
+	rendererCFG.gbufferFormat[0]       = DXGI_FORMAT_R16G16B16A16_FLOAT;
+	rendererCFG.gbufferFormat[1]       = DXGI_FORMAT_R16G16B16A16_FLOAT;
+	rendererCFG.gbufferFormat[2]       = DXGI_FORMAT_R8G8B8A8_UNORM;
+	rendererCFG.gbufferFormat[3]       = DXGI_FORMAT_R16G16B16A16_FLOAT;
+	rendererCFG.dsvFormat              = DXGI_FORMAT_D24_UNORM_S8_UINT;
+	rendererCFG.shadingFormat          = DXGI_FORMAT_R16G16B16A16_FLOAT;
+	rendererCFG.shadowMappingAlgorithm = g_rendererConfiguration.get_shadow_mapping_algorithm();
 
 #ifdef FUSE_USE_EDITOR_GUI
 
@@ -314,38 +250,41 @@ bool renderer_application::on_device_created(ID3D12Device * device, gpu_command_
 
 	rocket_interface_configuration rocketCFG;
 
-	rocketCFG.blendDesc                             = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
-	rocketCFG.blendDesc.RenderTarget[0].BlendEnable = TRUE;
-	rocketCFG.blendDesc.RenderTarget[0].SrcBlend    = D3D12_BLEND_SRC_ALPHA;
-	rocketCFG.blendDesc.RenderTarget[0].DestBlend   = D3D12_BLEND_INV_SRC_ALPHA;
-	rocketCFG.blendDesc.RenderTarget[0].BlendOp     = D3D12_BLEND_OP_ADD;
+	rocketCFG.blendDesc                              = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+	rocketCFG.blendDesc.RenderTarget[0].BlendEnable  = TRUE;
+	rocketCFG.blendDesc.RenderTarget[0].SrcBlend     = D3D12_BLEND_SRC_ALPHA;
+	rocketCFG.blendDesc.RenderTarget[0].DestBlend    = D3D12_BLEND_INV_SRC_ALPHA;
+	rocketCFG.blendDesc.RenderTarget[0].BlendOp      = D3D12_BLEND_OP_ADD;
+	rocketCFG.blendDesc.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_MAX;
 
-	rocketCFG.rtvFormat                             = DXGI_FORMAT_R8G8B8A8_UNORM;
-	rocketCFG.maxTextures                           = 16;
+	rocketCFG.rtvFormat   = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
 
-	if (!g_rocketInterface.init(device, commandQueue, &g_uploadManager, &g_uploadRingBuffer, rocketCFG) ||
-		!g_editorGUI.init(&g_scene, &g_rendererConfiguration))
-	{
-		return false;
-	}
+	FAIL_IF (
+	    !g_rocketInterface.init(device, commandQueue, &g_uploadManager, &g_uploadRingBuffer, rocketCFG) ||
+		!g_editorGUI.init(&g_scene, &g_rendererConfiguration)
+	)
 
 	g_editorGUI.set_render_options_visibility(true);
 	g_editorGUI.set_light_panel_visibility(true);
 
 #endif
 
+	alpha_composer_configuration composerCFG;
+
+	composerCFG.blendDesc                              = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+	composerCFG.blendDesc.RenderTarget[0].BlendEnable  = TRUE;
+	composerCFG.blendDesc.RenderTarget[0].SrcBlend     = D3D12_BLEND_SRC_ALPHA;
+	composerCFG.blendDesc.RenderTarget[0].DestBlend    = D3D12_BLEND_INV_SRC_ALPHA;
+	composerCFG.blendDesc.RenderTarget[0].BlendOp      = D3D12_BLEND_OP_ADD;
+	composerCFG.blendDesc.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_MAX;
+
+	composerCFG.rtvFormat                             = DXGI_FORMAT_R8G8B8A8_UNORM;
+
 	if (g_deferredRenderer.init(device, rendererCFG) &&
 	    g_tonemapper.init(device) &&
 	    g_textRenderer.init(device) &&
-	    g_shadowMapper.init(device, shadowMapperCFG) &&
-	    g_vsmBlur.init(device,
-			"float2",
-			g_rendererConfiguration.get_vsm_blur_kernel_size(),
-			g_rendererConfiguration.get_shadow_map_resolution(), g_rendererConfiguration.get_shadow_map_resolution()) &&
-		g_evsm2Blur.init(device,
-			"float2",
-			g_rendererConfiguration.get_evsm2_blur_kernel_size(),
-			g_rendererConfiguration.get_shadow_map_resolution(), g_rendererConfiguration.get_shadow_map_resolution()))
+	    g_alphaComposer.init(device, composerCFG) &&
+	    create_shadow_map_resources(device))
 	{
 
 		/* Wait for the initialization operations to be done on the GPU
@@ -381,9 +320,6 @@ void renderer_application::on_device_released(ID3D12Device * device)
 	std::for_each(g_fullresRGBA16F2.begin(), g_fullresRGBA16F2.end(), [](auto & r) { r.reset(); });
 	std::for_each(g_fullresRGBA8U0.begin(), g_fullresRGBA8U0.end(), [](auto & r) { r.reset(); });
 	std::for_each(g_depthBuffer.begin(), g_depthBuffer.end(), [](auto & r) { r.reset(); });
-
-	g_rtvHeap.reset();
-	g_dsvHeap.reset();
 
 	g_imageManager.reset();
 	g_meshManager.reset();
@@ -421,6 +357,9 @@ bool renderer_application::on_swap_chain_resized(ID3D12Device * device, IDXGISwa
 	g_textRenderer.set_viewport(viewport);
 	g_textRenderer.set_scissor_rect(scissorRect);
 
+	g_alphaComposer.set_viewport(viewport);
+	g_alphaComposer.set_scissor_rect(scissorRect);
+
 	g_cameraController.on_resize(desc->Width, desc->Height);
 
 	camera * mainCamera = g_scene.get_active_camera();
@@ -430,41 +369,28 @@ bool renderer_application::on_swap_chain_resized(ID3D12Device * device, IDXGISwa
 		mainCamera->set_aspect_ratio((float) desc->Width / desc->Height);
 	}
 
-	D3D12_CPU_DESCRIPTOR_HANDLE srvHandle = g_srvHeap->GetCPUDescriptorHandleForHeapStart();
-
-	if (!create_shadow_map_buffers(device))
-	{
-		return false;
-	}
-
 	for (int i = 0; i < NUM_BUFFERS; i++)
 	{
 
 		auto & r = g_depthBuffer[i];
 
-		r.reset();
+		r.clear();
 
-		if (!gpu_global_resource_state::get_singleton_pointer()->create_committed_resource(
+		FAIL_IF (
+			!r.create(
 				device,
-				&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
-				D3D12_HEAP_FLAG_NONE,
 				&CD3DX12_RESOURCE_DESC::Tex2D(
 					DXGI_FORMAT_D24_UNORM_S8_UINT,
 					desc->Width, desc->Height,
 					1, 1, 1, 0,
 					D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL),
 				D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-				&CD3DX12_CLEAR_VALUE(DXGI_FORMAT_D24_UNORM_S8_UINT, 1.f, 0),
-				IID_PPV_ARGS(&r)))
-		{
-			return false;
-		}
+				&CD3DX12_CLEAR_VALUE(DXGI_FORMAT_D24_UNORM_S8_UINT, 1.f, 0)
+			)  ||
+			!r.create_depth_stencil_view(device)
+		)
 
 		r->SetName(L"main_depth_buffer");
-
-		device->CreateDepthStencilView(r.get(),
-			nullptr,
-			CD3DX12_CPU_DESCRIPTOR_HANDLE(g_dsvHandle, DSV_DEPTH(i), get_dsv_descriptor_size()));
 
 	}
 
@@ -475,12 +401,14 @@ bool renderer_application::on_swap_chain_resized(ID3D12Device * device, IDXGISwa
 
 		auto & r = g_fullresRGBA16F0[i];
 		
-		r.reset();
+		r.clear();
 
-		if (!gpu_global_resource_state::get_singleton_pointer()->create_committed_resource(
+		// gbuffer 0
+		r.set_srv_token(g_gbufferSRVTable[i]);
+
+		FAIL_IF (
+			!r.create(
 				device,
-				&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
-				D3D12_HEAP_FLAG_NONE,
 				&CD3DX12_RESOURCE_DESC::Tex2D(
 					DXGI_FORMAT_R16G16B16A16_FLOAT,
 					desc->Width,
@@ -488,23 +416,13 @@ bool renderer_application::on_swap_chain_resized(ID3D12Device * device, IDXGISwa
 					1, 1, 1, 0,
 					D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET),
 				D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-				&CD3DX12_CLEAR_VALUE(DXGI_FORMAT_R16G16B16A16_FLOAT, black),
-				IID_PPV_ARGS(&r)))
-		{
-			return false;
-		}
+				&CD3DX12_CLEAR_VALUE(DXGI_FORMAT_R16G16B16A16_FLOAT, black)
+			)  ||
+			!r.create_render_target_view(device) ||
+			!r.create_shader_resource_view(device)
+		)
 
 		r->SetName(L"fullres_rgba16f0");
-
-		D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc = {};
-		
-		device->CreateRenderTargetView(r.get(),
-			nullptr,
-			CD3DX12_CPU_DESCRIPTOR_HANDLE(g_rtvHandle, RTV_RGBA16F0(i), get_rtv_descriptor_size()));
-
-		device->CreateShaderResourceView(r.get(),
-			nullptr,
-			CD3DX12_CPU_DESCRIPTOR_HANDLE(srvHandle, SRV_RGBA16F0(i), get_srv_descriptor_size()));
 		
 	}
 
@@ -513,12 +431,14 @@ bool renderer_application::on_swap_chain_resized(ID3D12Device * device, IDXGISwa
 
 		auto & r = g_fullresRGBA16F1[i];
 
-		r.reset();
+		r.clear();
 
-		if (!gpu_global_resource_state::get_singleton_pointer()->create_committed_resource(
+		// gbuffer 1
+		r.set_srv_token(g_gbufferSRVTable[i] + 1);
+
+		FAIL_IF (
+			!r.create(
 				device,
-				&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
-				D3D12_HEAP_FLAG_NONE,
 				&CD3DX12_RESOURCE_DESC::Tex2D(
 					DXGI_FORMAT_R16G16B16A16_FLOAT,
 					desc->Width,
@@ -526,22 +446,13 @@ bool renderer_application::on_swap_chain_resized(ID3D12Device * device, IDXGISwa
 					1, 1, 1, 0,
 					D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET),
 				D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-				&CD3DX12_CLEAR_VALUE(DXGI_FORMAT_R16G16B16A16_FLOAT, black),
-				IID_PPV_ARGS(&r)))
-		{
-			return false;
-		}
+				&CD3DX12_CLEAR_VALUE(DXGI_FORMAT_R16G16B16A16_FLOAT, black)
+			)  ||
+			!r.create_render_target_view(device) ||
+			!r.create_shader_resource_view(device)
+		)
 
 		r->SetName(L"fullres_rgba16f1");
-
-		device->CreateRenderTargetView(r.get(),
-			nullptr,
-			CD3DX12_CPU_DESCRIPTOR_HANDLE(g_rtvHandle, RTV_RGBA16F1(i), get_rtv_descriptor_size()));
-
-		device->CreateShaderResourceView(r.get(),
-			nullptr,
-			CD3DX12_CPU_DESCRIPTOR_HANDLE(srvHandle, SRV_RGBA16F1(i), get_srv_descriptor_size()));
-
 
 	}
 
@@ -550,12 +461,11 @@ bool renderer_application::on_swap_chain_resized(ID3D12Device * device, IDXGISwa
 
 		auto & r = g_fullresRGBA16F2[i];
 
-		r.reset();
+		r.clear();
 
-		if (!gpu_global_resource_state::get_singleton_pointer()->create_committed_resource(
+		FAIL_IF (
+			!r.create(
 				device,
-				&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
-				D3D12_HEAP_FLAG_NONE,
 				&CD3DX12_RESOURCE_DESC::Tex2D(
 					DXGI_FORMAT_R16G16B16A16_FLOAT,
 					desc->Width,
@@ -563,22 +473,13 @@ bool renderer_application::on_swap_chain_resized(ID3D12Device * device, IDXGISwa
 					1, 1, 1, 0,
 					D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET),
 				D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-				&CD3DX12_CLEAR_VALUE(DXGI_FORMAT_R16G16B16A16_FLOAT, black),
-				IID_PPV_ARGS(&r)))
-		{
-			return false;
-		}
+				&CD3DX12_CLEAR_VALUE(DXGI_FORMAT_R16G16B16A16_FLOAT, black)
+			) ||
+			!r.create_render_target_view(device) ||
+			!r.create_shader_resource_view(device)
+		)
 
 		r->SetName(L"fullres_rgba16f2");
-
-		device->CreateRenderTargetView(r.get(),
-			nullptr,
-			CD3DX12_CPU_DESCRIPTOR_HANDLE(g_rtvHandle, RTV_RGBA16F2(i), get_rtv_descriptor_size()));
-
-		device->CreateShaderResourceView(r.get(),
-			nullptr,
-			CD3DX12_CPU_DESCRIPTOR_HANDLE(srvHandle, SRV_RGBA16F2(i), get_srv_descriptor_size()));
-
 
 	}
 
@@ -587,39 +488,29 @@ bool renderer_application::on_swap_chain_resized(ID3D12Device * device, IDXGISwa
 
 		auto & r = g_fullresRGBA8U0[i];
 
-		r.reset();
+		r.clear();
 
-		if (!gpu_global_resource_state::get_singleton_pointer()->create_committed_resource(
+		// gbuffer 2
+		r.set_srv_token(g_gbufferSRVTable[i] + 2);
+
+		FAIL_IF (
+			!r.create(
 				device,
-				&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
-				D3D12_HEAP_FLAG_NONE,
 				&CD3DX12_RESOURCE_DESC::Tex2D(
 					DXGI_FORMAT_R8G8B8A8_UNORM,
 					desc->Width,
 					desc->Height,
 					1, 1, 1, 0,
 					D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET | D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS),
-				//D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-				D3D12_RESOURCE_STATE_COPY_SOURCE,
-				&CD3DX12_CLEAR_VALUE(DXGI_FORMAT_R8G8B8A8_UNORM, black),
-				IID_PPV_ARGS(&r)))
-		{
-			return false;
-		}
+				D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+				&CD3DX12_CLEAR_VALUE(DXGI_FORMAT_R8G8B8A8_UNORM, black)
+			) ||
+			!r.create_render_target_view(device) ||
+			!r.create_shader_resource_view(device) ||
+			!r.create_unordered_access_view(device)
+		)
 
 		r->SetName(L"fullres_rgba8u0");
-
-		device->CreateRenderTargetView(r.get(),
-			nullptr,
-			CD3DX12_CPU_DESCRIPTOR_HANDLE(g_rtvHandle, RTV_RGBA8U0(i), get_rtv_descriptor_size()));
-
-		device->CreateShaderResourceView(r.get(),
-			nullptr,
-			CD3DX12_CPU_DESCRIPTOR_HANDLE(srvHandle, SRV_RGBA8U0(i), get_srv_descriptor_size()));
-
-		device->CreateUnorderedAccessView(r.get(),
-			nullptr, nullptr,
-			CD3DX12_CPU_DESCRIPTOR_HANDLE(srvHandle, UAV_RGBA8U0(i), get_uav_descriptor_size()));
 
 	}
 
@@ -628,34 +519,55 @@ bool renderer_application::on_swap_chain_resized(ID3D12Device * device, IDXGISwa
 
 		auto & r = g_fullresRGBA8U1[i];
 
-		r.reset();
+		r.clear();
 
-		if (!gpu_global_resource_state::get_singleton_pointer()->create_committed_resource(
-			device,
-			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
-			D3D12_HEAP_FLAG_NONE,
-			&CD3DX12_RESOURCE_DESC::Tex2D(
-				DXGI_FORMAT_R16G16B16A16_FLOAT,
-				desc->Width,
-				desc->Height,
-				1, 1, 1, 0,
-				D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET),
-			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-			&CD3DX12_CLEAR_VALUE(DXGI_FORMAT_R16G16B16A16_FLOAT, black),
-			IID_PPV_ARGS(&r)))
-		{
-			return false;
-		}
+		// gbuffer 3
+		r.set_srv_token(g_gbufferSRVTable[i] + 3);
 
-		r->SetName(L"fullres_rgba16f3");
+		FAIL_IF (
+			!r.create(
+				device,
+				&CD3DX12_RESOURCE_DESC::Tex2D(
+					DXGI_FORMAT_R16G16B16A16_FLOAT,
+					desc->Width,
+					desc->Height,
+					1, 1, 1, 0,
+					D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET),
+				D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+				&CD3DX12_CLEAR_VALUE(DXGI_FORMAT_R16G16B16A16_FLOAT, black)
+			) ||
+			!r.create_render_target_view(device) ||
+			!r.create_shader_resource_view(device)
+		)
 
-		device->CreateRenderTargetView(r.get(),
-			nullptr,
-			CD3DX12_CPU_DESCRIPTOR_HANDLE(g_rtvHandle, RTV_RGBA16F3(i), get_rtv_descriptor_size()));
+		r->SetName(L"fullres_rgba8u1");
 
-		device->CreateShaderResourceView(r.get(),
-			nullptr,
-			CD3DX12_CPU_DESCRIPTOR_HANDLE(srvHandle, SRV_RGBA16F3(i), get_srv_descriptor_size()));
+	}
+
+	for (int i = 0; i < NUM_BUFFERS; i++)
+	{
+
+		auto & r = g_fullresGUI[i];
+
+		r.clear();
+
+		FAIL_IF (
+			!r.create(
+				device,
+				&CD3DX12_RESOURCE_DESC::Tex2D(
+					DXGI_FORMAT_R8G8B8A8_UNORM_SRGB,
+					desc->Width,
+					desc->Height,
+					1, 1, 1, 0,
+					D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET),
+				D3D12_RESOURCE_STATE_RENDER_TARGET,
+				&CD3DX12_CLEAR_VALUE(DXGI_FORMAT_R8G8B8A8_UNORM_SRGB, black)
+			) ||
+			!r.create_render_target_view(device) ||
+			!r.create_shader_resource_view(device)
+		)
+
+			r->SetName(L"fullres_gui");
 
 	}
 
@@ -683,10 +595,6 @@ LRESULT CALLBACK renderer_application::on_keyboard(int code, WPARAM wParam, LPAR
 			set_cursor(goFullscreen, goFullscreen);
 			g_cameraController.set_auto_center_mouse(goFullscreen);
 		}
-		/*else if (__KEY_DOWN(VK_F5))
-		{
-			g_editorGUI.select_object(*g_scene.get_static_objects().first);
-		}*/
 		else if (__KEY_DOWN(VK_F9))
 		{
 			g_editorGUI.set_debugger_visibility(!g_editorGUI.get_debugger_visibility());
@@ -752,26 +660,24 @@ void renderer_application::update_renderer_configuration(ID3D12Device * device, 
 		switch (variable)
 		{
 
+		case FUSE_RVAR_VSM_FLOAT_PRECISION:
+		case FUSE_RVAR_EVSM2_FLOAT_PRECISION:
+		case FUSE_RVAR_EVSM4_FLOAT_PRECISION:
+		case FUSE_RVAR_SHADOW_MAPPING_ALGORITHM:
+			commandQueue.wait_for_frame(commandQueue.get_frame_index());
+			create_shadow_map_resources(device);
+			g_deferredRenderer.set_shadow_mapping_algorithm(g_rendererConfiguration.get_shadow_mapping_algorithm());
+			break;
+
 		case FUSE_RVAR_SHADOW_MAP_RESOLUTION:
 			commandQueue.wait_for_frame(commandQueue.get_frame_index());
-			create_shadow_map_buffers(device);
+			create_shadow_map_resources(device);
+			break;
 
 		case FUSE_RVAR_VSM_BLUR_KERNEL_SIZE:
-			g_vsmBlur.shutdown();
-			g_vsmBlur.init(
-				device,
-				"float2",
-				g_rendererConfiguration.get_vsm_blur_kernel_size(),
-				g_rendererConfiguration.get_shadow_map_resolution(), g_rendererConfiguration.get_shadow_map_resolution());
-
 		case FUSE_RVAR_EVSM2_BLUR_KERNEL_SIZE:
-			g_evsm2Blur.shutdown();
-			g_evsm2Blur.init(
-				device,
-				"float2",
-				g_rendererConfiguration.get_evsm2_blur_kernel_size(),
-				g_rendererConfiguration.get_shadow_map_resolution(), g_rendererConfiguration.get_shadow_map_resolution());
-
+		case FUSE_RVAR_EVSM4_BLUR_KERNEL_SIZE:
+			create_shadow_map_resources(device, false);
 			break;
 
 		}
@@ -809,15 +715,22 @@ void renderer_application::upload_per_frame_resources(ID3D12Device * device, gpu
 	/* Screen settings */
 
 	cbPerFrame.screen.resolution        = XMUINT2(get_screen_width(), get_screen_height());
-	cbPerFrame.screen.orthoProjection = XMMatrixTranspose(XMMatrixOrthographicOffCenterLH(0, get_screen_width(), get_screen_height(), 0, 0, 1));
+	cbPerFrame.screen.orthoProjection   = XMMatrixTranspose(XMMatrixOrthographicOffCenterLH(0, get_screen_width(), get_screen_height(), 0, 0, 1));
 
 	/* Render variables */
 
-	cbPerFrame.rvars.vsmMinVariance   = g_rendererConfiguration.get_vsm_min_variance();
-	cbPerFrame.rvars.vsmMinBleeding   = g_rendererConfiguration.get_vsm_min_bleeding();
-	cbPerFrame.rvars.evsm2MinVariance = g_rendererConfiguration.get_evsm2_min_variance();
-	cbPerFrame.rvars.evsm2MinBleeding = g_rendererConfiguration.get_evsm2_min_bleeding();
-	cbPerFrame.rvars.evsm2Exponent    = g_rendererConfiguration.get_evsm2_exponent();
+	cbPerFrame.rvars.shadowMapResolution = g_rendererConfiguration.get_shadow_map_resolution();
+	cbPerFrame.rvars.vsmMinVariance      = g_rendererConfiguration.get_vsm_min_variance();
+	cbPerFrame.rvars.vsmMinBleeding      = g_rendererConfiguration.get_vsm_min_bleeding();
+
+	cbPerFrame.rvars.evsm2MinVariance    = g_rendererConfiguration.get_evsm2_min_variance();
+	cbPerFrame.rvars.evsm2MinBleeding    = g_rendererConfiguration.get_evsm2_min_bleeding();
+	cbPerFrame.rvars.evsm2Exponent       = esm_clamp_exponent(g_rendererConfiguration.get_evsm2_exponent(), g_rendererConfiguration.get_evsm2_float_precision());
+
+	cbPerFrame.rvars.evsm4MinVariance = g_rendererConfiguration.get_evsm4_min_variance();
+	cbPerFrame.rvars.evsm4MinBleeding = g_rendererConfiguration.get_evsm4_min_bleeding();
+	cbPerFrame.rvars.evsm4PosExponent = esm_clamp_exponent_positive(g_rendererConfiguration.get_evsm4_positive_exponent(), g_rendererConfiguration.get_evsm4_float_precision());
+	cbPerFrame.rvars.evsm4NegExponent = esm_clamp_exponent_positive(g_rendererConfiguration.get_evsm4_negative_exponent(), g_rendererConfiguration.get_evsm4_float_precision());
 
 	/* Upload */
 
@@ -832,7 +745,7 @@ void renderer_application::upload_per_frame_resources(ID3D12Device * device, gpu
 
 }
 
-void renderer_application::on_render(ID3D12Device * device, gpu_command_queue & commandQueue, ID3D12Resource * backBuffer, D3D12_CPU_DESCRIPTOR_HANDLE rtvDescriptor, UINT bufferIndex)
+void renderer_application::on_render(ID3D12Device * device, gpu_command_queue & commandQueue, const render_resource & backBuffer, UINT bufferIndex)
 {
 
 	update_renderer_configuration(device, commandQueue);
@@ -856,40 +769,39 @@ void renderer_application::on_render(ID3D12Device * device, gpu_command_queue & 
 
 	/* Clear the buffers */
 
-	CD3DX12_CPU_DESCRIPTOR_HANDLE gbufferHandles[] = {
-		CD3DX12_CPU_DESCRIPTOR_HANDLE(g_rtvHandle, RTV_RGBA16F0(bufferIndex), get_rtv_descriptor_size()),
-		CD3DX12_CPU_DESCRIPTOR_HANDLE(g_rtvHandle, RTV_RGBA16F1(bufferIndex), get_rtv_descriptor_size()),
-		CD3DX12_CPU_DESCRIPTOR_HANDLE(g_rtvHandle, RTV_RGBA8U0(bufferIndex),  get_rtv_descriptor_size()),
-		CD3DX12_CPU_DESCRIPTOR_HANDLE(g_rtvHandle, RTV_RGBA16F3(bufferIndex),  get_rtv_descriptor_size())
+	render_resource * gbuffer[] = {
+		std::addressof(g_fullresRGBA16F0[bufferIndex]),
+		std::addressof(g_fullresRGBA16F1[bufferIndex]),
+		std::addressof(g_fullresRGBA8U0[bufferIndex]),
+		std::addressof(g_fullresRGBA8U1[bufferIndex]),
+		std::addressof(g_depthBuffer[bufferIndex])
 	};
 
-	CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(g_dsvHandle, DSV_DEPTH(bufferIndex), get_dsv_descriptor_size());
-	
+	auto dsvHandle = g_depthBuffer[bufferIndex].get_dsv_cpu_descriptor_handle();
+
 	float clearColor[4] = { 0.f };
 
 	commandList.reset_command_list(nullptr);
 
-	commandList->ClearRenderTargetView(gbufferHandles[0], clearColor, 0, nullptr);
-	commandList->ClearRenderTargetView(gbufferHandles[1], clearColor, 0, nullptr);
-	commandList->ClearRenderTargetView(gbufferHandles[2], clearColor, 0, nullptr);
-	commandList->ClearRenderTargetView(gbufferHandles[3], clearColor, 0, nullptr);
+	commandList->ClearRenderTargetView(gbuffer[0]->get_rtv_cpu_descriptor_handle(), clearColor, 0, nullptr);
+	commandList->ClearRenderTargetView(gbuffer[1]->get_rtv_cpu_descriptor_handle(), clearColor, 0, nullptr);
+	commandList->ClearRenderTargetView(gbuffer[2]->get_rtv_cpu_descriptor_handle(), clearColor, 0, nullptr);
+	commandList->ClearRenderTargetView(gbuffer[3]->get_rtv_cpu_descriptor_handle(), clearColor, 0, nullptr);
 
-	commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.f, 0, 0, nullptr);
+	commandList->ClearRenderTargetView(g_fullresGUI[bufferIndex].get_rtv_cpu_descriptor_handle(), clearColor, 0, nullptr);
+
+	commandList->ClearDepthStencilView(g_depthBuffer[bufferIndex].get_dsv_cpu_descriptor_handle(), D3D12_CLEAR_FLAG_DEPTH, 1.f, 0, 0, nullptr);
 
 	commandList.resource_barrier_transition(g_cbPerFrame[bufferIndex].get(), D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
 
 	FUSE_HR_CHECK(commandList->Close());
 	commandQueue.execute(commandList);
 
-	/* GBuffer rendering */
+	/* Draw GUI */
 
-	ID3D12Resource * gbuffer[] = {
-		g_fullresRGBA16F0[bufferIndex].get(),
-		g_fullresRGBA16F1[bufferIndex].get(),
-		g_fullresRGBA8U0[bufferIndex].get(),
-		g_fullresRGBA8U1[bufferIndex].get(),
-		g_depthBuffer[bufferIndex].get()
-	};
+	draw_gui(device, commandQueue, commandList);
+
+	/* GBuffer rendering */
 
 	auto staticObjects = g_scene.get_static_objects();
 
@@ -899,9 +811,8 @@ void renderer_application::on_render(ID3D12Device * device, gpu_command_queue & 
 		commandList,
 		&g_uploadRingBuffer,
 		cbPerFrameAddress,
-		gbufferHandles,
-		&dsvHandle,
 		gbuffer,
+		g_depthBuffer[bufferIndex],
 		g_scene.get_active_camera(),
 		staticObjects.first,
 		staticObjects.second);
@@ -910,10 +821,8 @@ void renderer_application::on_render(ID3D12Device * device, gpu_command_queue & 
 
 	commandList.reset_command_list(nullptr);
 
-	CD3DX12_CPU_DESCRIPTOR_HANDLE finalRTV(g_rtvHandle, RTV_RGBA16F2(bufferIndex), get_rtv_descriptor_size());
-
 	commandList.resource_barrier_transition(g_fullresRGBA16F2[bufferIndex].get(), D3D12_RESOURCE_STATE_RENDER_TARGET);
-	commandList->ClearRenderTargetView(finalRTV, clearColor, 0, nullptr);
+	commandList->ClearRenderTargetView(g_fullresRGBA16F2[bufferIndex].get_rtv_cpu_descriptor_handle(), clearColor, 0, nullptr);
 
 	FUSE_HR_CHECK(commandList->Close());
 
@@ -946,10 +855,10 @@ void renderer_application::on_render(ID3D12Device * device, gpu_command_queue & 
 
 			for (auto it = staticObjects.first; it != staticObjects.second; it++)
 			{
-				XMMATRIX worldView = XMMatrixMultiply((*it)->get_world_matrix(), viewMatrix);
+				XMMATRIX worldView       = XMMatrixMultiply((*it)->get_world_matrix(), viewMatrix);
 				sphere transformedSphere = transform_affine((*it)->get_bounding_sphere(), worldView);
-				aabb objectAABB = bounding_aabb(transformedSphere);
-				currentAABB = currentAABB + objectAABB;
+				aabb objectAABB          = bounding_aabb(transformedSphere);
+				currentAABB              = currentAABB + objectAABB;
 			}
 
 			auto aabbMin = to_float3(currentAABB.get_min());
@@ -957,9 +866,8 @@ void renderer_application::on_render(ID3D12Device * device, gpu_command_queue & 
 
 			XMMATRIX orthoMatrix = XMMatrixOrthographicOffCenterLH(aabbMin.x, aabbMax.x, aabbMin.y, aabbMax.y, aabbMax.z, aabbMin.z);
 
-			shadowMapInfo.shadowMap      = g_shadowmapRG16F0[bufferIndex].get();
-			shadowMapInfo.shadowMapTable = CD3DX12_GPU_DESCRIPTOR_HANDLE(g_srvHandle, SRV_SHADOWMAP_RG16F0(bufferIndex), get_srv_descriptor_size());
-			shadowMapInfo.lightMatrix    = XMMatrixMultiply(viewMatrix, orthoMatrix);
+			shadowMapInfo.shadowMap   = std::addressof(g_shadowmap0[bufferIndex]);
+			shadowMapInfo.lightMatrix = XMMatrixMultiply(viewMatrix, orthoMatrix);
 
 			g_shadowMapper.render(
 				device,
@@ -968,58 +876,18 @@ void renderer_application::on_render(ID3D12Device * device, gpu_command_queue & 
 				&g_uploadRingBuffer,
 				cbPerFrameAddress,
 				shadowMapInfo.lightMatrix,
-				&CD3DX12_CPU_DESCRIPTOR_HANDLE(g_rtvHandle, RTV_SHADOWMAP_RG16F0(bufferIndex), get_rtv_descriptor_size()),
-				&CD3DX12_CPU_DESCRIPTOR_HANDLE(g_dsvHandle, DSV_SHADOWMAP(bufferIndex), get_dsv_descriptor_size()),
-				g_shadowmapRG16F0[bufferIndex].get(),
-				g_shadowmap32F[bufferIndex].get(),
-				currentLight->shadowMappingAlgorithm,
+				g_shadowmap0[bufferIndex],
+				g_shadowmap32F[bufferIndex],
 				staticObjects.first,
 				staticObjects.second);
 
-			switch (currentLight->shadowMappingAlgorithm)
-			{
+			g_shadowMapBlur.render(
+				commandQueue,
+				commandList,
+				g_shadowmap0[bufferIndex],
+				g_shadowmap1[bufferIndex]);
 
-			case FUSE_SHADOW_MAPPING_VSM:
-
-				g_vsmBlur.render(
-					commandQueue,
-					commandList,
-					g_srvHeap.get(),
-					&std::array<ID3D12Resource*, 2> { g_shadowmapRG16F0[bufferIndex].get(), g_shadowmapRG16F1[bufferIndex].get() }[0],
-					&std::array<CD3DX12_GPU_DESCRIPTOR_HANDLE, 2> {
-						CD3DX12_GPU_DESCRIPTOR_HANDLE(g_srvHandle, SRV_SHADOWMAP_RG16F0(bufferIndex), get_srv_descriptor_size()),
-						CD3DX12_GPU_DESCRIPTOR_HANDLE(g_srvHandle, SRV_SHADOWMAP_RG16F1(bufferIndex), get_srv_descriptor_size())
-					}[0],
-					&std::array<CD3DX12_GPU_DESCRIPTOR_HANDLE, 2> {
-						CD3DX12_GPU_DESCRIPTOR_HANDLE(g_srvHandle, UAV_SHADOWMAP_RG16F0(bufferIndex), get_srv_descriptor_size()),
-						CD3DX12_GPU_DESCRIPTOR_HANDLE(g_srvHandle, UAV_SHADOWMAP_RG16F1(bufferIndex), get_srv_descriptor_size())
-					}[0]);
-
-				g_mipmapGenerator->generate_mipmaps(device, commandQueue, commandList, g_shadowmapRG16F0[bufferIndex].get());
-
-				break;
-
-			case FUSE_SHADOW_MAPPING_EVSM2:
-
-				g_evsm2Blur.render(
-					commandQueue,
-					commandList,
-					g_srvHeap.get(),
-					&std::array<ID3D12Resource*, 2> { g_shadowmapRG16F0[bufferIndex].get(), g_shadowmapRG16F1[bufferIndex].get() }[0],
-					&std::array<CD3DX12_GPU_DESCRIPTOR_HANDLE, 2> {
-						CD3DX12_GPU_DESCRIPTOR_HANDLE(g_srvHandle, SRV_SHADOWMAP_RG16F0(bufferIndex), get_srv_descriptor_size()),
-						CD3DX12_GPU_DESCRIPTOR_HANDLE(g_srvHandle, SRV_SHADOWMAP_RG16F1(bufferIndex), get_srv_descriptor_size())
-					}[0],
-					&std::array<CD3DX12_GPU_DESCRIPTOR_HANDLE, 2> {
-						CD3DX12_GPU_DESCRIPTOR_HANDLE(g_srvHandle, UAV_SHADOWMAP_RG16F0(bufferIndex), get_srv_descriptor_size()),
-						CD3DX12_GPU_DESCRIPTOR_HANDLE(g_srvHandle, UAV_SHADOWMAP_RG16F1(bufferIndex), get_srv_descriptor_size())
-					}[0]);
-
-				g_mipmapGenerator->generate_mipmaps(device, commandQueue, commandList, g_shadowmapRG16F0[bufferIndex].get());
-
-				break;
-
-			}
+			g_mipmapGenerator->generate_mipmaps(device, commandQueue, commandList, g_shadowmap0[bufferIndex].get());
 
 			pShadowMapInfo = &shadowMapInfo;
 
@@ -1030,10 +898,8 @@ void renderer_application::on_render(ID3D12Device * device, gpu_command_queue & 
 			commandQueue,
 			commandList,
 			&g_uploadRingBuffer,
-			g_srvHeap.get(),
 			cbPerFrameAddress,
-			CD3DX12_GPU_DESCRIPTOR_HANDLE(g_srvHandle, SRV_GBUFFER(bufferIndex), get_srv_descriptor_size()),
-			&finalRTV,
+			g_fullresRGBA16F2[bufferIndex],
 			gbuffer,
 			currentLight,
 			pShadowMapInfo);
@@ -1046,11 +912,8 @@ void renderer_application::on_render(ID3D12Device * device, gpu_command_queue & 
 		device,
 		commandQueue,
 		commandList,
-		g_srvHeap.get(),
-		CD3DX12_GPU_DESCRIPTOR_HANDLE(g_srvHandle, SRV_RGBA16F2(bufferIndex), get_srv_descriptor_size()),
-		CD3DX12_GPU_DESCRIPTOR_HANDLE(g_srvHandle, UAV_RGBA8U0(bufferIndex), get_uav_descriptor_size()),
-		g_fullresRGBA16F2[bufferIndex].get(),
-		g_fullresRGBA8U0[bufferIndex].get(),
+		g_fullresRGBA16F2[bufferIndex],
+		g_fullresRGBA8U0[bufferIndex],
 		get_screen_width(),
 		get_screen_height());
 
@@ -1059,53 +922,81 @@ void renderer_application::on_render(ID3D12Device * device, gpu_command_queue & 
 	commandList.reset_command_list(nullptr);
 
 	commandList.resource_barrier_transition(g_fullresRGBA8U0[bufferIndex].get(), D3D12_RESOURCE_STATE_COPY_SOURCE);
-	commandList.resource_barrier_transition(backBuffer, D3D12_RESOURCE_STATE_COPY_DEST);
+	commandList.resource_barrier_transition(backBuffer.get(), D3D12_RESOURCE_STATE_COPY_DEST);
 
-	commandList->CopyResource(backBuffer, g_fullresRGBA8U0[bufferIndex].get());
+	commandList->CopyResource(backBuffer.get(), g_fullresRGBA8U0[bufferIndex].get());
 
 	FUSE_HR_CHECK(commandList->Close());
-	commandQueue.execute(commandList);
+	commandQueue.execute(commandList);	
 
-	/* Draw text */
+	/* Compose */
 
-	std::stringstream ss;
+	render_resource * composeResources[] = {
+		std::addressof(g_fullresGUI[bufferIndex])
+	};
 
-	ss << "FPS: " << get_fps() << std::endl;
-
-	g_textRenderer.render(
-		device,
+	g_alphaComposer.render(
 		commandQueue,
 		commandList,
 		backBuffer,
-		&rtvDescriptor,
-		cbPerFrameAddress,
-		&g_uploadRingBuffer,
-		g_font.get(),
-		ss.str().c_str(),
-		XMFLOAT2(16, 16),
-		XMFLOAT4(1, 1, 0, .25f));
-
-	/* Draw GUI */
-
-#ifdef FUSE_USE_EDITOR_GUI
-
-	if (g_showGUI)
-	{
-		g_rocketInterface.render_begin(commandList, cbPerFrameAddress, backBuffer, rtvDescriptor);
-		g_editorGUI.render();
-		g_rocketInterface.render_end();
-	}
-	
-#endif
+		composeResources,
+		_countof(composeResources));
 
 	/* Present */
 
 	commandList.reset_command_list(nullptr);
 
-	commandList.resource_barrier_transition(backBuffer, D3D12_RESOURCE_STATE_PRESENT);
+	commandList.resource_barrier_transition(backBuffer.get(), D3D12_RESOURCE_STATE_PRESENT);
 
 	FUSE_HR_CHECK(commandList->Close());
 	commandQueue.execute(commandList);
+
+}
+
+void renderer_application::draw_gui(ID3D12Device * device, gpu_command_queue & commandQueue, gpu_graphics_command_list & commandList)
+{
+
+	uint32_t bufferIndex = get_buffer_index();
+
+	D3D12_GPU_VIRTUAL_ADDRESS cbPerFrameAddress = g_cbPerFrame[bufferIndex]->GetGPUVirtualAddress();
+
+	auto guiRTV = g_fullresGUI[bufferIndex].get_rtv_cpu_descriptor_handle();
+
+	std::stringstream guiSS;
+
+	guiSS << "FPS: " << get_fps() << std::endl;
+
+	g_textRenderer.render(
+		device,
+		commandQueue,
+		commandList,
+		g_fullresGUI[bufferIndex].get(),
+		&guiRTV,
+		cbPerFrameAddress,
+		&g_uploadRingBuffer,
+		g_font.get(),
+		guiSS.str().c_str(),
+		XMFLOAT2(16, 16),
+		XMFLOAT4(1, 1, 0, .5f));
+
+#ifdef FUSE_USE_EDITOR_GUI
+
+	if (g_showGUI)
+	{
+
+		g_rocketInterface.render_begin(
+			commandList,
+			cbPerFrameAddress,
+			g_fullresGUI[bufferIndex].get(),
+			guiRTV);
+
+		g_editorGUI.render();
+
+		g_rocketInterface.render_end();
+
+	}
+
+#endif
 
 }
 
@@ -1114,138 +1005,194 @@ void renderer_application::on_configuration_init(application_config * configurat
 	configuration->syncInterval         = 0;
 	configuration->presentFlags         = 0;
 	configuration->swapChainBufferCount = NUM_BUFFERS;
+	configuration->swapChainFormat      = DXGI_FORMAT_R8G8B8A8_UNORM;
 }
 
-bool renderer_application::create_shadow_map_buffers(ID3D12Device * device)
+bool renderer_application::create_shadow_map_resources(ID3D12Device * device, bool createBuffers)
 {
 
-	D3D12_CPU_DESCRIPTOR_HANDLE srvHandle = g_srvHeap->GetCPUDescriptorHandleForHeapStart();
+	uint32_t resolution = g_rendererConfiguration.get_shadow_map_resolution();
+	shadow_mapping_algorithm algorithm = g_rendererConfiguration.get_shadow_mapping_algorithm();
 
-	for (int i = 0; i < NUM_BUFFERS; i++)
+	DXGI_FORMAT rtvFormat;
+
+	switch (algorithm)
 	{
 
-		auto & r = g_shadowmap32F[i];
+	case FUSE_SHADOW_MAPPING_NONE:
+		return true;
 
-		r.reset();
+	case FUSE_SHADOW_MAPPING_VSM:
 
-		if (!gpu_global_resource_state::get_singleton_pointer()->create_committed_resource(
-			device,
-			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
-			D3D12_HEAP_FLAG_NONE,
-			&CD3DX12_RESOURCE_DESC::Tex2D(
-				DXGI_FORMAT_R32_TYPELESS,
-				g_rendererConfiguration.get_shadow_map_resolution(), g_rendererConfiguration.get_shadow_map_resolution(),
-				1, 1, 1, 0,
-				D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL),
-			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-			&CD3DX12_CLEAR_VALUE(DXGI_FORMAT_D32_FLOAT, 1.f, 0),
-			IID_PPV_ARGS(&r)))
+		if (g_rendererConfiguration.get_evsm2_float_precision() == 16)
 		{
-			return false;
+			rtvFormat = DXGI_FORMAT_R16G16_FLOAT;
+		}
+		else
+		{
+			rtvFormat = DXGI_FORMAT_R32G32_FLOAT;
 		}
 
-		r->SetName(L"shadow_map_depth_buffer_32f_0");
+		FAIL_IF(!g_shadowMapBlur.init_box_blur(
+			device,
+			"float2",
+			g_rendererConfiguration.get_vsm_blur_kernel_size(),
+			//2.f,
+			resolution, resolution))
 
-		D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc = {};
+			break;
 
-		dsvDesc.Format = DXGI_FORMAT_D32_FLOAT;
-		dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+	case FUSE_SHADOW_MAPPING_EVSM2:
 
-		D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+		if (g_rendererConfiguration.get_evsm2_float_precision() == 16)
+		{
+			rtvFormat = DXGI_FORMAT_R16G16_FLOAT;
+		}
+		else
+		{
+			rtvFormat = DXGI_FORMAT_R32G32_FLOAT;
+		}
+		
+		FAIL_IF(!g_shadowMapBlur.init_box_blur(
+			device,
+			"float2",
+			g_rendererConfiguration.get_evsm2_blur_kernel_size(),
+			//2.f,
+			resolution, resolution))
 
-		srvDesc.Format                    = DXGI_FORMAT_R32_FLOAT;
-		srvDesc.ViewDimension             = D3D12_SRV_DIMENSION_TEXTURE2D;
-		srvDesc.Shader4ComponentMapping   = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-		srvDesc.Texture2D.MostDetailedMip = 0;
-		srvDesc.Texture2D.MipLevels       = -1;
+		break;
 
-		device->CreateDepthStencilView(r.get(),
-			&dsvDesc,
-			CD3DX12_CPU_DESCRIPTOR_HANDLE(g_dsvHandle, DSV_SHADOWMAP(i), get_dsv_descriptor_size()));
+	case FUSE_SHADOW_MAPPING_EVSM4:
+
+		if (g_rendererConfiguration.get_evsm4_float_precision() == 16)
+		{
+			rtvFormat = DXGI_FORMAT_R16G16B16A16_FLOAT;
+		}
+		else
+		{
+			rtvFormat = DXGI_FORMAT_R32G32B32A32_FLOAT;
+		}
+
+		FAIL_IF(!g_shadowMapBlur.init_box_blur(
+			device,
+			"float4",
+			g_rendererConfiguration.get_evsm4_blur_kernel_size(),
+			//2.f,
+			resolution, resolution))
+
+			break;
 
 	}
 
-	for (int i = 0; i < NUM_BUFFERS; i++)
-	{
+	shadow_mapper_configuration shadowMapperCFG;
 
-		auto & r = g_shadowmapRG16F0[i];
+	shadowMapperCFG.cullMode  = D3D12_CULL_MODE_NONE;
+	shadowMapperCFG.rtvFormat = rtvFormat;
+	shadowMapperCFG.dsvFormat = DXGI_FORMAT_D32_FLOAT;
+	shadowMapperCFG.algorithm = algorithm;
 
-		r.reset();
-
-		if (!gpu_global_resource_state::get_singleton_pointer()->create_committed_resource(
-			device,
-			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
-			D3D12_HEAP_FLAG_NONE,
-			&CD3DX12_RESOURCE_DESC::Tex2D(
-				DXGI_FORMAT_R16G16_FLOAT,
-				g_rendererConfiguration.get_shadow_map_resolution(), g_rendererConfiguration.get_shadow_map_resolution(),
-				1, 0, 1, 0,
-				D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET | D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS),
-			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-			&CD3DX12_CLEAR_VALUE(DXGI_FORMAT_R16G16_FLOAT, reinterpret_cast<const float*>(&XMFLOAT4(0, 0, 0, 0))),
-			IID_PPV_ARGS(&r)))
-		{
-			return false;
-		}
-
-		r->SetName(L"shadow_map_r16g16f0");
-
-		device->CreateRenderTargetView(r.get(),
-			nullptr,
-			CD3DX12_CPU_DESCRIPTOR_HANDLE(g_rtvHandle, RTV_SHADOWMAP_RG16F0(i), get_rtv_descriptor_size()));
-
-		device->CreateShaderResourceView(r.get(),
-			nullptr,
-			CD3DX12_CPU_DESCRIPTOR_HANDLE(srvHandle, SRV_SHADOWMAP_RG16F0(i), get_srv_descriptor_size()));
-
-		device->CreateUnorderedAccessView(r.get(),
-			nullptr,
-			nullptr,
-			CD3DX12_CPU_DESCRIPTOR_HANDLE(srvHandle, UAV_SHADOWMAP_RG16F0(i), get_uav_descriptor_size()));
-
-	}
-
-	for (int i = 0; i < NUM_BUFFERS; i++)
-	{
-
-		auto & r = g_shadowmapRG16F1[i];
-
-		r.reset();
-
-		if (!gpu_global_resource_state::get_singleton_pointer()->create_committed_resource(
-			device,
-			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
-			D3D12_HEAP_FLAG_NONE,
-			&CD3DX12_RESOURCE_DESC::Tex2D(
-				DXGI_FORMAT_R16G16_FLOAT,
-				g_rendererConfiguration.get_shadow_map_resolution(), g_rendererConfiguration.get_shadow_map_resolution(),
-				1, 1, 1, 0,
-				D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET | D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS),
-			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-			&CD3DX12_CLEAR_VALUE(DXGI_FORMAT_R16G16_FLOAT, reinterpret_cast<const float*>(&XMFLOAT4(0, 0, 0, 0))),
-			IID_PPV_ARGS(&r)))
-		{
-			return false;
-		}
-
-		r->SetName(L"shadow_map_r16g16f1");
-
-		/*device->CreateRenderTargetView(r.get(),
-			nullptr,
-			CD3DX12_CPU_DESCRIPTOR_HANDLE(g_rtvHandle, RTV_SHADOWMAP_RG16F1(i), get_rtv_descriptor_size()));*/
-
-		device->CreateShaderResourceView(r.get(),
-			nullptr,
-			CD3DX12_CPU_DESCRIPTOR_HANDLE(srvHandle, SRV_SHADOWMAP_RG16F1(i), get_srv_descriptor_size()));
-
-		device->CreateUnorderedAccessView(r.get(),
-			nullptr,
-			nullptr,
-			CD3DX12_CPU_DESCRIPTOR_HANDLE(srvHandle, UAV_SHADOWMAP_RG16F1(i), get_uav_descriptor_size()));
-
-	}
+	g_shadowMapper.shutdown();
+	g_shadowMapper.init(device, shadowMapperCFG);
 
 	g_shadowMapper.set_viewport(make_fullscreen_viewport(g_rendererConfiguration.get_shadow_map_resolution(), g_rendererConfiguration.get_shadow_map_resolution()));
 	g_shadowMapper.set_scissor_rect(make_fullscreen_scissor_rect(g_rendererConfiguration.get_shadow_map_resolution(), g_rendererConfiguration.get_shadow_map_resolution()));
+
+	if (createBuffers)
+	{
+
+		for (int i = 0; i < NUM_BUFFERS; i++)
+		{
+
+			auto & r = g_shadowmap32F[i];
+
+			r.clear();
+
+			D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc = {};
+
+			dsvDesc.Format        = DXGI_FORMAT_D32_FLOAT;
+			dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+
+			D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+
+			srvDesc.Format                    = DXGI_FORMAT_R32_FLOAT;
+			srvDesc.ViewDimension             = D3D12_SRV_DIMENSION_TEXTURE2D;
+			srvDesc.Shader4ComponentMapping   = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+			srvDesc.Texture2D.MostDetailedMip = 0;
+			srvDesc.Texture2D.MipLevels       = -1;
+
+			FAIL_IF(
+				!r.create(
+					device,
+					&CD3DX12_RESOURCE_DESC::Tex2D(
+						DXGI_FORMAT_R32_TYPELESS,
+						resolution, resolution,
+						1, 1, 1, 0,
+						D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL),
+					D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+					&CD3DX12_CLEAR_VALUE(DXGI_FORMAT_D32_FLOAT, 1.f, 0)
+				) ||
+				!r.create_depth_stencil_view(device, &dsvDesc)
+			)
+
+			r->SetName(L"shadow_map_depth_buffer_32f_0");
+
+		}
+
+		for (int i = 0; i < NUM_BUFFERS; i++)
+		{
+
+			auto & r = g_shadowmap0[i];
+
+			r.clear();
+
+			FAIL_IF (
+				!r.create(
+					device,
+					&CD3DX12_RESOURCE_DESC::Tex2D(
+						rtvFormat,
+						resolution, resolution,
+						1, 0, 1, 0,
+						D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET | D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS),
+					D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+					&CD3DX12_CLEAR_VALUE(rtvFormat, reinterpret_cast<const float*>(&XMFLOAT4(0, 0, 0, 0)))
+				) ||
+				!r.create_render_target_view(device) ||
+				!r.create_shader_resource_view(device) ||
+				!r.create_unordered_access_view(device)
+			)
+
+			r->SetName(L"shadow_map_0");
+
+		}
+
+		for (int i = 0; i < NUM_BUFFERS; i++)
+		{
+
+			auto & r = g_shadowmap1[i];
+
+			r.clear();
+
+			FAIL_IF (
+				!r.create(
+					device,
+					&CD3DX12_RESOURCE_DESC::Tex2D(
+						rtvFormat,
+						resolution, resolution,
+						1, 1, 1, 0,
+						D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS),
+					D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+					nullptr
+				) ||
+				!r.create_shader_resource_view(device) ||
+				!r.create_unordered_access_view(device)
+			)
+
+			r->SetName(L"shadow_map_1");
+
+		}
+
+	}
+
+	return true;
 
 }

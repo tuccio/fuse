@@ -5,17 +5,20 @@
 #include <fuse/gpu_graphics_command_list.hpp>
 #include <fuse/gpu_ring_buffer.hpp>
 
+#include <fuse/render_resource.hpp>
+
 #include "scene.hpp"
+#include "shadow_mapping.hpp"
 
 namespace fuse
 {
 	
 	struct shadow_mapper_configuration
 	{
-		DXGI_FORMAT     dsvFormat;
-		DXGI_FORMAT     vsmFormat;
-		DXGI_FORMAT     evsm2Format;
-		D3D12_CULL_MODE cullMode;
+		shadow_mapping_algorithm algorithm;
+		DXGI_FORMAT              rtvFormat;
+		DXGI_FORMAT              dsvFormat;
+		D3D12_CULL_MODE          cullMode;
 	};
 
 	class shadow_mapper
@@ -24,6 +27,7 @@ namespace fuse
 	public:
 
 		bool init(ID3D12Device * device, const shadow_mapper_configuration & cfg);
+		void shutdown(void);
 
 		void render(
 			ID3D12Device * device,
@@ -32,11 +36,8 @@ namespace fuse
 			gpu_ring_buffer * ringBuffer,
 			D3D12_GPU_VIRTUAL_ADDRESS cbPerFrame,
 			const XMMATRIX & lightMatrix,
-			const D3D12_CPU_DESCRIPTOR_HANDLE * rtv,
-			const D3D12_CPU_DESCRIPTOR_HANDLE * dsv,
-			ID3D12Resource * renderTarget,
-			ID3D12Resource * depthBuffer,
-			shadow_mapping_algorithm algorithm,
+			const render_resource & renderTarget,
+			const render_resource & depthBuffer,
 			renderable_iterator begin,
 			renderable_iterator end);
 
@@ -44,11 +45,8 @@ namespace fuse
 
 		shadow_mapper_configuration  m_configuration;
 		
-		com_ptr<ID3D12RootSignature> m_shadowMapRS;
-
-		com_ptr<ID3D12PipelineState> m_regularShadowMapPSO;
-		com_ptr<ID3D12PipelineState> m_vsmPSO;
-		com_ptr<ID3D12PipelineState> m_evsm2PSO;
+		com_ptr<ID3D12RootSignature> m_rs;
+		com_ptr<ID3D12PipelineState> m_pso;
 
 		D3D12_VIEWPORT m_viewport;
 		D3D12_RECT     m_scissorRect;
@@ -58,6 +56,7 @@ namespace fuse
 		bool create_regular_pso(ID3D12Device * device);
 		bool create_vsm_pso(ID3D12Device * device);
 		bool create_evsm2_pso(ID3D12Device * device);
+		bool create_evsm4_pso(ID3D12Device * device);
 
 	public:
 

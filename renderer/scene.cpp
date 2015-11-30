@@ -255,8 +255,6 @@ bool scene::import_lights(assimp_loader * loader)
 			light->color.b   = scene->mLights[i]->mColorDiffuse.b;
 			light->direction = XMVector3Equal(direction, XMVectorZero()) ? XMFLOAT3(0, 1, 0) : to_float3(direction);
 
-			light->shadowMappingAlgorithm = FUSE_SHADOW_MAPPING_EVSM2;
-
 			light->intensity = 1.f;
 
 			float maxColor = std::max(std::max(light->color.r, light->color.g), light->color.b);

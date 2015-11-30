@@ -6,6 +6,8 @@
 #include <fuse/pipeline_state.hpp>
 #include <fuse/logger.hpp>
 
+#include <fuse/descriptor_heap.hpp>
+
 #include <algorithm>
 #include <vector>
 
@@ -44,14 +46,7 @@ bool rocket_interface::init(ID3D12Device * device, gpu_command_queue & commandQu
 
 	m_configuration = cfg;
 
-	D3D12_DESCRIPTOR_HEAP_DESC srvDesc = {};
-
-	srvDesc.NumDescriptors = m_configuration.maxTextures;
-	srvDesc.Type           = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-	srvDesc.Flags          = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-
-	return !FUSE_HR_FAILED(m_device->CreateDescriptorHeap(&srvDesc, IID_PPV_ARGS(&m_srvHeap))) &&
-	       create_pso();
+	return create_pso();
 
 }
 
@@ -172,7 +167,7 @@ void rocket_interface::render_begin(gpu_graphics_command_list & commandList, D3D
 	commandList->SetGraphicsRootSignature(m_rs.get());
 	commandList->SetGraphicsRootConstantBufferView(0, cbPerFrame);
 
-	commandList->SetDescriptorHeaps(1, &m_srvHeap);
+	commandList->SetDescriptorHeaps(1, cbv_uav_srv_descriptor_heap::get_singleton_pointer()->get_address());
 
 	commandList->OMSetRenderTargets(1, &rtv, true, nullptr);
 
@@ -217,7 +212,7 @@ void rocket_interface::RenderCompiledGeometry(Rocket::Core::CompiledGeometryHand
 			ID3D12Resource * r = texIt->second.texture->get_resource();
 
 			commandList.resource_barrier_transition(r, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-			commandList->SetGraphicsRootDescriptorTable(2, texIt->second.srv);
+			commandList->SetGraphicsRootDescriptorTable(2, cbv_uav_srv_descriptor_heap::get_singleton_pointer()->get_gpu_descriptor_handle(texIt->second.srvToken));
 		}
 		else
 		{
@@ -326,14 +321,10 @@ Rocket::Core::TextureHandle rocket_interface::register_texture(const texture_ptr
 
 		texture_handle = ++m_lastTextureHandle;
 
-		uint32_t index = texture_handle - 1;
-
-		m_device->CreateShaderResourceView(texture->get_resource(), nullptr, CD3DX12_CPU_DESCRIPTOR_HANDLE(m_srvHeap->GetCPUDescriptorHandleForHeapStart(), index, srvDescSize));
-
 		loaded_texture loadedTexture;
 
 		loadedTexture.texture   = texture;
-		loadedTexture.srv       = CD3DX12_GPU_DESCRIPTOR_HANDLE(m_srvHeap->GetGPUDescriptorHandleForHeapStart(), index, srvDescSize);
+		loadedTexture.srvToken  = cbv_uav_srv_descriptor_heap::get_singleton_pointer()->create_shader_resource_view(m_device, texture->get_resource());
 		loadedTexture.generated = false;
 
 		m_textures.emplace(texture_handle, loadedTexture);
@@ -351,6 +342,7 @@ void rocket_interface::ReleaseTexture(Rocket::Core::TextureHandle texture_handle
 
 	if (it != m_textures.end())
 	{
+		cbv_uav_srv_descriptor_heap::get_singleton_pointer()->free(it->second.srvToken);
 		m_commandQueue->safe_release(it->second.texture->get_resource());
 		m_textures.erase(it);
 	}
@@ -378,7 +370,7 @@ bool rocket_interface::create_pso(void)
 	rootParameters[2].InitAsDescriptorTable(1, &texSRV, D3D12_SHADER_VISIBILITY_PIXEL);
 
 	CD3DX12_STATIC_SAMPLER_DESC staticSamplers[] = {
-		CD3DX12_STATIC_SAMPLER_DESC(0, D3D12_FILTER_MIN_MAG_MIP_POINT)
+		CD3DX12_STATIC_SAMPLER_DESC(0, D3D12_FILTER_MIN_MAG_LINEAR_MIP_POINT)
 	};
 
 	CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc(_countof(rootParameters), rootParameters, _countof(staticSamplers), staticSamplers, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);

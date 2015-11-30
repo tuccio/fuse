@@ -16,11 +16,11 @@ float evsm2_visibility(in float2 moments, in float depth, in float exponent, in 
 	
 }
 
-float evsm2_moments(in float depth, in float exponent)
+float2 evsm2_moments(in float depth, in float exponent)
 {
 	float wDepth = esm_warp(depth, exponent);
-	return float2(wDepth, wDepth * wDepth);
-	//return vsm_moments(wDepth);
+	//return float2(wDepth, wDepth * wDepth);
+	return vsm_moments(wDepth);
 }
 
 #endif

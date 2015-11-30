@@ -9,6 +9,8 @@
 #include <fuse/gpu_command_queue.hpp>
 #include <fuse/directx_helper.hpp>
 #include <fuse/gpu_global_resource_state.hpp>
+#include <fuse/render_resource.hpp>
+#include <fuse/descriptor_heap.hpp>
 
 #include <queue>
 
@@ -33,6 +35,10 @@ namespace fuse
 		DXGI_SWAP_EFFECT     swapChainSwapEffect;
 		DXGI_SWAP_CHAIN_FLAG swapChainFlags;
 
+		UINT maxDSV;
+		UINT maxCBVUAVSRV;
+		UINT maxRTV;
+
 	};
 
 	struct application_base
@@ -55,8 +61,8 @@ namespace fuse
 		inline static bool on_swap_chain_resized(ID3D12Device * device, IDXGISwapChain * swapChain, const DXGI_SURFACE_DESC * desc) { return true; }
 		inline static void on_swap_chain_released(ID3D12Device * device, IDXGISwapChain * swapChain) { }
 
-		inline static void on_update(void) { }
-		inline static void on_render(ID3D12Device * device, gpu_command_queue & commandQueue, D3D12_CPU_DESCRIPTOR_HANDLE rtvDescriptor) { }
+		inline static void on_update(float dt) { }
+		inline static void on_render(ID3D12Device * device, gpu_command_queue & commandQueue, const render_resource & backBuffer, UINT bufferIndex) { }
 		inline static LRESULT on_message(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) { return 0; }
 
 		static LRESULT CALLBACK on_keyboard(int code, WPARAM wParam, LPARAM lParam);
@@ -67,6 +73,9 @@ namespace fuse
 		static bool is_fullscreen(void);
 		static void set_fullscreen(bool fullscreen);
 		static bool set_cursor(bool clippedFullscreen, bool hidden);
+
+		static bool create_descriptor_heaps(void);
+		static void destroy_descriptor_heaps(void);
 
 		static bool create_window(int width, int height, const char * caption);
 		static void destroy_window(void);
@@ -99,50 +108,45 @@ namespace fuse
 
 		}
 
-		inline static ID3D12Resource * get_back_buffer(void) { return m_renderTargets[m_bufferIndex].get(); }
-		inline static UINT             get_buffer_index(void) { return m_bufferIndex; }
-
-		inline static D3D12_CPU_DESCRIPTOR_HANDLE get_back_buffer_descriptor(void)
-		{
-			return CD3DX12_CPU_DESCRIPTOR_HANDLE(
-				m_rtvHeap->GetCPUDescriptorHandleForHeapStart(),
-				m_bufferIndex,
-				m_rtvDescriptorSize);
-		}
+		inline static render_resource & get_back_buffer(void) { return m_renderTargets[m_bufferIndex]; }
+		inline static UINT              get_buffer_index(void) { return m_bufferIndex; }
 
 	protected:
 
-		static bool                                 m_initialized;
-		static bool                                 m_silent;
-		static bool                                 m_debug;
+		static bool                          m_initialized;
+		static bool                          m_silent;
+		static bool                          m_debug;
 
-		static HINSTANCE                            m_hInstance;
-		static HWND                                 m_hWnd;
+		static HINSTANCE                     m_hInstance;
+		static HWND                          m_hWnd;
 
-		static bool                                 m_resizeSwapChain;
+		static bool                          m_resizeSwapChain;
 
-		static int                                  m_screenWidth;
-		static int                                  m_screenHeight;
+		static int                           m_screenWidth;
+		static int                           m_screenHeight;
 
-		static com_ptr<ID3D12Device>                m_device;
-		static com_ptr<IDXGISwapChain3>             m_swapChain;
+		static com_ptr<ID3D12Device>         m_device;
+		static com_ptr<IDXGISwapChain3>      m_swapChain;
 
-		static gpu_command_queue                    m_commandQueue;
+		static gpu_command_queue             m_commandQueue;
 
-		static com_ptr<ID3D12DescriptorHeap>        m_rtvHeap;
+		static UINT                          m_rtvDescriptorSize;
+		static UINT                          m_dsvDescriptorSize;
+		static UINT                          m_srvDescriptorSize;
 
-		static UINT                                 m_rtvDescriptorSize;
-		static UINT                                 m_dsvDescriptorSize;
-		static UINT                                 m_srvDescriptorSize;
+		static cbv_uav_srv_descriptor_heap   m_shaderDescriptorHeap;
+		static rtv_descriptor_heap           m_renderTargetDescriptorHeap;
+		static dsv_descriptor_heap           m_depthStencilDescriptorHeap;
 
-		static std::vector<com_ptr<ID3D12Resource>> m_renderTargets;
+		static std::vector<render_resource>  m_renderTargets;
 
-		static DXGI_SURFACE_DESC                    m_swapChainBufferDesc;
-		static application_config                   m_configuration;
+		static DXGI_SURFACE_DESC             m_swapChainBufferDesc;
+		static application_config            m_configuration;
 
-		static UINT                                 m_bufferIndex;
+		static UINT                          m_bufferIndex;
 
-		static float                                m_frameSamples[FUSE_FPS_SAMPLES];
+		static float                         m_frameSamples[FUSE_FPS_SAMPLES];
+		static gpu_global_resource_state     m_globalState;
 
 		/* Functions called by d3d12_windows_application */
 
@@ -150,12 +154,9 @@ namespace fuse
 
 		static bool create_device(D3D_FEATURE_LEVEL featureLevel, bool debug);
 		static bool create_command_queue(void);
+
 		static bool create_swap_chain(bool debug, int width, int height);
 		static bool resize_swap_chain(int width, int height);
-
-		static bool create_render_target_views(void);
-		static bool update_render_target_views(void);
-		static void release_render_target_views(void);
 
 		static bool get_swap_chain_buffers(void);
 		static void release_swap_chain_buffers(void);
@@ -227,7 +228,9 @@ namespace fuse
 			set_default_configuration();
 			on_configuration_init(&m_configuration);
 
-			bool success = create_device(featureLevel, debug) &&
+			bool success =
+				create_device(featureLevel, debug) &&
+				create_descriptor_heaps() &&
 				create_command_queue() &&
 				on_device_created(get_device(), m_commandQueue) &&
 				create_swap_chain(debug, get_screen_width(), get_screen_height());
@@ -249,12 +252,7 @@ namespace fuse
 			
 			if (m_swapChain)
 			{
-
 				on_swap_chain_released(get_device(), get_swap_chain());
-
-				release_swap_chain_buffers();
-				release_render_target_views();
-
 			}
 
 			if (m_device)
@@ -300,9 +298,7 @@ namespace fuse
 					return;
 				}
 
-				auto backBuffer = get_back_buffer();
-
-				on_render(get_device(), m_commandQueue, backBuffer, get_back_buffer_descriptor(), get_buffer_index());
+				on_render(get_device(), m_commandQueue, get_back_buffer(), get_buffer_index());
 
 				FUSE_HR_CHECK(m_swapChain->Present1(m_configuration.syncInterval, m_configuration.presentFlags, &DXGI_PRESENT_PARAMETERS{}));
 				m_commandQueue.advance_frame_index();

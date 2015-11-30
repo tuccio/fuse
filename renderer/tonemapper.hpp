@@ -2,6 +2,7 @@
 
 #include <fuse/directx_helper.hpp>
 #include <fuse/gpu_command_queue.hpp>
+#include <fuse/render_resource.hpp>
 
 namespace fuse
 {
@@ -20,11 +21,8 @@ namespace fuse
 		void render(ID3D12Device * device,
 			gpu_command_queue & commandQueue,
 			gpu_graphics_command_list & commandList,
-			ID3D12DescriptorHeap * descriptorHeap,
-			const D3D12_GPU_DESCRIPTOR_HANDLE & input,
-			const D3D12_GPU_DESCRIPTOR_HANDLE & output,
-			ID3D12Resource * source,
-			ID3D12Resource * destination,
+			const render_resource & source,
+			const render_resource & destination,
 			UINT width,
 			UINT height);
 

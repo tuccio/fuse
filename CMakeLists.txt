@@ -38,6 +38,7 @@ set (
 set ( freetype_LIBRARY ${CMAKE_SOURCE_DIR}/freetype/lib/freetype240.lib )
 
 add_definitions ( -DROCKET_STATIC_LIB )
+add_definitions ( -DNOMINMAX )
 
 if (FUSE_SSE2)
 
@@ -71,6 +72,8 @@ add_library ( fuse
 	include/fuse/color.hpp color.cpp
 	include/fuse/material.hpp material.cpp
 	include/fuse/material_manager.hpp
+	include/fuse/descriptor_heap.hpp descriptor_heap.cpp
+	include/fuse/pool_manager.hpp pool_manager.cpp
 	include/fuse/assimp_loader.hpp assimp_loader.cpp
 	include/fuse/mesh.hpp mesh.cpp
 	include/fuse/mesh_manager.hpp
@@ -96,6 +99,7 @@ add_library ( fuse
 	include/fuse/bitmap_font_manager.hpp
 	include/fuse/text_renderer.hpp text_renderer.cpp
 	include/fuse/texture.hpp texture.cpp
+	include/fuse/render_resource.hpp render_resource.cpp
 	include/fuse/texture_manager.hpp
 	include/fuse/gpu_graphics_command_list.hpp gpu_graphics_command_list.cpp
 	include/fuse/gpu_global_resource_state.hpp

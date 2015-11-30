@@ -192,7 +192,7 @@ bool text_renderer::create_pso(ID3D12Device * device)
 		psoDesc.DepthStencilState                      = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
 		psoDesc.DepthStencilState.DepthEnable          = FALSE;
 		psoDesc.NumRenderTargets                       = 1;
-		psoDesc.RTVFormats[0]                          = DXGI_FORMAT_R8G8B8A8_UNORM;
+		psoDesc.RTVFormats[0]                          = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
 		psoDesc.VS                                     = { FUSE_BLOB_ARGS(textVS) };
 		psoDesc.PS                                     = { FUSE_BLOB_ARGS(textPS) };
 		psoDesc.InputLayout                            = make_input_layout_desc(inputLayoutVector);

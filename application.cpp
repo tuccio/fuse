@@ -7,36 +7,41 @@ using namespace fuse;
 
 /* Static variables definition */
 
-bool                                 application_base::m_initialized;
-bool                                 application_base::m_silent;
-bool                                 application_base::m_debug;
-							         
-HINSTANCE                            application_base::m_hInstance;
-HWND                                 application_base::m_hWnd;
-							         
-int                                  application_base::m_screenWidth;
-int                                  application_base::m_screenHeight;
-							         
-bool                                 application_base::m_resizeSwapChain;
-							         
-com_ptr<ID3D12Device>                application_base::m_device;
-com_ptr<IDXGISwapChain3>             application_base::m_swapChain;
+bool                          application_base::m_initialized;
+bool                          application_base::m_silent;
+bool                          application_base::m_debug;
+							  
+HINSTANCE                     application_base::m_hInstance;
+HWND                          application_base::m_hWnd;
+							  
+int                           application_base::m_screenWidth;
+int                           application_base::m_screenHeight;
+							  
+bool                          application_base::m_resizeSwapChain;
+							  
+com_ptr<ID3D12Device>         application_base::m_device;
+com_ptr<IDXGISwapChain3>      application_base::m_swapChain;
+							  
+gpu_command_queue             application_base::m_commandQueue;
+							  
+UINT                          application_base::m_bufferIndex;
+							  
+DXGI_SURFACE_DESC             application_base::m_swapChainBufferDesc;
+application_config            application_base::m_configuration;
+							  
+UINT                          application_base::m_rtvDescriptorSize;
+UINT                          application_base::m_dsvDescriptorSize;
+UINT                          application_base::m_srvDescriptorSize;
 
-gpu_command_queue                    application_base::m_commandQueue;
-							         
-UINT                                 application_base::m_bufferIndex;
-							         
-DXGI_SURFACE_DESC                    application_base::m_swapChainBufferDesc;
-application_config                   application_base::m_configuration;
+std::vector<render_resource>  application_base::m_renderTargets;
 
-com_ptr<ID3D12DescriptorHeap>        application_base::m_rtvHeap;
-UINT                                 application_base::m_rtvDescriptorSize;
-UINT                                 application_base::m_dsvDescriptorSize;
-UINT                                 application_base::m_srvDescriptorSize;
+float                         application_base::m_frameSamples[FUSE_FPS_SAMPLES];
 
-std::vector<com_ptr<ID3D12Resource>> application_base::m_renderTargets;
+gpu_global_resource_state     application_base::m_globalState;
 
-float                                application_base::m_frameSamples[FUSE_FPS_SAMPLES];
+cbv_uav_srv_descriptor_heap   application_base::m_shaderDescriptorHeap;
+rtv_descriptor_heap           application_base::m_renderTargetDescriptorHeap;
+dsv_descriptor_heap           application_base::m_depthStencilDescriptorHeap;
 
 /* Window class and callbacks */
 
@@ -153,6 +158,9 @@ void application_base::shutdown(void)
 	}
 
 	m_commandQueue.shutdown();
+
+	release_swap_chain_buffers();
+	destroy_descriptor_heaps();
 
 	UnregisterClass(FUSE_WINDOW_CLASS, m_hInstance);
 	m_initialized = false;
@@ -274,6 +282,10 @@ void application_base::set_default_configuration(void)
 	m_configuration.swapChainFlags          = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
 	m_configuration.swapChainSwapEffect     = DXGI_SWAP_EFFECT_FLIP_DISCARD;
 
+	m_configuration.maxDSV       = 64;
+	m_configuration.maxCBVUAVSRV = 2048;
+	m_configuration.maxRTV       = 2048;
+
 }
 
 bool application_base::create_device(D3D_FEATURE_LEVEL featureLevel, bool debug)
@@ -360,7 +372,7 @@ bool application_base::create_swap_chain(bool debug, int width, int height)
 	{
 		swapChain.as(m_swapChain);
 		m_bufferIndex = m_swapChain->GetCurrentBackBufferIndex();
-		success = get_swap_chain_buffers() && create_render_target_views();
+		success = get_swap_chain_buffers();
 	}
 
 	return success;
@@ -379,48 +391,28 @@ bool application_base::resize_swap_chain(int width, int height)
 	release_swap_chain_buffers();
 
 	return !FUSE_HR_FAILED(m_swapChain->ResizeBuffers(m_configuration.swapChainBufferCount, width, height, m_configuration.swapChainFormat, 0)) &&
-	       get_swap_chain_buffers() &&
-	       update_render_target_views();
+	       get_swap_chain_buffers();
 
 }
 
-bool application_base::create_render_target_views(void)
+bool application_base::create_descriptor_heaps(void)
 {
 
-	D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc = {};
-
-	rtvHeapDesc.NumDescriptors = m_configuration.swapChainBufferCount;
-	rtvHeapDesc.Type           = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
-	rtvHeapDesc.Flags          = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-
-	return !FUSE_HR_FAILED(m_device->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(&m_rtvHeap))) &&
-	       update_render_target_views();
-}
-
-bool application_base::update_render_target_views(void)
-{
-
-	D3D12_CPU_DESCRIPTOR_HANDLE rtvDescriptor = m_rtvHeap->GetCPUDescriptorHandleForHeapStart();
-
-	for (int i = 0; i < m_configuration.swapChainBufferCount; i++)
-	{
-		m_device->CreateRenderTargetView(m_renderTargets[i].get(), nullptr, rtvDescriptor);
-		rtvDescriptor.ptr += m_rtvDescriptorSize;
-	}
-
-	return true;
+	return m_depthStencilDescriptorHeap.init(m_device.get(), m_configuration.maxDSV) &&
+	       m_renderTargetDescriptorHeap.init(m_device.get(), m_configuration.maxRTV) &&
+	       m_shaderDescriptorHeap.init(m_device.get(), m_configuration.maxCBVUAVSRV);
 
 }
 
-void application_base::release_render_target_views(void)
+void application_base::destroy_descriptor_heaps(void)
 {
-	m_rtvHeap.reset();
+	m_depthStencilDescriptorHeap.shutdown();
+	m_renderTargetDescriptorHeap.shutdown();
+	m_shaderDescriptorHeap.shutdown();
 }
 
 bool application_base::get_swap_chain_buffers(void)
 {
-
-	auto globalState = gpu_global_resource_state::get_singleton_pointer();
 
 	m_renderTargets.resize(m_configuration.swapChainBufferCount);
 
@@ -429,14 +421,9 @@ bool application_base::get_swap_chain_buffers(void)
 
 		if (!FUSE_HR_FAILED(m_swapChain->GetBuffer(i, IID_PPV_ARGS(&m_renderTargets[i]))))
 		{
-
 			FUSE_HR_CHECK(m_renderTargets[i]->SetName(L"fuse_swapchain_buffer"));
-
-			if (globalState)
-			{
-				globalState->set_state(m_renderTargets[i].get(), D3D12_RESOURCE_STATE_PRESENT);
-			}
-
+			m_globalState.set_state(m_renderTargets[i].get(), D3D12_RESOURCE_STATE_PRESENT);
+			m_renderTargets[i].create_render_target_view(m_device.get());
 		}
 		else
 		{

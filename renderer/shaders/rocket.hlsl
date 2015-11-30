@@ -51,7 +51,7 @@ float4 rocket_ps(PSInput input) : SV_Target0
 	
 	if (g_colorFlags & USE_TEXTURE)
 	{
-		float4 textureColor = g_texture.Sample(g_sampler, input.texcoord);
+		float4 textureColor = g_texture.SampleLevel(g_sampler, input.texcoord, 0);
 		textureColor.rgb = pow(textureColor.rgb, 1.f / 2.2f);
 		color *= textureColor;
 	}

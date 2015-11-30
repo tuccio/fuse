@@ -12,9 +12,11 @@
 #include <fuse/gpu_command_queue.hpp>
 #include <fuse/gpu_graphics_command_list.hpp>
 #include <fuse/gpu_ring_buffer.hpp>
+#include <fuse/render_resource.hpp>
 
 #include "light.hpp"
 #include "scene.hpp"
+#include "shadow_mapping.hpp"
 #include "renderable.hpp"
 
 namespace fuse
@@ -25,13 +27,12 @@ namespace fuse
 		DXGI_FORMAT gbufferFormat[4];
 		DXGI_FORMAT dsvFormat;
 		DXGI_FORMAT shadingFormat;
+		shadow_mapping_algorithm shadowMappingAlgorithm;
 	};
 
 	struct shadow_map_info
 	{
-		// TODO: Add algorithms
-		ID3D12Resource * shadowMap;
-		D3D12_GPU_DESCRIPTOR_HANDLE shadowMapTable;
+		const render_resource * shadowMap;
 		XMMATRIX lightMatrix;
 	};
 
@@ -46,15 +47,16 @@ namespace fuse
 		bool init(ID3D12Device * device, const deferred_renderer_configuration & cfg);
 		void shutdown(void);
 
+		bool set_shadow_mapping_algorithm(shadow_mapping_algorithm algorithm);
+
 		void render_gbuffer(
 			ID3D12Device * device,
 			gpu_command_queue & commandQueue,
 			gpu_graphics_command_list & commandList,
 			gpu_ring_buffer * ringBuffer,
 			D3D12_GPU_VIRTUAL_ADDRESS cbPerFrame,
-			const D3D12_CPU_DESCRIPTOR_HANDLE * gbuffer,
-			const D3D12_CPU_DESCRIPTOR_HANDLE * dsv,
-			ID3D12Resource ** gbufferResources,
+			render_resource * const * gbuffer,
+			const render_resource & depthBuffer,
 			const camera * camera,
 			renderable_iterator begin,
 			renderable_iterator end);
@@ -64,11 +66,9 @@ namespace fuse
 			gpu_command_queue & commandQueue,
 			gpu_graphics_command_list & commandList,
 			gpu_ring_buffer * ringBuffer,
-			ID3D12DescriptorHeap * gbufferHeap,
 			D3D12_GPU_VIRTUAL_ADDRESS cbPerFrame,
-			const D3D12_GPU_DESCRIPTOR_HANDLE & gbufferSRVDescTable,
-			const D3D12_CPU_DESCRIPTOR_HANDLE * rtv,
-			ID3D12Resource ** gbufferResources,
+			const render_resource & renderTarget,
+			render_resource * const * gbuffer,
 			const light * light,
 			const shadow_map_info * shadowMapInfo = nullptr);
 

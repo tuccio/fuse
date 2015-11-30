@@ -473,21 +473,8 @@ void light_panel::set_light(light * light)
 
 static void direction_to_elevation_azimuth(const XMFLOAT3 & direction, float & elevation, float & azimuth)
 {
-
-	/*XMVECTOR L = -to_vector(direction);
-
-	XMVECTOR splatY = XMVectorPermute<XM_PERMUTE_0Y, XM_PERMUTE_0Y, XM_PERMUTE_0Y, XM_PERMUTE_0Y>(L, L);
-	XMVECTOR splatX = XMVectorPermute<XM_PERMUTE_0X, XM_PERMUTE_0X, XM_PERMUTE_0X, XM_PERMUTE_0X>(L, L);
-	XMVECTOR theta = XMVectorACos(splatY);
-	XMVECTOR phi = XMVectorATan(XMVectorDivide(splatY, splatX));
-
-	elevation = 90.f - XMConvertToDegrees(XMVectorGetX(phi));
-	azimuth = XMConvertToDegrees(XMVectorGetX(theta));*/
-
 	elevation = XMConvertToDegrees(std::asin(direction.y));
-
-	azimuth = XMConvertToDegrees(std::atan(direction.x / direction.y));
-
+	azimuth = XMConvertToDegrees(std::atan(direction.x / direction.y)) - 90.f;
 }
 
 void elevation_azimuth_to_direction(float elevation, float azimuth, XMFLOAT3 & direction)
@@ -765,15 +752,33 @@ void render_options::fill_form(void)
 		dynamic_cast<Rocket::Controls::ElementFormControlInput*>(m_panel->GetElementById(#Property))->SetValue(value);\
 	}
 
-	__RENDER_OPTIONS_FILL(float, shadow_map_resolution);
-	__RENDER_OPTIONS_FILL(float, vsm_min_variance);
-	__RENDER_OPTIONS_FILL(float, vsm_min_bleeding);
-	__RENDER_OPTIONS_FILL(float, vsm_blur_kernel_size);
+	__RENDER_OPTIONS_FILL(float, shadow_map_resolution)
+	__RENDER_OPTIONS_FILL(float, vsm_min_variance)
+	__RENDER_OPTIONS_FILL(float, vsm_min_bleeding)
+	__RENDER_OPTIONS_FILL(float, vsm_blur_kernel_size)
 
-	__RENDER_OPTIONS_FILL(float, evsm2_exponent);
-	__RENDER_OPTIONS_FILL(float, evsm2_min_variance);
-	__RENDER_OPTIONS_FILL(float, evsm2_min_bleeding);
-	__RENDER_OPTIONS_FILL(float, evsm2_blur_kernel_size);
+	__RENDER_OPTIONS_FILL(float, evsm2_exponent)
+	__RENDER_OPTIONS_FILL(float, evsm2_min_variance)
+	__RENDER_OPTIONS_FILL(float, evsm2_min_bleeding)
+	__RENDER_OPTIONS_FILL(float, evsm2_blur_kernel_size)
+
+	__RENDER_OPTIONS_FILL(float, evsm4_positive_exponent)
+	__RENDER_OPTIONS_FILL(float, evsm4_negative_exponent)
+	__RENDER_OPTIONS_FILL(float, evsm4_min_variance)
+	__RENDER_OPTIONS_FILL(float, evsm4_min_bleeding)
+	__RENDER_OPTIONS_FILL(float, evsm4_blur_kernel_size)
+
+	dynamic_cast<Rocket::Controls::ElementFormControlSelect *>(m_panel->GetElementById("shadow_mapping_algorithm"))->
+		SetSelection(static_cast<int>(m_configuration->get_shadow_mapping_algorithm()));
+
+	dynamic_cast<Rocket::Controls::ElementFormControlSelect *>(m_panel->GetElementById("vsm_float_precision"))->
+		SetSelection(static_cast<int>(std::log2(m_configuration->get_vsm_float_precision()) / 4 - 1));
+
+	dynamic_cast<Rocket::Controls::ElementFormControlSelect *>(m_panel->GetElementById("evsm2_float_precision"))->
+		SetSelection(static_cast<int>(std::log2(m_configuration->get_evsm2_float_precision()) / 4 - 1));
+
+	dynamic_cast<Rocket::Controls::ElementFormControlSelect *>(m_panel->GetElementById("evsm4_float_precision"))->
+		SetSelection(static_cast<int>(std::log2(m_configuration->get_evsm4_float_precision()) / 4 - 1));
 
 	m_filling = false;
 
@@ -785,7 +790,7 @@ void render_options::ProcessEvent(Rocket::Core::Event & event)
 	if (m_filling) { return; }
 
 #define __RENDER_OPTIONS_CHANGE(Type, Property) \
-	if (element->GetId() == #Property)\
+	else if (element->GetId() == #Property)\
 	{\
 		float value;\
 		auto text = dynamic_cast<Rocket::Controls::ElementFormControlInput*>(element)->GetValue();\
@@ -801,40 +806,43 @@ void render_options::ProcessEvent(Rocket::Core::Event & event)
 	if (event.GetType() == "change")
 	{
 
-		__RENDER_OPTIONS_CHANGE(float, shadow_map_resolution);
-		__RENDER_OPTIONS_CHANGE(float, vsm_min_variance);
-		__RENDER_OPTIONS_CHANGE(float, vsm_min_bleeding);
-		__RENDER_OPTIONS_CHANGE(float, vsm_blur_kernel_size);
-
-		__RENDER_OPTIONS_CHANGE(float, evsm2_exponent);
-		__RENDER_OPTIONS_CHANGE(float, evsm2_min_variance);
-		__RENDER_OPTIONS_CHANGE(float, evsm2_min_bleeding);
-		__RENDER_OPTIONS_CHANGE(float, evsm2_blur_kernel_size);
-
-		/*if (element->GetId() == "vsm_min_variance")
+		if (element->GetId() == "shadow_mapping_algorithm")
 		{
-
-			float value;
-			auto text = dynamic_cast<Rocket::Controls::ElementFormControlInput*>(element)->GetValue();
-
-			if (Rocket::Core::TypeConverter<Rocket::Core::String, float>::Convert(text, value))
-			{
-				m_configuration->set_vsm_min_variance(value);
-			}
-
+			int selection = dynamic_cast<Rocket::Controls::ElementFormControlSelect *>(element)->GetSelection();
+			m_configuration->set_shadow_mapping_algorithm(static_cast<shadow_mapping_algorithm>(selection));
 		}
-		else if (element->GetId() == "vsm_min_bleeding")
+		else if (element->GetId() == "vsm_float_precision")
 		{
+			int selection = dynamic_cast<Rocket::Controls::ElementFormControlSelect *>(element)->GetSelection();
+			m_configuration->set_vsm_float_precision(16u << selection);
+		}
+		else if (element->GetId() == "evsm2_float_precision")
+		{
+			int selection = dynamic_cast<Rocket::Controls::ElementFormControlSelect *>(element)->GetSelection();
+			m_configuration->set_evsm2_float_precision(16u << selection);
+		}
+		else if (element->GetId() == "evsm4_float_precision")
+		{
+			int selection = dynamic_cast<Rocket::Controls::ElementFormControlSelect *>(element)->GetSelection();
+			m_configuration->set_evsm4_float_precision(16u << selection);
+		}
 
-			float value;
-			auto text = dynamic_cast<Rocket::Controls::ElementFormControlInput*>(element)->GetValue();
+		__RENDER_OPTIONS_CHANGE(float, shadow_map_resolution)
 
-			if (Rocket::Core::TypeConverter<Rocket::Core::String, float>::Convert(text, value))
-			{
-				m_configuration->set_vsm_min_bleeding(value);
-			}
+		__RENDER_OPTIONS_CHANGE(float, vsm_min_variance)
+		__RENDER_OPTIONS_CHANGE(float, vsm_min_bleeding)
+		__RENDER_OPTIONS_CHANGE(float, vsm_blur_kernel_size)
 
-		}*/
+		__RENDER_OPTIONS_CHANGE(float, evsm2_exponent)
+		__RENDER_OPTIONS_CHANGE(float, evsm2_min_variance)
+		__RENDER_OPTIONS_CHANGE(float, evsm2_min_bleeding)
+		__RENDER_OPTIONS_CHANGE(float, evsm2_blur_kernel_size)
+
+		__RENDER_OPTIONS_CHANGE(float, evsm4_positive_exponent)
+		__RENDER_OPTIONS_CHANGE(float, evsm4_negative_exponent)
+		__RENDER_OPTIONS_CHANGE(float, evsm4_min_variance)
+		__RENDER_OPTIONS_CHANGE(float, evsm4_min_bleeding)
+		__RENDER_OPTIONS_CHANGE(float, evsm4_blur_kernel_size)
 		
 	}
 

@@ -28,12 +28,19 @@ struct screen
 struct render_variables
 {
 
+	uint  shadowMapResolution;
+	
 	float vsmMinVariance;
 	float vsmMinBleeding;
 	
 	float evsm2MinVariance;
 	float evsm2MinBleeding;
 	float evsm2Exponent;
+	
+	float evsm4MinVariance;
+	float evsm4MinBleeding;
+	float evsm4PosExponent;
+	float evsm4NegExponent;
 	
 };
 
