@@ -3,6 +3,7 @@
 #include "gbuffer.hlsli"
 
 #include "evsm2.hlsli"
+#include "evsm4.hlsli"
 
 USE_CB_PER_FRAME(b0)
 
@@ -24,16 +25,16 @@ Texture2D g_gbuffer3  : register(t3);
 
 Texture2D g_shadowMap : register(t4);
 
+#if (LIGHT_TYPE == LIGHT_TYPE_SKYBOX)
+TextureCube g_skybox : register(t5);
+#endif
+
 SamplerState g_pointSampler  : register(s0);
 SamplerState g_linearSampler : register(s1);
 
 SamplerState g_shadowMapSampler : register(s2);
 
-float mipmap_level(float2 uv)
-{
-
-	
-}
+/* Shading */
 
 float4 shading_ps(QuadInput input) : SV_Target0
 {
@@ -59,21 +60,21 @@ float4 shading_ps(QuadInput input) : SV_Target0
 		
 		float2 shadowMapUV = { .5f + lightSpacePosition.x * .5f, .5f - lightSpacePosition.y * .5f };
 		
-		float lod = g_shadowMap.CalculateLevelOfDetail(g_shadowMapSampler, shadowMapUV);
+		//float lod = g_shadowMap.CalculateLevelOfDetail(g_shadowMapSampler, shadowMapUV);
 		
 		#if (SHADOW_MAPPING_ALGORITHM == SHADOW_MAPPING_VSM)
 		{
-			float2 moments = g_shadowMap.SampleLevel(g_shadowMapSampler, shadowMapUV, lod).xy;
+			float2 moments = g_shadowMap.SampleLevel(g_shadowMapSampler, shadowMapUV, 0).xy;
 			visibility = vsm_visibility(moments, lightSpaceDepth, R.vsmMinVariance, R.vsmMinBleeding);
 		}
 		#elif (SHADOW_MAPPING_ALGORITHM == SHADOW_MAPPING_EVSM2)
 		{
-			float2 moments = g_shadowMap.SampleLevel(g_shadowMapSampler, shadowMapUV, lod).xy;
+			float2 moments = g_shadowMap.SampleLevel(g_shadowMapSampler, shadowMapUV, 0).xy;
 			visibility = evsm2_visibility(moments, lightSpaceDepth, R.evsm2Exponent, R.evsm2MinVariance, R.evsm2MinBleeding);
 		}
 		#elif (SHADOW_MAPPING_ALGORITHM == SHADOW_MAPPING_EVSM4)
 		{
-			float4 moments = g_shadowMap.SampleLevel(g_shadowMapSampler, shadowMapUV, lod);
+			float4 moments = g_shadowMap.SampleLevel(g_shadowMapSampler, shadowMapUV, 0);
 			visibility = evsm4_visibility(moments, lightSpaceDepth, R.evsm4PosExponent, R.evsm4NegExponent, R.evsm4MinVariance, R.evsm4MinBleeding);
 		}
 		#endif
@@ -83,8 +84,30 @@ float4 shading_ps(QuadInput input) : SV_Target0
 	
 	float NoL = max(0, dot(data.normal, g_light.direction));
 	
-	float3 luminance = visibility * NoL * data.baseColor * g_light.luminance;
+	float3 diffuse;
+	
+	#if (LIGHT_TYPE == LIGHT_TYPE_DIRECTIONAL) || (LIGHT_TYPE == LIGHT_TYPE_SKYBOX)
+	{
+		diffuse = NoL * data.baseColor * g_light.luminance;
+	}
+	#endif
+	
+	float3 luminance = visibility * diffuse;
 	
 	return float4(luminance, 1);
 
 }
+
+#ifdef QUAD_VIEW_RAY
+
+float4 skybox_ps(QuadInput input) : SV_Target0
+{
+	
+	float4 farH = mul(float4(input.viewRay.xyz, 1), g_camera.invViewProjection);
+	float3 eyeRayWS = normalize(farH.xyz / farH.w - g_camera.position);
+	
+	return g_skybox.SampleLevel(g_linearSampler, eyeRayWS, 0);
+	
+}
+
+#endif

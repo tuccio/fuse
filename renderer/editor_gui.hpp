@@ -109,6 +109,26 @@ namespace fuse
 
 		};
 
+		class skybox_panel :
+			public Rocket::Core::EventListener,
+			public gui_panel
+		{
+
+		public:
+
+			bool init(Rocket::Core::Context * context, skybox * skybox);
+
+			void ProcessEvent(Rocket::Core::Event & event) override;
+
+		private:
+
+			skybox * m_skybox;
+			bool     m_filling;
+
+			void fill_form(void);
+
+		};
+
 		class light_panel :
 			public Rocket::Core::EventListener,
 			public gui_panel
@@ -170,6 +190,9 @@ namespace fuse
 		void set_object_panel_visibility(bool visibility);
 		bool get_object_panel_visibility(void) const;
 
+		void set_skybox_panel_visibility(bool visibility);
+		bool get_skybox_panel_visibility(void) const;
+
 		void set_light_panel_visibility(bool visibility);
 		bool get_light_panel_visibility(void) const;
 
@@ -180,6 +203,7 @@ namespace fuse
 
 		Rocket::Core::Context * m_context;
 		gui::object_panel       m_objectPanel;
+		gui::skybox_panel       m_skyboxPanel;
 		gui::light_panel        m_lightPanel;
 		gui::render_options     m_renderOptions;
 

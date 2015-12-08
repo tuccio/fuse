@@ -29,7 +29,7 @@ void blur::render(
 	const render_resource & pingPongBuffer)
 {
 
-	commandList.reset_command_list(m_horizontalPSO.get());
+	commandList->SetPipelineState(m_horizontalPSO.get());
 
 	commandList.resource_barrier_transition(source.get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 	commandList.resource_barrier_transition(pingPongBuffer.get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
@@ -42,11 +42,7 @@ void blur::render(
 
 	commandList->Dispatch(m_gridWidth, m_gridHeight, 1);
 
-	FUSE_HR_CHECK(commandList->Close());
-
-	commandQueue.execute(commandList);
-
-	commandList.reset_command_list(m_verticalPSO.get());
+	commandList->SetPipelineState(m_verticalPSO.get());
 
 	commandList.resource_barrier_transition(source.get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 	commandList.resource_barrier_transition(pingPongBuffer.get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
@@ -58,10 +54,6 @@ void blur::render(
 	commandList->SetComputeRootDescriptorTable(1, source.get_uav_gpu_descriptor_handle());
 
 	commandList->Dispatch(m_gridWidth, m_gridHeight, 1);
-
-	FUSE_HR_CHECK(commandList->Close());
-
-	commandQueue.execute(commandList);
 
 }
 

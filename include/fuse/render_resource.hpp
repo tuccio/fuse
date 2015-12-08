@@ -1,6 +1,7 @@
 #pragma once
 
 #include <fuse/directx_helper.hpp>
+#include <fuse/descriptor_heap.hpp>
 
 #include <fuse/properties_macros.hpp>
 
@@ -16,6 +17,8 @@ namespace fuse
 		render_resource(void);
 		render_resource(const render_resource &s) = delete;
 		render_resource(render_resource &&) = default;
+
+		render_resource & operator= (render_resource &&) = default;
 
 		~render_resource(void);
 
@@ -41,10 +44,10 @@ namespace fuse
 
 	private:
 
-		UINT m_rtvToken;
-		UINT m_uavToken;
-		UINT m_srvToken;
-		UINT m_dsvToken;
+		descriptor_token_t m_rtvToken;
+		descriptor_token_t m_uavToken;
+		descriptor_token_t m_srvToken;
+		descriptor_token_t m_dsvToken;
 
 	public:
 

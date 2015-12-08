@@ -32,7 +32,8 @@ bool editor_gui::init(scene * scene, renderer_configuration * r)
 
 	return m_objectPanel.init(m_context) &&
 	       m_renderOptions.init(m_context, r) &&
-	       m_lightPanel.init(m_context, scene);
+	       m_lightPanel.init(m_context, scene) &&
+	       m_skyboxPanel.init(m_context, scene->get_skybox());
 }
 
 void editor_gui::shutdown(void)
@@ -44,6 +45,7 @@ void editor_gui::shutdown(void)
 		m_objectPanel.shutdown();
 		m_renderOptions.shutdown();
 		m_lightPanel.shutdown();
+		m_skyboxPanel.shutdown();
 
 		m_context->RemoveReference();
 
@@ -210,6 +212,22 @@ bool editor_gui::get_object_panel_visibility(void) const
 	return m_objectPanel.is_visible();
 }
 
+void editor_gui::set_skybox_panel_visibility(bool visibility)
+{
+	if (visibility)
+	{
+		m_skyboxPanel.show();
+	}
+	else
+	{
+		m_skyboxPanel.hide();
+	}
+}
+
+bool editor_gui::get_skybox_panel_visibility(void) const
+{
+	return m_skyboxPanel.is_visible();
+}
 
 void editor_gui::set_light_panel_visibility(bool visibility)
 {
@@ -421,6 +439,135 @@ void color_panel::ProcessEvent(Rocket::Core::Event & event)
 		{
 			shutdown();
 		}
+	}
+
+}
+
+/* skybox_panel */
+
+bool skybox_panel::init(Rocket::Core::Context * context, skybox * skybox)
+{
+
+	m_panel = context->LoadDocument("ui/skybox.rml");
+
+	if (m_panel)
+	{
+
+		m_panel->AddEventListener("click", this);
+		m_panel->AddEventListener("change", this);
+
+		m_panel->GetElementById("title")->SetInnerRML(m_panel->GetTitle());
+
+		m_skybox = skybox;
+		fill_form();
+
+		return true;
+
+	}
+
+	return false;
+	
+}
+
+void skybox_panel::fill_form(void)
+{
+
+	using namespace Rocket::Controls;
+	using namespace Rocket::Core;
+
+	m_filling = true;
+
+	float zenith    = m_skybox->get_zenith();
+	float azimuth   = m_skybox->get_azimuth();
+	float turbidity = m_skybox->get_turbidity();
+
+	{
+
+		String value;
+
+		TypeConverter<float, String>::Convert(zenith, value);
+		dynamic_cast<ElementFormControlInput*>(m_panel->GetElementById("zenith"))->SetValue(value);
+
+	}
+
+	{
+
+		String value;
+
+		TypeConverter<float, String>::Convert(azimuth, value);
+		dynamic_cast<ElementFormControlInput*>(m_panel->GetElementById("azimuth"))->SetValue(value);
+
+	}
+
+	{
+
+		String value;
+
+		TypeConverter<float, String>::Convert(turbidity, value);
+		dynamic_cast<ElementFormControlInput*>(m_panel->GetElementById("turbidity"))->SetValue(value);
+
+	}
+
+	m_filling = false;
+
+}
+
+void skybox_panel::ProcessEvent(Rocket::Core::Event & event)
+{
+
+	using namespace Rocket::Controls;
+	using namespace Rocket::Core;
+
+	auto element = event.GetTargetElement();
+
+	if (event.GetType() == "change")
+	{
+
+		if (m_filling)
+		{
+			return;
+		}
+
+		if (element->GetId() == "zenith")
+		{
+
+			float zenith;
+
+			auto zenithStr = dynamic_cast<ElementFormControlInput*>(m_panel->GetElementById("zenith"))->GetValue();
+
+			if (TypeConverter<String, float>::Convert(zenithStr, zenith))
+			{
+				m_skybox->set_zenith(zenith);
+			}
+
+		}
+		else if (element->GetId() == "azimuth")
+		{
+
+			float azimuth;
+
+			auto azimuthStr = dynamic_cast<ElementFormControlInput*>(m_panel->GetElementById("azimuth"))->GetValue();
+
+			if (TypeConverter<String, float>::Convert(azimuthStr, azimuth))
+			{
+				m_skybox->set_azimuth(azimuth);
+			}
+
+		}
+		else if (element->GetId() == "turbidity")
+		{
+
+			float turbidity;
+
+			auto azimuthStr = dynamic_cast<ElementFormControlInput*>(m_panel->GetElementById("turbidity"))->GetValue();
+
+			if (TypeConverter<String, float>::Convert(azimuthStr, turbidity))
+			{
+				m_skybox->set_turbidity(turbidity);
+			}
+
+		}
+
 	}
 
 }

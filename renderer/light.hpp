@@ -5,6 +5,7 @@
 
 enum light_type
 {
+	FUSE_LIGHT_TYPE_SKYBOX,
 	FUSE_LIGHT_TYPE_DIRECTIONAL,
 	FUSE_LIGHT_TYPE_SPOTLIGHT,
 	FUSE_LIGHT_TYPE_POINTLIGHT
@@ -21,7 +22,7 @@ namespace fuse
 		color_rgb color;
 		float     intensity;
 
-		XMFLOAT3  ambient;
+		color_rgb ambient;
 		XMFLOAT3  direction;
 
 		float spotAngle;

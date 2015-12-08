@@ -35,6 +35,8 @@ void render_resource::clear(void)
 	cbv_uav_srv_descriptor_heap::get_singleton_pointer()->free(m_srvToken);
 	dsv_descriptor_heap::get_singleton_pointer()->free(m_dsvToken);
 
+	reset();
+
 	m_rtvToken = FUSE_POOL_INVALID;
 	m_uavToken = FUSE_POOL_INVALID;
 	m_srvToken = FUSE_POOL_INVALID;

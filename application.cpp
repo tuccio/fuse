@@ -21,17 +21,11 @@ bool                          application_base::m_resizeSwapChain;
 							  
 com_ptr<ID3D12Device>         application_base::m_device;
 com_ptr<IDXGISwapChain3>      application_base::m_swapChain;
-							  
-gpu_command_queue             application_base::m_commandQueue;
-							  
+
 UINT                          application_base::m_bufferIndex;
 							  
 DXGI_SURFACE_DESC             application_base::m_swapChainBufferDesc;
 application_config            application_base::m_configuration;
-							  
-UINT                          application_base::m_rtvDescriptorSize;
-UINT                          application_base::m_dsvDescriptorSize;
-UINT                          application_base::m_srvDescriptorSize;
 
 std::vector<render_resource>  application_base::m_renderTargets;
 
@@ -42,6 +36,8 @@ gpu_global_resource_state     application_base::m_globalState;
 cbv_uav_srv_descriptor_heap   application_base::m_shaderDescriptorHeap;
 rtv_descriptor_heap           application_base::m_renderTargetDescriptorHeap;
 dsv_descriptor_heap           application_base::m_depthStencilDescriptorHeap;
+
+gpu_render_context            application_base::m_renderContext;
 
 /* Window class and callbacks */
 
@@ -157,7 +153,7 @@ void application_base::shutdown(void)
 		m_device.reset();
 	}
 
-	m_commandQueue.shutdown();
+	m_renderContext.shutdown();
 
 	release_swap_chain_buffers();
 	destroy_descriptor_heaps();
@@ -286,6 +282,8 @@ void application_base::set_default_configuration(void)
 	m_configuration.maxCBVUAVSRV = 2048;
 	m_configuration.maxRTV       = 2048;
 
+	m_configuration.uploadHeapSize = 1 << 20;
+
 }
 
 bool application_base::create_device(D3D_FEATURE_LEVEL featureLevel, bool debug)
@@ -307,25 +305,16 @@ bool application_base::create_device(D3D_FEATURE_LEVEL featureLevel, bool debug)
 
 	if (!FUSE_HR_FAILED(D3D12CreateDevice(nullptr, featureLevel, IID_PPV_ARGS(&m_device))))
 	{
-
 		m_device->SetName(L"fuse_device");
-
-		m_rtvDescriptorSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-		m_dsvDescriptorSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
-		m_srvDescriptorSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-
 		return true;
-
 	}
 
 	return false;
 
 }
-
-bool application_base::create_command_queue(void)
+bool application_base::create_render_context(void)
 {
-	D3D12_COMMAND_QUEUE_DESC queueDesc = { };
-	return m_commandQueue.init(m_device.get());
+	return m_renderContext.init(m_device.get(), m_configuration.swapChainBufferCount, m_configuration.uploadHeapSize);
 }
 
 bool application_base::create_swap_chain(bool debug, int width, int height)
@@ -366,7 +355,7 @@ bool application_base::create_swap_chain(bool debug, int width, int height)
 	com_ptr<IDXGISwapChain> swapChain;
 
 	bool success = !FUSE_HR_FAILED(CreateDXGIFactory2(dxgiFlags, IID_PPV_ARGS(&dxgiFactory))) &&
-	               !FUSE_HR_FAILED(dxgiFactory->CreateSwapChain(m_commandQueue.get(), &swapChainDesc, &swapChain));
+	               !FUSE_HR_FAILED(dxgiFactory->CreateSwapChain(get_command_queue().get(), &swapChainDesc, &swapChain));
 
 	if (success)
 	{
@@ -383,7 +372,7 @@ bool application_base::resize_swap_chain(int width, int height)
 {
 
 	// Wait for all the frames to be completed before resizing
-	m_commandQueue.wait_for_frame(m_commandQueue.get_frame_index());
+	get_command_queue().wait_for_frame(get_command_queue().get_frame_index());
 
 	m_swapChainBufferDesc.Width  = width;
 	m_swapChainBufferDesc.Height = height;

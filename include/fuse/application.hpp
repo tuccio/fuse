@@ -11,6 +11,7 @@
 #include <fuse/gpu_global_resource_state.hpp>
 #include <fuse/render_resource.hpp>
 #include <fuse/descriptor_heap.hpp>
+#include <fuse/gpu_render_context.hpp>
 
 #include <queue>
 
@@ -39,6 +40,8 @@ namespace fuse
 		UINT maxCBVUAVSRV;
 		UINT maxRTV;
 
+		UINT uploadHeapSize;
+
 	};
 
 	struct application_base
@@ -55,14 +58,14 @@ namespace fuse
 
 		inline static void on_configuration_init(application_config * configuration) { }
 
-		inline static bool on_device_created(ID3D12Device * device, gpu_command_queue & commandQueue) { return true; }
-		inline static void on_device_released(ID3D12Device * device) { }
+		inline static bool on_render_context_created(gpu_render_context & renderContext) { return true; }
+		inline static void on_render_context_released(gpu_render_context & renderContext) { }
 
 		inline static bool on_swap_chain_resized(ID3D12Device * device, IDXGISwapChain * swapChain, const DXGI_SURFACE_DESC * desc) { return true; }
 		inline static void on_swap_chain_released(ID3D12Device * device, IDXGISwapChain * swapChain) { }
 
 		inline static void on_update(float dt) { }
-		inline static void on_render(ID3D12Device * device, gpu_command_queue & commandQueue, const render_resource & backBuffer, UINT bufferIndex) { }
+		inline static void on_render(gpu_render_context & renderContext, const render_resource & backBuffer) { }
 		inline static LRESULT on_message(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) { return 0; }
 
 		static LRESULT CALLBACK on_keyboard(int code, WPARAM wParam, LPARAM lParam);
@@ -87,15 +90,9 @@ namespace fuse
 						   
 		inline static HINSTANCE get_instance(void) { return m_hInstance; }
 		
-		inline static ID3D12Device       * get_device(void) { return m_device.get(); }
-		inline static ID3D12CommandQueue * get_command_queue(void) { return m_commandQueue.get(); }
-		inline static IDXGISwapChain     * get_swap_chain(void) { return m_swapChain.get(); }
-
-		inline static UINT get_rtv_descriptor_size(void) { return m_rtvDescriptorSize; }
-		inline static UINT get_dsv_descriptor_size(void) { return m_dsvDescriptorSize; }
-		inline static UINT get_srv_descriptor_size(void) { return m_srvDescriptorSize; }
-		inline static UINT get_uav_descriptor_size(void) { return m_srvDescriptorSize; }
-		inline static UINT get_cbv_descriptor_size(void) { return m_srvDescriptorSize; }
+		inline static ID3D12Device      * get_device(void) { return m_device.get(); }
+		inline static IDXGISwapChain    * get_swap_chain(void) { return m_swapChain.get(); }
+		inline static gpu_command_queue & get_command_queue(void) { return m_renderContext.get_command_queue(); }
 
 		inline static void set_screen_viewport(ID3D12GraphicsCommandList * cmdList)
 		{
@@ -128,12 +125,6 @@ namespace fuse
 		static com_ptr<ID3D12Device>         m_device;
 		static com_ptr<IDXGISwapChain3>      m_swapChain;
 
-		static gpu_command_queue             m_commandQueue;
-
-		static UINT                          m_rtvDescriptorSize;
-		static UINT                          m_dsvDescriptorSize;
-		static UINT                          m_srvDescriptorSize;
-
 		static cbv_uav_srv_descriptor_heap   m_shaderDescriptorHeap;
 		static rtv_descriptor_heap           m_renderTargetDescriptorHeap;
 		static dsv_descriptor_heap           m_depthStencilDescriptorHeap;
@@ -145,6 +136,8 @@ namespace fuse
 
 		static UINT                          m_bufferIndex;
 
+		static gpu_render_context            m_renderContext;
+
 		static float                         m_frameSamples[FUSE_FPS_SAMPLES];
 		static gpu_global_resource_state     m_globalState;
 
@@ -153,7 +146,7 @@ namespace fuse
 		static void set_default_configuration(void);
 
 		static bool create_device(D3D_FEATURE_LEVEL featureLevel, bool debug);
-		static bool create_command_queue(void);
+		static bool create_render_context(void);
 
 		static bool create_swap_chain(bool debug, int width, int height);
 		static bool resize_swap_chain(int width, int height);
@@ -205,23 +198,6 @@ namespace fuse
 
 	public:
 
-		static inline bool init(HINSTANCE hInstance)
-		{
-
-			if (base_type::init(hInstance))
-			{
-
-				SetWindowsHook(WH_KEYBOARD, on_keyboard);
-				SetWindowsHook(WH_MOUSE, on_mouse);
-
-				return true;
-
-			}
-
-			return false;
-
-		}
-
 		static inline bool create_pipeline(D3D_FEATURE_LEVEL featureLevel, bool debug)
 		{
 
@@ -231,11 +207,19 @@ namespace fuse
 			bool success =
 				create_device(featureLevel, debug) &&
 				create_descriptor_heaps() &&
-				create_command_queue() &&
-				on_device_created(get_device(), m_commandQueue) &&
+				create_render_context() &&
+				on_render_context_created(m_renderContext) &&
 				create_swap_chain(debug, get_screen_width(), get_screen_height());
 
-			if (!success) signal_error("Failed to create graphics pipeline.");
+			if (!success)
+			{
+				signal_error("Failed to create graphics pipeline.");
+			}
+			else
+			{
+				SetWindowsHook(WH_KEYBOARD, on_keyboard);
+				SetWindowsHook(WH_MOUSE, on_mouse);
+			}
 
 			return success;
 
@@ -244,10 +228,10 @@ namespace fuse
 		static inline void shutdown(void)
 		{
 
-			if (m_commandQueue)
+			if (get_command_queue())
 			{
 				// Wait for the render to finish before shutting down
-				m_commandQueue.wait_for_frame(m_commandQueue.get_frame_index());
+				get_command_queue().wait_for_frame(get_command_queue().get_frame_index());
 			}
 			
 			if (m_swapChain)
@@ -257,7 +241,7 @@ namespace fuse
 
 			if (m_device)
 			{	
-				on_device_released(get_device());
+				on_render_context_released(m_renderContext);
 			}
 
 			base_type::shutdown();
@@ -283,11 +267,11 @@ namespace fuse
 
 				}
 
-				UINT64 lastFrame   = m_commandQueue.get_frame_index();
+				UINT64 lastFrame   = get_command_queue().get_frame_index();
 				UINT64 frameToWait = lastFrame + 1 < m_configuration.swapChainBufferCount ? 0 : lastFrame + 1 - m_configuration.swapChainBufferCount;
 
-				m_commandQueue.wait_for_frame(frameToWait);
-				//m_commandQueue.wait_for_frame(lastFrame);
+				get_command_queue().wait_for_frame(frameToWait);
+				//get_command_queue().wait_for_frame(lastFrame);
 				float dt = update_fps_counter();
 
 				on_update(dt);
@@ -298,10 +282,11 @@ namespace fuse
 					return;
 				}
 
-				on_render(get_device(), m_commandQueue, get_back_buffer(), get_buffer_index());
+				on_render(m_renderContext, get_back_buffer());
 
 				FUSE_HR_CHECK(m_swapChain->Present1(m_configuration.syncInterval, m_configuration.presentFlags, &DXGI_PRESENT_PARAMETERS{}));
-				m_commandQueue.advance_frame_index();
+
+				m_renderContext.advance_frame_index();
 
 			} while (msg.message != WM_QUIT);
 

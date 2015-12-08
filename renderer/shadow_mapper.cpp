@@ -21,7 +21,7 @@ void shadow_mapper::render(
 	ID3D12Device * device,
 	gpu_command_queue & commandQueue,
 	gpu_graphics_command_list & commandList,
-	gpu_ring_buffer * ringBuffer,
+	gpu_ring_buffer & ringBuffer,
 	D3D12_GPU_VIRTUAL_ADDRESS cbPerFrame,
 	const XMMATRIX & lightMatrix,
 	const render_resource & renderTarget,
@@ -32,7 +32,8 @@ void shadow_mapper::render(
 
 	/* Setup the pipeline state */
 
-	commandList.reset_command_list(m_pso.get());
+	commandList->SetPipelineState(m_pso.get());
+	commandList->SetGraphicsRootSignature(m_rs.get());
 
 	commandList.resource_barrier_transition(depthBuffer.get(), D3D12_RESOURCE_STATE_DEPTH_WRITE);
 
@@ -62,8 +63,7 @@ void shadow_mapper::render(
 	commandList->RSSetScissorRects(1, &m_scissorRect);
 
 	commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
-	commandList->SetGraphicsRootSignature(m_rs.get());
+	
 	commandList->SetGraphicsRootConstantBufferView(0, cbPerFrame);
 
 	/* Render loop */
@@ -73,7 +73,7 @@ void shadow_mapper::render(
 
 		D3D12_GPU_VIRTUAL_ADDRESS cbPerLight;
 
-		void * cbData = ringBuffer->allocate_constant_buffer(device, commandQueue, sizeof(XMMATRIX), &cbPerLight);
+		void * cbData = ringBuffer.allocate_constant_buffer(device, commandQueue, sizeof(XMMATRIX), &cbPerLight);
 
 		if (cbData)
 		{
@@ -104,10 +104,6 @@ void shadow_mapper::render(
 		}
 
 	}
-
-	FUSE_HR_CHECK(commandList->Close());
-
-	commandQueue.execute(commandList);
 
 }
 

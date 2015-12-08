@@ -32,7 +32,7 @@ void descriptor_heap::shutdown(void)
 	reset();
 }
 
-UINT descriptor_heap::allocate(UINT descriptors)
+descriptor_token_t descriptor_heap::allocate(UINT descriptors)
 {
 	return m_poolManager.allocate(descriptors);
 }
@@ -72,7 +72,7 @@ void cbv_uav_srv_descriptor_heap::shutdown(void)
 	descriptor_heap::shutdown();
 }
 
-UINT cbv_uav_srv_descriptor_heap::create_shader_resource_view(ID3D12Device * device, ID3D12Resource * resource, const D3D12_SHADER_RESOURCE_VIEW_DESC * desc)
+descriptor_token_t cbv_uav_srv_descriptor_heap::create_shader_resource_view(ID3D12Device * device, ID3D12Resource * resource, const D3D12_SHADER_RESOURCE_VIEW_DESC * desc)
 {
 
 	auto token = allocate();
@@ -86,7 +86,7 @@ UINT cbv_uav_srv_descriptor_heap::create_shader_resource_view(ID3D12Device * dev
 
 }
 
-UINT cbv_uav_srv_descriptor_heap::create_unordered_access_view(ID3D12Device * device, ID3D12Resource * resource, ID3D12Resource * counter, const D3D12_UNORDERED_ACCESS_VIEW_DESC * desc)
+descriptor_token_t cbv_uav_srv_descriptor_heap::create_unordered_access_view(ID3D12Device * device, ID3D12Resource * resource, ID3D12Resource * counter, const D3D12_UNORDERED_ACCESS_VIEW_DESC * desc)
 {
 
 	auto token = allocate();
@@ -100,7 +100,7 @@ UINT cbv_uav_srv_descriptor_heap::create_unordered_access_view(ID3D12Device * de
 
 }
 
-UINT cbv_uav_srv_descriptor_heap::create_constant_buffer_view(ID3D12Device * device, const D3D12_CONSTANT_BUFFER_VIEW_DESC * desc)
+descriptor_token_t cbv_uav_srv_descriptor_heap::create_constant_buffer_view(ID3D12Device * device, const D3D12_CONSTANT_BUFFER_VIEW_DESC * desc)
 {
 
 	auto token = allocate();
@@ -139,7 +139,7 @@ void rtv_descriptor_heap::shutdown(void)
 	descriptor_heap::shutdown();
 }
 
-UINT rtv_descriptor_heap::create_render_target_view(ID3D12Device * device, ID3D12Resource * resource, const D3D12_RENDER_TARGET_VIEW_DESC * desc)
+descriptor_token_t rtv_descriptor_heap::create_render_target_view(ID3D12Device * device, ID3D12Resource * resource, const D3D12_RENDER_TARGET_VIEW_DESC * desc)
 {
 
 	auto token = allocate();
@@ -178,7 +178,7 @@ void dsv_descriptor_heap::shutdown(void)
 	descriptor_heap::shutdown();
 }
 
-UINT dsv_descriptor_heap::create_depth_stencil_view(ID3D12Device * device, ID3D12Resource * resource, const D3D12_DEPTH_STENCIL_VIEW_DESC * desc)
+descriptor_token_t dsv_descriptor_heap::create_depth_stencil_view(ID3D12Device * device, ID3D12Resource * resource, const D3D12_DEPTH_STENCIL_VIEW_DESC * desc)
 {
 
 	auto token = allocate();

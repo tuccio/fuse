@@ -10,16 +10,21 @@ using namespace fuse;
 
 FUSE_DEFINE_ALIGNED_ALLOCATOR_NEW(renderable, 16)
 
-static XMFLOAT3 to_xmfloat3(const aiVector3D & color)
+static const XMFLOAT3 & to_xmfloat3(const aiVector3D & color)
 {
 	return reinterpret_cast<const XMFLOAT3 &>(color);
 
 }
-static XMFLOAT3 to_xmfloat3(const aiColor3D & color)
+static const XMFLOAT3 & to_xmfloat3(const aiColor3D & color)
 {
 	return reinterpret_cast<const XMFLOAT3 &>(color);
 }
 
+static const color_rgb & to_color_rgb(const aiColor3D & color)
+{
+	return reinterpret_cast<const color_rgb &>(color);
+
+}
 static XMMATRIX to_xmmatrix(const aiMatrix4x4 & matrix)
 {
 
@@ -249,10 +254,8 @@ bool scene::import_lights(assimp_loader * loader)
 			light * light = new ::light;
 
 			light->type      = FUSE_LIGHT_TYPE_DIRECTIONAL;
-			light->ambient   = to_xmfloat3(scene->mLights[i]->mColorAmbient);
-			light->color.r   = scene->mLights[i]->mColorDiffuse.r;
-			light->color.g   = scene->mLights[i]->mColorDiffuse.g;
-			light->color.b   = scene->mLights[i]->mColorDiffuse.b;
+			light->ambient   = to_color_rgb(scene->mLights[i]->mColorAmbient);
+			light->color     = to_color_rgb(scene->mLights[i]->mColorDiffuse);
 			light->direction = XMVector3Equal(direction, XMVectorZero()) ? XMFLOAT3(0, 1, 0) : to_float3(direction);
 
 			light->intensity = 1.f;

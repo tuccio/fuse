@@ -85,6 +85,7 @@ add_library ( fuse
 	include/fuse/gpu_upload_manager.hpp gpu_upload_manager.cpp
 	include/fuse/gpu_mesh.hpp gpu_mesh.cpp
 	include/fuse/gpu_mesh_manager.hpp
+	include/fuse/gpu_render_context.hpp gpu_render_context.cpp
 	include/fuse/camera.hpp camera.cpp
 	include/fuse/transform.hpp transform.cpp
 	include/fuse/properties_macros.hpp

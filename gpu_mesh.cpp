@@ -1,7 +1,8 @@
 #include <fuse/gpu_mesh.hpp>
 #include <fuse/resource_factory.hpp>
 #include <fuse/gpu_global_resource_state.hpp>
-#include <fuse/gpu_ring_buffer.hpp>
+#include <fuse/gpu_render_context.hpp>
+#include <fuse/gpu_upload_manager.hpp>
 
 #include <boost/iterator.hpp>
 
@@ -14,12 +15,7 @@ using namespace fuse;
 gpu_mesh::gpu_mesh(const char * name, resource_loader * loader, resource_manager * owner) :
 	resource(name, loader, owner) { }
 
-gpu_mesh::~gpu_mesh(void)
-{
-	clear();
-}
-
-bool gpu_mesh::create(ID3D12Device * device, gpu_command_queue & commandQueue, gpu_upload_manager * uploadManager, gpu_ring_buffer * ringBuffer, mesh * mesh)
+bool gpu_mesh::create(ID3D12Device * device, gpu_command_queue & commandQueue, gpu_graphics_command_list & commandList, gpu_ring_buffer & ringBuffer, mesh * mesh)
 {
 
 	m_numVertices  = mesh->get_num_vertices();
@@ -119,11 +115,11 @@ bool gpu_mesh::create(ID3D12Device * device, gpu_command_queue & commandQueue, g
 	{
 
 		UINT64 heapOffset;
-		void * data = ringBuffer->allocate_constant_buffer(device, commandQueue, bufferSize, nullptr, &heapOffset);
+		void * data = ringBuffer.allocate_constant_buffer(device, commandQueue, bufferSize, nullptr, &heapOffset);
 
 		memcpy(data, intermediateBuffer.get(), bufferSize);
 
-		uploadManager->upload_buffer(commandQueue, m_dataBuffer.get(), 0, ringBuffer->get_heap(), heapOffset, bufferSize);
+		gpu_upload_buffer(commandQueue, commandList, m_dataBuffer.get(), 0, ringBuffer.get_heap(), heapOffset, bufferSize);
 
 		// Finally setup views
 
@@ -152,8 +148,9 @@ bool gpu_mesh::create(ID3D12Device * device, gpu_command_queue & commandQueue, g
 
 }
 
-void gpu_mesh::clear(void)
+void gpu_mesh::clear(gpu_command_queue & commandQueue)
 {
+	commandQueue.safe_release(m_dataBuffer.get());
 	m_dataBuffer.reset();
 }
 
@@ -165,12 +162,8 @@ bool gpu_mesh::load_impl(void)
 
 	if (m && m->load())
 	{
-
-		using args_tuple = std::tuple<ID3D12Device*, gpu_command_queue*, gpu_upload_manager*, gpu_ring_buffer*>;
-		args_tuple * args = get_owner_userdata<args_tuple*>();
-
-		return create(std::get<0>(*args), *std::get<1>(*args), std::get<2>(*args), std::get<3>(*args), m.get());
-
+		auto renderContext = gpu_render_context::get_singleton_pointer();
+		return create(renderContext->get_device(), renderContext->get_command_queue(), renderContext->get_command_list(), renderContext->get_ring_buffer(), m.get());
 	}
 
 	return false;
@@ -179,14 +172,8 @@ bool gpu_mesh::load_impl(void)
 
 void gpu_mesh::unload_impl(void)
 {
-
-	using args_tuple = std::tuple<ID3D12Device*, gpu_command_queue*, gpu_upload_manager*, gpu_ring_buffer*>;
-	args_tuple * args = get_owner_userdata<args_tuple*>();
-
-	std::get<1>(*args)->safe_release(m_dataBuffer.get());
-
-	clear();
-
+	auto renderContext = gpu_render_context::get_singleton_pointer();
+	clear(renderContext->get_command_queue());
 }
 
 size_t gpu_mesh::calculate_size_impl(void)

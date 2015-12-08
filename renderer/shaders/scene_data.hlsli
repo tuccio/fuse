@@ -93,4 +93,9 @@ cbuffer cbPerFrame : register(Register)\
 #define SHADOW_MAPPING_EVSM2 2
 #define SHADOW_MAPPING_EVSM4 3
 
+#define LIGHT_TYPE_SKYBOX      0
+#define LIGHT_TYPE_DIRECTIONAL 1
+#define LIGHT_TYPE_SPOTLIGHT   2
+#define LIGHT_TYPE_POINTLIGHT  3 
+
 #endif

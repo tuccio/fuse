@@ -53,18 +53,12 @@ using namespace fuse;
 #define MAX_RTV 1024
 #define MAX_SRV 1024
 
+#define SKYBOX_RESOLUTION 128
+
 #define NUM_BUFFERS      (2u)
 #define UPLOAD_HEAP_SIZE (16 << 20)
 
-std::array<com_ptr<ID3D12CommandAllocator>, NUM_BUFFERS> g_commandAllocator;
-std::array<gpu_graphics_command_list,       NUM_BUFFERS> g_commandList;
-std::array<com_ptr<ID3D12CommandAllocator>, NUM_BUFFERS> g_auxCommandAllocator;
-std::array<gpu_graphics_command_list,       NUM_BUFFERS> g_auxCommandList;
-
 std::array<com_ptr<ID3D12Resource>, NUM_BUFFERS> g_cbPerFrame;
-
-gpu_ring_buffer    g_uploadRingBuffer;
-gpu_upload_manager g_uploadManager;
 
 std::array<UINT, NUM_BUFFERS> g_gbufferSRVTable;
 
@@ -110,6 +104,8 @@ renderer_configuration g_rendererConfiguration;
 blur           g_shadowMapBlur;
 alpha_composer g_alphaComposer;
 
+skybox_renderer g_skyboxRenderer;
+
 #ifdef FUSE_USE_EDITOR_GUI
 
 editor_gui g_editorGUI;
@@ -117,16 +113,17 @@ bool       g_showGUI = true;
 
 #endif
 
-bool renderer_application::on_device_created(ID3D12Device * device, gpu_command_queue & commandQueue)
+bool renderer_application::on_render_context_created(gpu_render_context & renderContext)
 {
 
-	g_mipmapGenerator = std::make_unique<mipmap_generator>(device);
+	ID3D12Device * device       = renderContext.get_device();
+	auto         & commandQueue = renderContext.get_command_queue();
+	auto         & commandList  = renderContext.get_command_list();
 
-	if (!g_uploadRingBuffer.create(device, UPLOAD_HEAP_SIZE) ||
-		!g_uploadManager.init(device, NUM_BUFFERS))
-	{
-		return false;
-	}
+	// The command list will be used for uploading assets and buffers on the gpu
+	commandList.reset_command_list(nullptr);
+
+	g_mipmapGenerator = std::make_unique<mipmap_generator>(device);
 
 	/* Resource managers */
 
@@ -134,8 +131,8 @@ bool renderer_application::on_device_created(ID3D12Device * device, gpu_command_
 	g_materialManager   = std::make_unique<material_manager>();
 	g_meshManager       = std::make_unique<mesh_manager>();
 	g_bitmapFontManager = std::make_unique<bitmap_font_manager>();
-	g_gpuMeshManager    = std::make_unique<gpu_mesh_manager>(device, commandQueue, &g_uploadManager, &g_uploadRingBuffer);
-	g_textureManager    = std::make_unique<texture_manager>(device, commandQueue, &g_uploadManager, &g_uploadRingBuffer);
+	g_gpuMeshManager    = std::make_unique<gpu_mesh_manager>();
+	g_textureManager    = std::make_unique<texture_manager>();
 
 	g_resourceFactory.register_manager(g_imageManager.get());
 	g_resourceFactory.register_manager(g_materialManager.get());
@@ -151,16 +148,21 @@ bool renderer_application::on_device_created(ID3D12Device * device, gpu_command_
 
 	//g_sceneLoader = std::make_unique<assimp_loader>("scene/sponza.fbx", ppsteps);
 
-	FAIL_IF (
-	    !g_scene.import_static_objects(g_sceneLoader.get()) ||
-	    !g_scene.import_cameras(g_sceneLoader.get()) ||
-	    !g_scene.import_lights(g_sceneLoader.get())
+	FAIL_IF(
+		!g_scene.import_static_objects(g_sceneLoader.get()) ||
+		!g_scene.import_cameras(g_sceneLoader.get()) ||
+		//!g_scene.import_lights(g_sceneLoader.get()) ||
+		!g_scene.get_skybox()->init(device, SKYBOX_RESOLUTION, NUM_BUFFERS) ||
+		!g_skyboxRenderer.init(device)
 	)
 
-	auto light = *g_scene.get_lights().first;
+	g_scene.get_skybox()->set_zenith(1.02539599f);
+	g_scene.get_skybox()->set_azimuth(-1.70169306f);
+	
+	/*auto light = *g_scene.get_lights().first;
 
 	light->direction = XMFLOAT3(-0.281581f, 0.522937f, -0.804518f);
-	light->intensity *= .2f;
+	light->intensity *= .2f;*/
 	//g_scene.get_active_camera()->set_zfar(10000.f);
 
 	//g_cameraController = std::make_unique<fps_camera_controller>(g_scene.get_active_camera());
@@ -169,28 +171,6 @@ bool renderer_application::on_device_created(ID3D12Device * device, gpu_command_
 	g_cameraController.set_speed(XMFLOAT3(200, 200, 200));
 
 	g_scene.get_active_camera()->set_orientation(XMQuaternionIdentity());
-
-	/* Prepare the command list */
-
-	for (unsigned int bufferIndex = 0; bufferIndex < NUM_BUFFERS; bufferIndex++)
-	{
-		
-		FUSE_HR_CHECK(device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&g_commandAllocator[bufferIndex])));
-		g_commandList[bufferIndex].init(device, 0, D3D12_COMMAND_LIST_TYPE_DIRECT, g_commandAllocator[bufferIndex].get(), nullptr);
-
-		FUSE_HR_CHECK(device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&g_auxCommandAllocator[bufferIndex])));
-		g_auxCommandList[bufferIndex].init(device, 0, D3D12_COMMAND_LIST_TYPE_DIRECT, g_auxCommandAllocator[bufferIndex].get(), nullptr);
-
-		FUSE_HR_CHECK(g_commandAllocator[bufferIndex]->SetName(L"main_command_allocator"));
-		FUSE_HR_CHECK(g_commandList[bufferIndex]->SetName(L"main_command_list"));
-
-		FUSE_HR_CHECK(g_auxCommandAllocator[bufferIndex]->SetName(L"aux_command_allocator"));
-		FUSE_HR_CHECK(g_auxCommandList[bufferIndex]->SetName(L"aux_command_list"));
-
-		FUSE_HR_CHECK(g_commandList[bufferIndex]->Close());
-		FUSE_HR_CHECK(g_auxCommandList[bufferIndex]->Close());
-
-	}
 
 	/* Create gbuffer desc tables */
 
@@ -257,15 +237,16 @@ bool renderer_application::on_device_created(ID3D12Device * device, gpu_command_
 	rocketCFG.blendDesc.RenderTarget[0].BlendOp      = D3D12_BLEND_OP_ADD;
 	rocketCFG.blendDesc.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_MAX;
 
-	rocketCFG.rtvFormat   = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+	rocketCFG.rtvFormat = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
 
 	FAIL_IF (
-	    !g_rocketInterface.init(device, commandQueue, &g_uploadManager, &g_uploadRingBuffer, rocketCFG) ||
+	    !g_rocketInterface.init(device, rocketCFG) ||
 		!g_editorGUI.init(&g_scene, &g_rendererConfiguration)
 	)
 
 	g_editorGUI.set_render_options_visibility(true);
-	g_editorGUI.set_light_panel_visibility(true);
+	//g_editorGUI.set_light_panel_visibility(true);
+	g_editorGUI.set_skybox_panel_visibility(true);
 
 #endif
 
@@ -297,6 +278,9 @@ bool renderer_application::on_device_created(ID3D12Device * device, gpu_command_
 		commandQueue->Signal(initFence.get(), 1u);
 		initFence->SetEventOnCompletion(1u, hEvent);
 
+		FUSE_HR_CHECK(commandList->Close());
+		commandQueue.execute(commandList);
+
 		bool result = WAIT_OBJECT_0 == WaitForSingleObject(hEvent, INFINITE);
 
 		CloseHandle(hEvent);
@@ -309,17 +293,14 @@ bool renderer_application::on_device_created(ID3D12Device * device, gpu_command_
 
 }
 
-void renderer_application::on_device_released(ID3D12Device * device)
+void renderer_application::on_render_context_released(gpu_render_context & renderContext)
 {
 
-	std::for_each(g_commandAllocator.begin(), g_commandAllocator.end(), [](auto & r) { r.reset(); });
-	std::for_each(g_commandList.begin(), g_commandList.end(), [](auto & r) { r.reset(); });
-
-	std::for_each(g_fullresRGBA16F0.begin(), g_fullresRGBA16F0.end(), [](auto & r) { r.reset(); });
-	std::for_each(g_fullresRGBA16F1.begin(), g_fullresRGBA16F1.end(), [](auto & r) { r.reset(); });
-	std::for_each(g_fullresRGBA16F2.begin(), g_fullresRGBA16F2.end(), [](auto & r) { r.reset(); });
-	std::for_each(g_fullresRGBA8U0.begin(), g_fullresRGBA8U0.end(), [](auto & r) { r.reset(); });
-	std::for_each(g_depthBuffer.begin(), g_depthBuffer.end(), [](auto & r) { r.reset(); });
+	std::for_each(g_fullresRGBA16F0.begin(), g_fullresRGBA16F0.end(), [](auto & r) { r.clear(); });
+	std::for_each(g_fullresRGBA16F1.begin(), g_fullresRGBA16F1.end(), [](auto & r) { r.clear(); });
+	std::for_each(g_fullresRGBA16F2.begin(), g_fullresRGBA16F2.end(), [](auto & r) { r.clear(); });
+	std::for_each(g_fullresRGBA8U0.begin(), g_fullresRGBA8U0.end(), [](auto & r) { r.clear(); });
+	std::for_each(g_depthBuffer.begin(), g_depthBuffer.end(), [](auto & r) { r.clear(); });
 
 	g_imageManager.reset();
 	g_meshManager.reset();
@@ -686,7 +667,7 @@ void renderer_application::update_renderer_configuration(ID3D12Device * device, 
 
 }
 
-void renderer_application::upload_per_frame_resources(ID3D12Device * device, gpu_command_queue & commandQueue, ID3D12Resource * cbPerFrameBuffer)
+void renderer_application::upload_per_frame_resources(ID3D12Device * device, gpu_command_queue & commandQueue, gpu_graphics_command_list & commandList, gpu_ring_buffer & ringBuffer, ID3D12Resource * cbPerFrameBuffer)
 {
 
 	/* Setup per frame constant buffer */
@@ -714,8 +695,8 @@ void renderer_application::upload_per_frame_resources(ID3D12Device * device, gpu
 
 	/* Screen settings */
 
-	cbPerFrame.screen.resolution        = XMUINT2(get_screen_width(), get_screen_height());
-	cbPerFrame.screen.orthoProjection   = XMMatrixTranspose(XMMatrixOrthographicOffCenterLH(0, get_screen_width(), get_screen_height(), 0, 0, 1));
+	cbPerFrame.screen.resolution      = XMUINT2(get_screen_width(), get_screen_height());
+	cbPerFrame.screen.orthoProjection = XMMatrixTranspose(XMMatrixOrthographicOffCenterLH(0, get_screen_width(), get_screen_height(), 0, 0, 1));
 
 	/* Render variables */
 
@@ -727,45 +708,44 @@ void renderer_application::upload_per_frame_resources(ID3D12Device * device, gpu
 	cbPerFrame.rvars.evsm2MinBleeding    = g_rendererConfiguration.get_evsm2_min_bleeding();
 	cbPerFrame.rvars.evsm2Exponent       = esm_clamp_exponent(g_rendererConfiguration.get_evsm2_exponent(), g_rendererConfiguration.get_evsm2_float_precision());
 
-	cbPerFrame.rvars.evsm4MinVariance = g_rendererConfiguration.get_evsm4_min_variance();
-	cbPerFrame.rvars.evsm4MinBleeding = g_rendererConfiguration.get_evsm4_min_bleeding();
-	cbPerFrame.rvars.evsm4PosExponent = esm_clamp_exponent_positive(g_rendererConfiguration.get_evsm4_positive_exponent(), g_rendererConfiguration.get_evsm4_float_precision());
-	cbPerFrame.rvars.evsm4NegExponent = esm_clamp_exponent_positive(g_rendererConfiguration.get_evsm4_negative_exponent(), g_rendererConfiguration.get_evsm4_float_precision());
+	cbPerFrame.rvars.evsm4MinVariance    = g_rendererConfiguration.get_evsm4_min_variance();
+	cbPerFrame.rvars.evsm4MinBleeding    = g_rendererConfiguration.get_evsm4_min_bleeding();
+	cbPerFrame.rvars.evsm4PosExponent    = esm_clamp_exponent_positive(g_rendererConfiguration.get_evsm4_positive_exponent(), g_rendererConfiguration.get_evsm4_float_precision());
+	cbPerFrame.rvars.evsm4NegExponent    = esm_clamp_exponent_positive(g_rendererConfiguration.get_evsm4_negative_exponent(), g_rendererConfiguration.get_evsm4_float_precision());
 
 	/* Upload */
 
 	D3D12_GPU_VIRTUAL_ADDRESS address;
-	D3D12_GPU_VIRTUAL_ADDRESS heapAddress = g_uploadRingBuffer.get_heap()->GetGPUVirtualAddress();
+	D3D12_GPU_VIRTUAL_ADDRESS heapAddress = ringBuffer.get_heap()->GetGPUVirtualAddress();
 
-	void * cbData = g_uploadRingBuffer.allocate_constant_buffer(device, commandQueue, sizeof(cb_per_frame), &address);
+	void * cbData = ringBuffer.allocate_constant_buffer(device, commandQueue, sizeof(cb_per_frame), &address);
 
 	memcpy(cbData, &cbPerFrame, sizeof(cb_per_frame));
 
-	g_uploadManager.upload_buffer(commandQueue, cbPerFrameBuffer, 0, g_uploadRingBuffer.get_heap(), address - heapAddress, sizeof(cb_per_frame));
+	gpu_upload_buffer(commandQueue, commandList, cbPerFrameBuffer, 0, ringBuffer.get_heap(), address - heapAddress, sizeof(cb_per_frame));
 
 }
 
-void renderer_application::on_render(ID3D12Device * device, gpu_command_queue & commandQueue, const render_resource & backBuffer, UINT bufferIndex)
+void renderer_application::on_render(gpu_render_context & renderContext, const render_resource & backBuffer)
 {
+
+	ID3D12Device * device       = renderContext.get_device();
+	auto &         commandQueue = renderContext.get_command_queue();
+	auto &         commandList  = renderContext.get_command_list();
+	uint32_t       bufferIndex  = renderContext.get_buffer_index();
 
 	update_renderer_configuration(device, commandQueue);
 
-	/* Reset command list and command allocator */
+	/* Reset command list */
 
-	gpu_graphics_command_list & commandList    = g_commandList[bufferIndex];
-	gpu_graphics_command_list & auxCommandList = g_auxCommandList[bufferIndex];
-
-	g_uploadManager.set_command_list_index(bufferIndex);
-	commandQueue.set_aux_command_list(auxCommandList);
-
-	auxCommandList.reset_command_allocator();
-	commandList.reset_command_allocator();
+	renderContext.reset_command_allocators();
+	commandList.reset_command_list(nullptr);
 
 	/* Setup render */
 
 	D3D12_GPU_VIRTUAL_ADDRESS cbPerFrameAddress = g_cbPerFrame[bufferIndex]->GetGPUVirtualAddress();
 
-	upload_per_frame_resources(device, commandQueue, g_cbPerFrame[bufferIndex].get());
+	upload_per_frame_resources(device, commandQueue, commandList, renderContext.get_ring_buffer(), g_cbPerFrame[bufferIndex].get());
 
 	/* Clear the buffers */
 
@@ -781,25 +761,19 @@ void renderer_application::on_render(ID3D12Device * device, gpu_command_queue & 
 
 	float clearColor[4] = { 0.f };
 
-	commandList.reset_command_list(nullptr);
-
 	commandList->ClearRenderTargetView(gbuffer[0]->get_rtv_cpu_descriptor_handle(), clearColor, 0, nullptr);
 	commandList->ClearRenderTargetView(gbuffer[1]->get_rtv_cpu_descriptor_handle(), clearColor, 0, nullptr);
 	commandList->ClearRenderTargetView(gbuffer[2]->get_rtv_cpu_descriptor_handle(), clearColor, 0, nullptr);
 	commandList->ClearRenderTargetView(gbuffer[3]->get_rtv_cpu_descriptor_handle(), clearColor, 0, nullptr);
 
 	commandList->ClearRenderTargetView(g_fullresGUI[bufferIndex].get_rtv_cpu_descriptor_handle(), clearColor, 0, nullptr);
-
-	commandList->ClearDepthStencilView(g_depthBuffer[bufferIndex].get_dsv_cpu_descriptor_handle(), D3D12_CLEAR_FLAG_DEPTH, 1.f, 0, 0, nullptr);
+	commandList->ClearDepthStencilView(g_depthBuffer[bufferIndex].get_dsv_cpu_descriptor_handle(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.f, 0, 0, nullptr);
 
 	commandList.resource_barrier_transition(g_cbPerFrame[bufferIndex].get(), D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
 
-	FUSE_HR_CHECK(commandList->Close());
-	commandQueue.execute(commandList);
-
 	/* Draw GUI */
 
-	draw_gui(device, commandQueue, commandList);
+	draw_gui(device, commandQueue, commandList, renderContext.get_ring_buffer());
 
 	/* GBuffer rendering */
 
@@ -809,7 +783,7 @@ void renderer_application::on_render(ID3D12Device * device, gpu_command_queue & 
 		device,
 		commandQueue,
 		commandList,
-		&g_uploadRingBuffer,
+		renderContext.get_ring_buffer(),
 		cbPerFrameAddress,
 		gbuffer,
 		g_depthBuffer[bufferIndex],
@@ -819,14 +793,8 @@ void renderer_application::on_render(ID3D12Device * device, gpu_command_queue & 
 
 	/* Prepare for shading */
 
-	commandList.reset_command_list(nullptr);
-
 	commandList.resource_barrier_transition(g_fullresRGBA16F2[bufferIndex].get(), D3D12_RESOURCE_STATE_RENDER_TARGET);
 	commandList->ClearRenderTargetView(g_fullresRGBA16F2[bufferIndex].get_rtv_cpu_descriptor_handle(), clearColor, 0, nullptr);
-
-	FUSE_HR_CHECK(commandList->Close());
-
-	commandQueue.execute(commandList);
 
 	/* Shading */
 
@@ -842,38 +810,14 @@ void renderer_application::on_render(ID3D12Device * device, gpu_command_queue & 
 		if (currentLight->type == FUSE_LIGHT_TYPE_DIRECTIONAL)
 		{
 
-			XMVECTOR direction = to_vector(currentLight->direction);
-
-			XMMATRIX viewMatrix = XMMatrixLookAtLH(
-				XMVectorZero(),
-				direction,
-				XMVectorSet(currentLight->direction.y > .99f ? 1.f : 0.f, currentLight->direction.y > .99f ? 0.f : 1.f, 0.f, 0.f));
-
-			aabb currentAABB = aabb::from_min_max(
-				XMVectorSet(FLT_MAX, FLT_MAX, FLT_MAX, FLT_MAX),
-				XMVectorSet(-FLT_MAX, -FLT_MAX, -FLT_MAX, -FLT_MAX));
-
-			for (auto it = staticObjects.first; it != staticObjects.second; it++)
-			{
-				XMMATRIX worldView       = XMMatrixMultiply((*it)->get_world_matrix(), viewMatrix);
-				sphere transformedSphere = transform_affine((*it)->get_bounding_sphere(), worldView);
-				aabb objectAABB          = bounding_aabb(transformedSphere);
-				currentAABB              = currentAABB + objectAABB;
-			}
-
-			auto aabbMin = to_float3(currentAABB.get_min());
-			auto aabbMax = to_float3(currentAABB.get_max());
-
-			XMMATRIX orthoMatrix = XMMatrixOrthographicOffCenterLH(aabbMin.x, aabbMax.x, aabbMin.y, aabbMax.y, aabbMax.z, aabbMin.z);
-
 			shadowMapInfo.shadowMap   = std::addressof(g_shadowmap0[bufferIndex]);
-			shadowMapInfo.lightMatrix = XMMatrixMultiply(viewMatrix, orthoMatrix);
+			shadowMapInfo.lightMatrix = sm_directional_light_matrix(currentLight->direction, staticObjects.first, staticObjects.second);
 
 			g_shadowMapper.render(
 				device,
 				commandQueue,
 				commandList,
-				&g_uploadRingBuffer,
+				renderContext.get_ring_buffer(),
 				cbPerFrameAddress,
 				shadowMapInfo.lightMatrix,
 				g_shadowmap0[bufferIndex],
@@ -897,12 +841,61 @@ void renderer_application::on_render(ID3D12Device * device, gpu_command_queue & 
 			device,
 			commandQueue,
 			commandList,
-			&g_uploadRingBuffer,
+			renderContext.get_ring_buffer(),
 			cbPerFrameAddress,
 			g_fullresRGBA16F2[bufferIndex],
 			gbuffer,
 			currentLight,
 			pShadowMapInfo);
+
+	}
+
+	/* Skybox */
+
+	{
+
+		shadow_map_info shadowMapInfo;
+
+		skybox * skybox = g_scene.get_skybox();
+
+		g_skyboxRenderer.render(device, commandQueue, commandList, renderContext.get_ring_buffer(), *skybox);
+
+		light sunLight = skybox->get_sun_light();
+
+		shadowMapInfo.shadowMap = std::addressof(g_shadowmap0[bufferIndex]);
+		shadowMapInfo.lightMatrix = sm_directional_light_matrix(sunLight.direction, staticObjects.first, staticObjects.second);
+
+		g_shadowMapper.render(
+			device,
+			commandQueue,
+			commandList,
+			renderContext.get_ring_buffer(),
+			cbPerFrameAddress,
+			shadowMapInfo.lightMatrix,
+			g_shadowmap0[bufferIndex],
+			g_shadowmap32F[bufferIndex],
+			staticObjects.first,
+			staticObjects.second);
+
+		g_shadowMapBlur.render(
+			commandQueue,
+			commandList,
+			g_shadowmap0[bufferIndex],
+			g_shadowmap1[bufferIndex]);
+
+		g_mipmapGenerator->generate_mipmaps(device, commandQueue, commandList, g_shadowmap0[bufferIndex].get());
+
+		g_deferredRenderer.render_skybox(
+			device,
+			commandQueue,
+			commandList,
+			renderContext.get_ring_buffer(),
+			cbPerFrameAddress,
+			g_fullresRGBA16F2[bufferIndex],
+			gbuffer,
+			g_depthBuffer[bufferIndex],
+			*skybox,
+			&shadowMapInfo);
 
 	}
 
@@ -919,15 +912,10 @@ void renderer_application::on_render(ID3D12Device * device, gpu_command_queue & 
 
 	/* Finally copy to backbuffer */
 
-	commandList.reset_command_list(nullptr);
-
 	commandList.resource_barrier_transition(g_fullresRGBA8U0[bufferIndex].get(), D3D12_RESOURCE_STATE_COPY_SOURCE);
 	commandList.resource_barrier_transition(backBuffer.get(), D3D12_RESOURCE_STATE_COPY_DEST);
 
 	commandList->CopyResource(backBuffer.get(), g_fullresRGBA8U0[bufferIndex].get());
-
-	FUSE_HR_CHECK(commandList->Close());
-	commandQueue.execute(commandList);	
 
 	/* Compose */
 
@@ -944,8 +932,6 @@ void renderer_application::on_render(ID3D12Device * device, gpu_command_queue & 
 
 	/* Present */
 
-	commandList.reset_command_list(nullptr);
-
 	commandList.resource_barrier_transition(backBuffer.get(), D3D12_RESOURCE_STATE_PRESENT);
 
 	FUSE_HR_CHECK(commandList->Close());
@@ -953,7 +939,7 @@ void renderer_application::on_render(ID3D12Device * device, gpu_command_queue & 
 
 }
 
-void renderer_application::draw_gui(ID3D12Device * device, gpu_command_queue & commandQueue, gpu_graphics_command_list & commandList)
+void renderer_application::draw_gui(ID3D12Device * device, gpu_command_queue & commandQueue, gpu_graphics_command_list & commandList, gpu_ring_buffer & ringBuffer)
 {
 
 	uint32_t bufferIndex = get_buffer_index();
@@ -970,14 +956,14 @@ void renderer_application::draw_gui(ID3D12Device * device, gpu_command_queue & c
 		device,
 		commandQueue,
 		commandList,
+		ringBuffer,
 		g_fullresGUI[bufferIndex].get(),
 		&guiRTV,
 		cbPerFrameAddress,
-		&g_uploadRingBuffer,
 		g_font.get(),
 		guiSS.str().c_str(),
 		XMFLOAT2(16, 16),
-		XMFLOAT4(1, 1, 0, .5f));
+		XMFLOAT4(1, 1, 0, 1));
 
 #ifdef FUSE_USE_EDITOR_GUI
 
@@ -985,7 +971,9 @@ void renderer_application::draw_gui(ID3D12Device * device, gpu_command_queue & c
 	{
 
 		g_rocketInterface.render_begin(
+			commandQueue,
 			commandList,
+			ringBuffer,
 			cbPerFrameAddress,
 			g_fullresGUI[bufferIndex].get(),
 			guiRTV);
@@ -1006,6 +994,7 @@ void renderer_application::on_configuration_init(application_config * configurat
 	configuration->presentFlags         = 0;
 	configuration->swapChainBufferCount = NUM_BUFFERS;
 	configuration->swapChainFormat      = DXGI_FORMAT_R8G8B8A8_UNORM;
+	configuration->uploadHeapSize       = UPLOAD_HEAP_SIZE;
 }
 
 bool renderer_application::create_shadow_map_resources(ID3D12Device * device, bool createBuffers)
@@ -1120,7 +1109,7 @@ bool renderer_application::create_shadow_map_resources(ID3D12Device * device, bo
 			srvDesc.Texture2D.MostDetailedMip = 0;
 			srvDesc.Texture2D.MipLevels       = -1;
 
-			FAIL_IF(
+			FAIL_IF (
 				!r.create(
 					device,
 					&CD3DX12_RESOURCE_DESC::Tex2D(

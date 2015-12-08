@@ -2,6 +2,10 @@
 
 #include <algorithm>
 
+#include <fuse/render_resource.hpp>
+
+#include "scene.hpp"
+
 enum shadow_mapping_algorithm
 {
 	FUSE_SHADOW_MAPPING_NONE,
@@ -12,6 +16,12 @@ enum shadow_mapping_algorithm
 
 namespace fuse
 {
+
+	struct shadow_map_info
+	{
+		const render_resource * shadowMap;
+		XMMATRIX lightMatrix;
+	};
 
 	inline float esm_clamp_exponent_positive(float exponent, unsigned int precision)
 	{
@@ -24,5 +34,7 @@ namespace fuse
 		float clampedValue = precision == 16 ? std::min(absExp, 10.f) : std::min(absExp, 42.f);
 		return std::copysign(clampedValue, exponent);
 	}
+
+	XMMATRIX sm_directional_light_matrix(const XMFLOAT3 & lightDirection, renderable_iterator begin, renderable_iterator end);
 
 }

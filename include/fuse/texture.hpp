@@ -24,14 +24,14 @@ namespace fuse
 		bool create(
 			ID3D12Device * device,
 			gpu_command_queue & commandQueue,
-			gpu_upload_manager * uploadManager,
-			gpu_ring_buffer * ringBuffer,
+			gpu_graphics_command_list & commandList,
+			gpu_ring_buffer & ringBuffer,
 			image * image,
 			UINT mipmaps = 1,
 			D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE,
 			bool generateMipmaps = false);
 
-		void clear(void);
+		void clear(gpu_command_queue & commandQueue);
 
 	protected:
 

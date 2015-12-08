@@ -21,7 +21,7 @@ void tonemapper::render(
 	UINT height)
 {
 	
-	commandList.reset_command_list(m_pso.get());
+	commandList->SetPipelineState(m_pso.get());
 
 	commandList.resource_barrier_transition(source.get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 	commandList.resource_barrier_transition(destination.get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
@@ -38,10 +38,6 @@ void tonemapper::render(
 	UINT gridHeight = (height + groupSize - 1) / groupSize;
 
 	commandList->Dispatch(gridWidth, gridHeight, 1);
-
-	FUSE_HR_CHECK(commandList->Close());
-
-	commandQueue.execute(commandList);
 
 }
 

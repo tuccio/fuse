@@ -18,6 +18,7 @@
 #include "scene.hpp"
 #include "shadow_mapping.hpp"
 #include "renderable.hpp"
+#include "skybox.hpp"
 
 namespace fuse
 {
@@ -28,12 +29,6 @@ namespace fuse
 		DXGI_FORMAT dsvFormat;
 		DXGI_FORMAT shadingFormat;
 		shadow_mapping_algorithm shadowMappingAlgorithm;
-	};
-
-	struct shadow_map_info
-	{
-		const render_resource * shadowMap;
-		XMMATRIX lightMatrix;
 	};
 
 	class deferred_renderer
@@ -53,7 +48,7 @@ namespace fuse
 			ID3D12Device * device,
 			gpu_command_queue & commandQueue,
 			gpu_graphics_command_list & commandList,
-			gpu_ring_buffer * ringBuffer,
+			gpu_ring_buffer & ringBuffer,
 			D3D12_GPU_VIRTUAL_ADDRESS cbPerFrame,
 			render_resource * const * gbuffer,
 			const render_resource & depthBuffer,
@@ -65,11 +60,23 @@ namespace fuse
 			ID3D12Device * device,
 			gpu_command_queue & commandQueue,
 			gpu_graphics_command_list & commandList,
-			gpu_ring_buffer * ringBuffer,
+			gpu_ring_buffer & ringBuffer,
 			D3D12_GPU_VIRTUAL_ADDRESS cbPerFrame,
 			const render_resource & renderTarget,
 			render_resource * const * gbuffer,
 			const light * light,
+			const shadow_map_info * shadowMapInfo = nullptr);
+
+		void render_skybox(
+			ID3D12Device * device,
+			gpu_command_queue & commandQueue,
+			gpu_graphics_command_list & commandList,
+			gpu_ring_buffer & ringBuffer,
+			D3D12_GPU_VIRTUAL_ADDRESS cbPerFrame,
+			const render_resource & renderTarget,
+			render_resource * const * gbuffer,
+			const render_resource & depthBuffer,
+			skybox & skybox,
 			const shadow_map_info * shadowMapInfo = nullptr);
 
 	private:
@@ -79,8 +86,15 @@ namespace fuse
 		com_ptr<ID3D12PipelineState> m_gbufferPSO;
 		com_ptr<ID3D12RootSignature> m_gbufferRS;
 
-		com_ptr<ID3D12PipelineState> m_shadingPSO;
 		com_ptr<ID3D12RootSignature> m_shadingRS;
+
+		com_ptr<ID3D12PipelineState> m_directionalPSO;
+
+		com_ptr<ID3D12PipelineState> m_skyboxLightingPSO;
+		com_ptr<ID3D12RootSignature> m_skyboxLightingRS;
+
+		com_ptr<ID3D12PipelineState> m_skyboxPSO;
+		com_ptr<ID3D12RootSignature> m_skyboxRS;
 
 		D3D12_VIEWPORT m_viewport;
 		D3D12_RECT     m_scissorRect;
@@ -92,7 +106,9 @@ namespace fuse
 
 		bool create_psos(ID3D12Device * device);
 		bool create_gbuffer_pso(ID3D12Device * device);
-		bool create_shading_pso(ID3D12Device * device);
+		bool create_directional_light_pso(ID3D12Device * device);
+		bool create_skybox_lighting_pso(ID3D12Device * device);
+		bool create_skybox_pso(ID3D12Device * device);
 
 	public:
 

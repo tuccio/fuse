@@ -120,8 +120,8 @@ bool bitmap_font::load_metafile(const char * metafile)
 					c.code = character.second.get<char>("<xmlattr>.code");
 					c.width = character.second.get<unsigned int>("<xmlattr>.width");
 
-					c.minUV[0] = (c.rect.left + .5f) * invWidth;
-					c.minUV[1] = (c.rect.top + .5f) * invHeight;
+					c.minUV[0] = (c.rect.left) * invWidth;
+					c.minUV[1] = (c.rect.top) * invHeight;
 
 					c.maxUV[0] = (c.rect.right + .5f) * invWidth;
 					c.maxUV[1] = (c.rect.bottom + .5f) * invHeight;

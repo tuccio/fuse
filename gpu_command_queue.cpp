@@ -168,5 +168,5 @@ void gpu_command_queue::collect_garbage(void) const
 
 void gpu_command_queue::set_aux_command_list(gpu_graphics_command_list & commandList)
 {
-	m_auxCommandList = &commandList;
+	m_auxCommandList = std::addressof(commandList);
 }

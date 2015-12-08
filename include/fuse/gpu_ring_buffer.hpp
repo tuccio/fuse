@@ -22,7 +22,8 @@ namespace fuse
 		gpu_ring_buffer(const gpu_ring_buffer &) = delete;
 		gpu_ring_buffer(gpu_ring_buffer &&) = default;
 
-		bool create(ID3D12Device * device, UINT size);
+		bool init(ID3D12Device * device, UINT size);
+		void shutdown(void);
 
 		void * allocate_constant_buffer(ID3D12Device * device,
 		                                gpu_command_queue & commandQueue,

@@ -33,7 +33,7 @@ namespace fuse
 			ID3D12Device * device,
 			gpu_command_queue & commandQueue,
 			gpu_graphics_command_list & commandList,
-			gpu_ring_buffer * ringBuffer,
+			gpu_ring_buffer & ringBuffer,
 			D3D12_GPU_VIRTUAL_ADDRESS cbPerFrame,
 			const XMMATRIX & lightMatrix,
 			const render_resource & renderTarget,

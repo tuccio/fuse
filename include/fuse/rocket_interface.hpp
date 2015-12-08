@@ -26,10 +26,17 @@ namespace fuse
 		rocket_interface(void);
 		~rocket_interface(void);
 
-		bool init(ID3D12Device * device, gpu_command_queue & commandQueue, gpu_upload_manager * uploadManager, gpu_ring_buffer * ringBuffer, const rocket_interface_configuration & cfg);
+		bool init(ID3D12Device * device, const rocket_interface_configuration & cfg);
 		void shutdown(void);
 
-		void render_begin(gpu_graphics_command_list & commandList, D3D12_GPU_VIRTUAL_ADDRESS cbPerFrame, ID3D12Resource * renderTarget, const D3D12_CPU_DESCRIPTOR_HANDLE & rtv);
+		void render_begin(
+			gpu_command_queue & commandQueue,
+			gpu_graphics_command_list & commandList,
+			gpu_ring_buffer & ringBuffer,
+			D3D12_GPU_VIRTUAL_ADDRESS cbPerFrame,
+			ID3D12Resource * renderTarget,
+			const D3D12_CPU_DESCRIPTOR_HANDLE & rtv);
+
 		void render_end(void);
 
 		void on_resize(UINT width, UINT height);
@@ -67,7 +74,6 @@ namespace fuse
 
 		ID3D12Device       * m_device;
 		gpu_command_queue  * m_commandQueue;
-		gpu_upload_manager * m_uploadManager;
 		gpu_ring_buffer    * m_ringBuffer;
 
 		struct compiled_geometry

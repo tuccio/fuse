@@ -31,13 +31,10 @@ rocket_interface::~rocket_interface(void)
 	shutdown();
 }
 
-bool rocket_interface::init(ID3D12Device * device, gpu_command_queue & commandQueue, gpu_upload_manager * uploadManager, gpu_ring_buffer * ringBuffer, const rocket_interface_configuration & cfg)
+bool rocket_interface::init(ID3D12Device * device, const rocket_interface_configuration & cfg)
 {
 
 	m_device        = device;
-	m_commandQueue  = &commandQueue;
-	m_ringBuffer    = ringBuffer;
-	m_uploadManager = uploadManager;
 
 	m_lastGeometryHandle = 0;
 	m_lastTextureHandle = 0;
@@ -53,13 +50,15 @@ bool rocket_interface::init(ID3D12Device * device, gpu_command_queue & commandQu
 void rocket_interface::shutdown(void)
 {
 
-	// Should release all the resources
-
 	if (m_commandQueue)
 	{
+
 		m_commandQueue  = nullptr;
 		m_ringBuffer    = nullptr;
-		m_uploadManager = nullptr;
+
+		m_textures.clear();
+		m_geometry.clear();
+
 	}
 
 }
@@ -123,7 +122,7 @@ Rocket::Core::CompiledGeometryHandle rocket_interface::CompileGeometry(Rocket::C
 
 		memcpy(data, &vertexData[0], bufferSize);
 
-		m_uploadManager->upload_buffer(*m_commandQueue, buffer.get(), 0, m_ringBuffer->get_heap(), heapOffset, bufferSize);
+		gpu_upload_buffer(*m_commandQueue, *m_commandList, buffer.get(), 0, m_ringBuffer->get_heap(), heapOffset, bufferSize);
 
 		D3D12_GPU_VIRTUAL_ADDRESS dataAddress = buffer->GetGPUVirtualAddress();
 
@@ -153,18 +152,24 @@ Rocket::Core::CompiledGeometryHandle rocket_interface::CompileGeometry(Rocket::C
 
 }
 
-void rocket_interface::render_begin(gpu_graphics_command_list & commandList, D3D12_GPU_VIRTUAL_ADDRESS cbPerFrame, ID3D12Resource * renderTarget, const D3D12_CPU_DESCRIPTOR_HANDLE & rtv)
+void rocket_interface::render_begin(
+	gpu_command_queue & commandQueue,
+	gpu_graphics_command_list & commandList,
+	gpu_ring_buffer & ringBuffer,
+	D3D12_GPU_VIRTUAL_ADDRESS cbPerFrame,
+	ID3D12Resource * renderTarget,
+	const D3D12_CPU_DESCRIPTOR_HANDLE & rtv)
 {
 
-	m_commandList = &commandList;
+	m_commandQueue = std::addressof(commandQueue);
+	m_commandList  = std::addressof(commandList);
+	m_ringBuffer   = std::addressof(ringBuffer);
 
-	commandList.reset_command_list(m_pso.get());
+	commandList->SetPipelineState(m_pso.get());
+	commandList->SetGraphicsRootSignature(m_rs.get());
 
 	commandList.resource_barrier_transition(renderTarget, D3D12_RESOURCE_STATE_RENDER_TARGET);
 
-	commandList->SetGraphicsRootSignature(m_rs.get());
-
-	commandList->SetGraphicsRootSignature(m_rs.get());
 	commandList->SetGraphicsRootConstantBufferView(0, cbPerFrame);
 
 	commandList->SetDescriptorHeaps(1, cbv_uav_srv_descriptor_heap::get_singleton_pointer()->get_address());
@@ -172,14 +177,12 @@ void rocket_interface::render_begin(gpu_graphics_command_list & commandList, D3D
 	commandList->OMSetRenderTargets(1, &rtv, true, nullptr);
 
 	commandList->RSSetViewports(1, &make_fullscreen_viewport(m_width, m_height));
-	commandList->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 }
 
 void rocket_interface::render_end(void)
 {
-	FUSE_HR_CHECK((*m_commandList)->Close());
-	m_commandQueue->execute(*m_commandList);
 }
 
 void rocket_interface::RenderCompiledGeometry(Rocket::Core::CompiledGeometryHandle geometry, const Rocket::Core::Vector2f & translation)
@@ -284,7 +287,7 @@ bool rocket_interface::LoadTexture(Rocket::Core::TextureHandle & texture_handle,
 bool rocket_interface::GenerateTexture(Rocket::Core::TextureHandle & texture_handle, const Rocket::Core::byte * source, const Rocket::Core::Vector2i & source_dimensions)
 {
 
-	// Needs the resource never to be unloaded to work properly
+	// Needs the resource not to be unloaded until it's not used anymore
 
 	static dynamic_resource_loader fakeImageLoader(
 		[](resource * r) { return true; },
@@ -292,13 +295,13 @@ bool rocket_interface::GenerateTexture(Rocket::Core::TextureHandle & texture_han
 
 	static dynamic_resource_loader fakeTextureLoader(
 		[](resource * r) { return true; },
-		[](resource * r) { static_cast<texture*>(r)->clear(); });
+		[this](resource * r) { static_cast<texture*>(r)->clear(*m_commandQueue); });
 
 	image_ptr   img = resource_factory::get_singleton_pointer()->create<image>(FUSE_RESOURCE_TYPE_IMAGE, "", default_parameters(), &fakeImageLoader);
 	texture_ptr tex = resource_factory::get_singleton_pointer()->create<texture>(FUSE_RESOURCE_TYPE_TEXTURE, "", default_parameters(), &fakeTextureLoader);
 
 	if (img->create(FUSE_IMAGE_FORMAT_R8G8B8A8_UINT, source_dimensions.x, source_dimensions.y, source) &&
-		tex->create(m_device, *m_commandQueue, m_uploadManager, m_ringBuffer, img.get()))
+		tex->create(m_device, *m_commandQueue, *m_commandList, *m_ringBuffer, img.get()))
 	{
 		texture_handle = register_texture(tex);
 		m_textures[texture_handle].generated = true;

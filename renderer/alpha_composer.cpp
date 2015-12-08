@@ -26,7 +26,7 @@ void alpha_composer::render(
 	uint32_t numSRVs)
 {
 
-	commandList.reset_command_list(m_pso.get());
+	commandList->SetPipelineState(m_pso.get());
 
 	commandList->OMSetRenderTargets(1, &renderTarget.get_rtv_cpu_descriptor_handle(), false, nullptr);
 
@@ -47,11 +47,7 @@ void alpha_composer::render(
 		commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 		commandList->DrawInstanced(4, 1, 0, 0);
 
-		FUSE_HR_CHECK(commandList->Close());
-
 	}
-
-	commandQueue.execute(commandList);
 
 }
 

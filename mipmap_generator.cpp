@@ -20,8 +20,6 @@ bool mipmap_generator::generate_mipmaps(
 	ID3D12Resource * resource)
 {
 
-	// Change plan, use rasterizer
-
 	D3D12_RESOURCE_DESC desc = resource->GetDesc();
 
 	// Get the PSO
@@ -83,7 +81,7 @@ bool mipmap_generator::generate_mipmaps(
 	UINT rtvDescSize = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 	UINT srvDescSize = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
-	commandList.reset_command_list(pso);
+	commandList->SetPipelineState(pso);
 	commandList->SetGraphicsRootSignature(m_rs.get());
 
 	commandList.resource_barrier_transition(resource, D3D12_RESOURCE_STATE_RENDER_TARGET);
@@ -144,9 +142,6 @@ bool mipmap_generator::generate_mipmaps(
 
 	commandList->ResourceBarrier(1,
 		&CD3DX12_RESOURCE_BARRIER::Transition(resource, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET, 0));
-
-	FUSE_HR_CHECK(commandList->Close());
-	commandQueue.execute(commandList);
 
 	commandQueue.safe_release(srvHeap.get());
 	commandQueue.safe_release(rtvHeap.get());

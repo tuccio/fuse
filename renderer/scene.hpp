@@ -6,6 +6,7 @@
 
 #include "light.hpp"
 #include "renderable.hpp"
+#include "skybox.hpp"
 
 #include <vector>
 #include <utility>
@@ -41,11 +42,15 @@ namespace fuse
 		std::pair<camera_iterator, camera_iterator> get_cameras(void);
 		std::pair<light_iterator, light_iterator> get_lights(void);
 
+		inline skybox * get_skybox(void) { return &m_skybox; }
+
 	private:
 
 		renderable_vector m_staticObjects;
 		camera_vector     m_cameras;
 		light_vector      m_lights;
+
+		skybox            m_skybox;
 
 		camera * m_activeCamera;
 

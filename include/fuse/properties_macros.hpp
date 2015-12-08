@@ -5,10 +5,13 @@
 
 #include <type_traits>
 
+
+
 #define FUSE_PROPERTY_GET_BY_CONST_REFERENCE(PropertyName, MemberVariable) BOOST_PP_CAT(inline auto get_, PropertyName (void) const -> decltype((MemberVariable)) { return MemberVariable ; })
 #define FUSE_PROPERTY_SET_BY_CONST_REFERENCE(PropertyName, MemberVariable) BOOST_PP_CAT(inline void set_, PropertyName (const decltype(MemberVariable) & value) { MemberVariable = value; })
 
 #define FUSE_PROPERTY_GET_BY_VALUE(PropertyName, MemberVariable) BOOST_PP_CAT(inline auto get_, PropertyName (void) const -> std::remove_const<decltype(MemberVariable)>::type { return MemberVariable ; })
+
 #define FUSE_PROPERTY_SET_BY_VALUE(PropertyName, MemberVariable) BOOST_PP_CAT(inline void set_, PropertyName (std::remove_const<decltype(MemberVariable)>::type value) { MemberVariable = value; })
 
 #define FUSE_PROPERTY_GET_SMART_POINTER(PropertyName, MemberVariable) BOOST_PP_CAT(inline auto get_, PropertyName (void) const -> decltype(MemberVariable.get()) { return MemberVariable ## .get(); })

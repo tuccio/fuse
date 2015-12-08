@@ -9,6 +9,8 @@
 namespace fuse
 {
 
+	typedef pool_size_t descriptor_token_t;
+
 	class descriptor_heap :
 		public com_ptr<ID3D12DescriptorHeap>
 	{
@@ -18,7 +20,7 @@ namespace fuse
 		D3D12_CPU_DESCRIPTOR_HANDLE get_cpu_descriptor_handle(UINT token);
 		D3D12_GPU_DESCRIPTOR_HANDLE get_gpu_descriptor_handle(UINT token);
 
-		UINT allocate(UINT descriptors = 1);
+		descriptor_token_t allocate(UINT descriptors = 1);
 		void free(UINT element, UINT descriptors = 1);
 
 	protected:
@@ -45,6 +47,8 @@ namespace fuse
 
 	};
 
+	
+
 	class cbv_uav_srv_descriptor_heap :
 		public singleton<cbv_uav_srv_descriptor_heap>,
 		public descriptor_heap
@@ -55,9 +59,9 @@ namespace fuse
 		bool init(ID3D12Device * device, UINT maxDescriptors);
 		void shutdown(void);
 
-		UINT create_shader_resource_view(ID3D12Device * device, ID3D12Resource * resource, const D3D12_SHADER_RESOURCE_VIEW_DESC * desc = nullptr);
-		UINT create_unordered_access_view(ID3D12Device * device, ID3D12Resource * resource, ID3D12Resource * counter = nullptr, const D3D12_UNORDERED_ACCESS_VIEW_DESC * desc = nullptr);
-		UINT create_constant_buffer_view(ID3D12Device * device, const D3D12_CONSTANT_BUFFER_VIEW_DESC * desc);
+		descriptor_token_t create_shader_resource_view(ID3D12Device * device, ID3D12Resource * resource, const D3D12_SHADER_RESOURCE_VIEW_DESC * desc = nullptr);
+		descriptor_token_t create_unordered_access_view(ID3D12Device * device, ID3D12Resource * resource, ID3D12Resource * counter = nullptr, const D3D12_UNORDERED_ACCESS_VIEW_DESC * desc = nullptr);
+		descriptor_token_t create_constant_buffer_view(ID3D12Device * device, const D3D12_CONSTANT_BUFFER_VIEW_DESC * desc);
 
 		void free(UINT token);
 
@@ -73,7 +77,7 @@ namespace fuse
 		bool init(ID3D12Device * device, UINT maxDescriptors);
 		void shutdown(void);
 
-		UINT create_render_target_view(ID3D12Device * device, ID3D12Resource * resource, const D3D12_RENDER_TARGET_VIEW_DESC * desc = nullptr);
+		descriptor_token_t create_render_target_view(ID3D12Device * device, ID3D12Resource * resource, const D3D12_RENDER_TARGET_VIEW_DESC * desc = nullptr);
 
 		void free(UINT token);
 
@@ -89,7 +93,7 @@ namespace fuse
 		bool init(ID3D12Device * device, UINT maxDescriptors);
 		void shutdown(void);
 
-		UINT create_depth_stencil_view(ID3D12Device * device, ID3D12Resource * resource, const D3D12_DEPTH_STENCIL_VIEW_DESC * desc = nullptr);
+		descriptor_token_t create_depth_stencil_view(ID3D12Device * device, ID3D12Resource * resource, const D3D12_DEPTH_STENCIL_VIEW_DESC * desc = nullptr);
 
 		void free(UINT token);
 

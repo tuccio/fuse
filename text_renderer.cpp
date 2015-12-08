@@ -17,10 +17,10 @@ void text_renderer::render(
 	ID3D12Device * device,
 	gpu_command_queue & commandQueue,
 	gpu_graphics_command_list & commandList,
+	gpu_ring_buffer & ringBuffer,
 	ID3D12Resource * rtResource,
 	const D3D12_CPU_DESCRIPTOR_HANDLE * rtv,
 	D3D12_GPU_VIRTUAL_ADDRESS cbPerFrame,
-	gpu_ring_buffer * ringBuffer,
 	bitmap_font * font,
 	const char * text,
 	const XMFLOAT2 & position,
@@ -99,20 +99,19 @@ void text_renderer::render(
 		D3D12_GPU_VIRTUAL_ADDRESS address;
 		
 		size_t size = sizeof(__char) * data.size();
-		void * cbData = ringBuffer->allocate_constant_buffer(device, commandQueue, size, &address);
+		void * cbData = ringBuffer.allocate_constant_buffer(device, commandQueue, size, &address);
 
 		if (cbData)
 		{
 
 			memcpy(cbData, &data[0], size);
 
-			//FUSE_HR_CHECK(commandList->Reset(commandAllocator, m_pso.get()));
-			commandList.reset_command_list(m_pso.get());
+			commandList->SetPipelineState(m_pso.get());
+			commandList->SetGraphicsRootSignature(m_rs.get());
 
 			commandList.resource_barrier_transition(rtResource, D3D12_RESOURCE_STATE_RENDER_TARGET);
 			commandList.resource_barrier_transition(font->get_texture()->get_resource(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
-			commandList->SetGraphicsRootSignature(m_rs.get());
 
 			commandList->SetGraphicsRootConstantBufferView(0, cbPerFrame);
 
@@ -137,10 +136,6 @@ void text_renderer::render(
 			commandList->IASetVertexBuffers(0, 1, &vb);
 
 			commandList->DrawInstanced(data.size(), 1, 0, 0);
-
-			FUSE_HR_CHECK(commandList->Close());
-			commandQueue.execute(commandList);
-			//commandQueue->ExecuteCommandLists(1, (ID3D12CommandList**)&commandList);
 
 		}
 

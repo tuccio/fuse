@@ -1,14 +1,15 @@
 #include <fuse/texture.hpp>
 #include <fuse/resource_factory.hpp>
 #include <fuse/gpu_global_resource_state.hpp>
+#include <fuse/gpu_render_context.hpp>
 
 using namespace fuse;
 
 bool texture::create(
 	ID3D12Device * device,
 	gpu_command_queue & commandQueue,
-	gpu_upload_manager * uploadManager,
-	gpu_ring_buffer * ringBuffer,
+	gpu_graphics_command_list & commandList,
+	gpu_ring_buffer & ringBuffer,
 	image * image,
 	UINT mipmaps,
 	D3D12_RESOURCE_FLAGS flags,
@@ -62,7 +63,7 @@ bool texture::create(
 
 			D3D12_PLACED_SUBRESOURCE_FOOTPRINT placedTex;
 
-			uint8_t * texdata = (uint8_t*) ringBuffer->allocate_texture(device, commandQueue, pitchedDesc, &placedTex);
+			uint8_t * texdata = (uint8_t*) ringBuffer.allocate_texture(device, commandQueue, pitchedDesc, &placedTex);
 
 			auto & img = *image;
 			for (int i = 0; i < m_height; i++)
@@ -78,14 +79,15 @@ bool texture::create(
 
 			}
 
-			uploadManager->upload_texture(
+			gpu_upload_texture(
 				commandQueue,
+				commandList,
 				&CD3DX12_TEXTURE_COPY_LOCATION(m_buffer.get(), 0),
-				&CD3DX12_TEXTURE_COPY_LOCATION(ringBuffer->get_heap(), placedTex));
+				&CD3DX12_TEXTURE_COPY_LOCATION(ringBuffer.get_heap(), placedTex));
 
 			if (generateMipmaps)
 			{
-				uploadManager->generate_mipmaps(device, commandQueue, m_buffer.get());
+				gpu_generate_mipmaps(device, commandQueue, commandList, m_buffer.get());
 			}
 
 			return true;
@@ -98,8 +100,9 @@ bool texture::create(
 
 }
 
-void texture::clear(void)
+void texture::clear(gpu_command_queue & commandQueue)
 {
+	commandQueue.safe_release(m_buffer.get());
 	m_buffer.reset();
 }
 
@@ -114,19 +117,17 @@ bool texture::load_impl(void)
 
 		auto & params = get_parameters();
 
-		using args_tuple_type = std::tuple<ID3D12Device*, gpu_command_queue*, gpu_upload_manager*, gpu_ring_buffer*>;
+		auto renderContext = gpu_render_context::get_singleton_pointer();
 
 		auto mipmaps         = params.get_optional<UINT>("mipmaps");
 		auto generateMipmaps = params.get_optional<bool>("generate_mipmaps");
 		auto resourceFlags   = params.get_optional<UINT>("resource_flags");
 
-		args_tuple_type * args = get_owner_userdata<args_tuple_type*>();
-
 		return create(
-			std::get<0>(*args),
-			*std::get<1>(*args),
-			std::get<2>(*args),
-			std::get<3>(*args),
+			renderContext->get_device(),
+			renderContext->get_command_queue(),
+			renderContext->get_command_list(),
+			renderContext->get_ring_buffer(),
 			img.get(),
 			mipmaps ? *mipmaps : 1u,
 			resourceFlags ? static_cast<D3D12_RESOURCE_FLAGS>(*resourceFlags) : D3D12_RESOURCE_FLAG_NONE,
@@ -139,14 +140,8 @@ bool texture::load_impl(void)
 
 void texture::unload_impl(void)
 {
-
-	using args_tuple_type = std::tuple<ID3D12Device*, gpu_command_queue*, gpu_upload_manager*, gpu_ring_buffer*>;
-	args_tuple_type * args = get_owner_userdata<args_tuple_type*>();
-
-	std::get<1>(*args)->safe_release(m_buffer.get());
-
-	m_buffer.reset();
-
+	auto renderContext = gpu_render_context::get_singleton_pointer();
+	clear(renderContext->get_command_queue());
 }
 
 size_t texture::calculate_size_impl(void)

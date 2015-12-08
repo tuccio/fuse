@@ -3,7 +3,7 @@
 
 using namespace fuse;
 
-bool gpu_ring_buffer::create(ID3D12Device * device, UINT size)
+bool gpu_ring_buffer::init(ID3D12Device * device, UINT size)
 {
 
 	if (gpu_global_resource_state::get_singleton_pointer()->create_committed_resource(
@@ -31,6 +31,12 @@ bool gpu_ring_buffer::create(ID3D12Device * device, UINT size)
 
 	return false;
 
+}
+
+void gpu_ring_buffer::shutdown(void)
+{
+	m_buffer.reset();
+	m_allocatedChunks.swap(decltype(m_allocatedChunks)());
 }
 
 void * gpu_ring_buffer::allocate_constant_buffer(ID3D12Device * device,
