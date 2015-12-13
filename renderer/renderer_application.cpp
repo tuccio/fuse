@@ -39,6 +39,7 @@
 #include "editor_gui.hpp"
 #include "render_variables.hpp"
 #include "blur.hpp"
+#include "sdsm.hpp"
 
 #include <algorithm>
 #include <array>
@@ -76,6 +77,8 @@ std::array<render_resource, NUM_BUFFERS> g_shadowmap32F;
 std::array<render_resource, NUM_BUFFERS> g_shadowmap0;
 std::array<render_resource, NUM_BUFFERS> g_shadowmap1;
 
+std::array<render_resource, NUM_BUFFERS> g_sdsmConstantBuffer;
+
 std::unique_ptr<mipmap_generator> g_mipmapGenerator;
 std::unique_ptr<assimp_loader>    g_sceneLoader;
 								       
@@ -98,6 +101,7 @@ deferred_renderer  g_deferredRenderer;
 tonemapper         g_tonemapper;
 text_renderer      g_textRenderer;
 shadow_mapper      g_shadowMapper;
+sdsm               g_sdsm;
 
 renderer_configuration g_rendererConfiguration;
 
@@ -196,6 +200,25 @@ bool renderer_application::on_render_context_created(gpu_render_context & render
 			)
 		)
 
+		FAIL_IF (!g_sdsmConstantBuffer[i].
+			create(
+				device,
+				&CD3DX12_RESOURCE_DESC::Buffer(
+					sdsm::get_constant_buffer_size(),
+					D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS),
+				D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER,
+				nullptr
+			)
+		)
+
+		D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
+
+		uavDesc.Buffer.NumElements = 1;
+		uavDesc.Buffer.StructureByteStride = sdsm::get_constant_buffer_size();
+		uavDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
+
+		g_sdsmConstantBuffer[i].create_unordered_access_view(device, &uavDesc);
+
 	}
 
 	g_font = resource_factory::get_singleton_pointer()->create<bitmap_font>("bitmap_font", "fonts/consolas_regular_12");
@@ -271,15 +294,15 @@ bool renderer_application::on_render_context_created(gpu_render_context & render
 		/* Wait for the initialization operations to be done on the GPU
 		   before starting the rendering and resetting the command allocator */
 
+		FUSE_HR_CHECK(commandList->Close());
+		commandQueue.execute(commandList);
+
 		com_ptr<ID3D12Fence> initFence;
 		HANDLE hEvent = CreateEventEx(nullptr, nullptr, 0, EVENT_ALL_ACCESS);
 		device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&initFence));
 
 		commandQueue->Signal(initFence.get(), 1u);
 		initFence->SetEventOnCompletion(1u, hEvent);
-
-		FUSE_HR_CHECK(commandList->Close());
-		commandQueue.execute(commandList);
 
 		bool result = WAIT_OBJECT_0 == WaitForSingleObject(hEvent, INFINITE);
 
@@ -342,6 +365,8 @@ bool renderer_application::on_swap_chain_resized(ID3D12Device * device, IDXGISwa
 	g_alphaComposer.set_scissor_rect(scissorRect);
 
 	g_cameraController.on_resize(desc->Width, desc->Height);
+
+	FAIL_IF (!g_sdsm.init(device, desc->Width, desc->Height))
 
 	camera * mainCamera = g_scene.get_active_camera();
 
@@ -791,6 +816,8 @@ void renderer_application::on_render(gpu_render_context & renderContext, const r
 		staticObjects.first,
 		staticObjects.second);
 
+	g_sdsm.create_log_partitions(device, commandQueue, commandList, g_depthBuffer[bufferIndex], g_sdsmConstantBuffer[bufferIndex]);
+
 	/* Prepare for shading */
 
 	commandList.resource_barrier_transition(g_fullresRGBA16F2[bufferIndex].get(), D3D12_RESOURCE_STATE_RENDER_TARGET);
@@ -798,7 +825,7 @@ void renderer_application::on_render(gpu_render_context & renderContext, const r
 
 	/* Shading */
 
-	auto lightsIterators = g_scene.get_lights();
+	/*auto lightsIterators = g_scene.get_lights();
 
 	for (auto it = lightsIterators.first; it != lightsIterators.second; it++)
 	{
@@ -848,13 +875,16 @@ void renderer_application::on_render(gpu_render_context & renderContext, const r
 			currentLight,
 			pShadowMapInfo);
 
-	}
+	}*/
 
-	/* Skybox */
+	/* Skybox and skylight */
 
 	{
 
-		shadow_map_info shadowMapInfo;
+		shadow_map_info shadowMapInfo = {};
+
+		shadowMapInfo.sdsm          = true;
+		shadowMapInfo.sdsmCBAddress = g_sdsmConstantBuffer[bufferIndex]->GetGPUVirtualAddress();
 
 		skybox * skybox = g_scene.get_skybox();
 

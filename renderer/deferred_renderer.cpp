@@ -16,29 +16,54 @@ bool deferred_renderer::init(ID3D12Device * device, const deferred_renderer_conf
 {
 
 	m_configuration = cfg;
-	return create_psos(device);
+
+	return set_shadow_mapping_algorithm(m_configuration.shadowMappingAlgorithm) &&
+		create_psos(device);
 
 }
 
 void deferred_renderer::shutdown(void)
 {
 
-	m_staticObjects.clear();
+	//m_gbufferPSO.reset();
+	//m_gbufferRS.reset();
 
-	m_gbufferPSO.reset();
+	m_gbufferPST.clear();
+	m_shadingPST.clear();
+
+	//m_directionalPSO.reset();
 	m_gbufferRS.reset();
-
-	m_directionalPSO.reset();
 	m_shadingRS.reset();
 
 }
 
 bool deferred_renderer::set_shadow_mapping_algorithm(shadow_mapping_algorithm algorithm)
 {
-	com_ptr<ID3D12Device> device;
-	m_directionalPSO->GetDevice(IID_PPV_ARGS(&device));
+	
 	m_configuration.shadowMappingAlgorithm = algorithm;
-	return create_psos(device.get());
+
+	switch (algorithm)
+	{
+
+	case FUSE_SHADOW_MAPPING_NONE:
+		m_shadowMapAlgorithmDefine = "SHADOW_MAPPING_NONE";
+		break;
+
+	case FUSE_SHADOW_MAPPING_VSM:
+		m_shadowMapAlgorithmDefine = "SHADOW_MAPPING_VSM";
+		break;
+
+	case FUSE_SHADOW_MAPPING_EVSM2:
+		m_shadowMapAlgorithmDefine = "SHADOW_MAPPING_EVSM2";
+		break;
+
+	case FUSE_SHADOW_MAPPING_EVSM4:
+		m_shadowMapAlgorithmDefine = "SHADOW_MAPPING_EVSM4";
+		break;
+
+	}
+
+	return true;
 }
 
 void deferred_renderer::render_gbuffer(
@@ -63,7 +88,9 @@ void deferred_renderer::render_gbuffer(
 
 	/* Setup the pipeline state */
 
-	commandList->SetPipelineState(m_gbufferPSO.get());
+	auto gbufferPSO = m_gbufferPST.get_permutation(device);
+
+	commandList->SetPipelineState(gbufferPSO);
 
 	commandList.resource_barrier_transition(gbuffer[0]->get(), D3D12_RESOURCE_STATE_RENDER_TARGET);
 	commandList.resource_barrier_transition(gbuffer[1]->get(), D3D12_RESOURCE_STATE_RENDER_TARGET);
@@ -186,7 +213,10 @@ void deferred_renderer::render_light(
 
 		memcpy(cbData, &cbPerLight, sizeof(cb_per_light));
 
-		commandList->SetPipelineState(m_directionalPSO.get());
+		auto directionalLightingPSO = m_shadingPST.get_permutation(device, { { "LIGHT_TYPE", "LIGHT_TYPE_DIRECTIONAL" }, { "SHADOW_MAPPING_ALGORITHM", m_shadowMapAlgorithmDefine } });
+
+		commandList->SetPipelineState(directionalLightingPSO);
+		commandList->SetGraphicsRootSignature(m_shadingRS.get());
 
 		commandList.resource_barrier_transition(gbuffer[0]->get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 		commandList.resource_barrier_transition(gbuffer[1]->get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
@@ -255,14 +285,15 @@ void deferred_renderer::render_skybox(
 
 		memcpy(cbData, &cbPerLight, sizeof(cb_per_light));
 
-		commandList->SetPipelineState(m_directionalPSO.get());
+		auto skyboxLightingPSO = m_shadingPST.get_permutation(device, { { "LIGHT_TYPE", "LIGHT_TYPE_SKYBOX" }, { "SHADOW_MAPPING_ALGORITHM", m_shadowMapAlgorithmDefine } });
+
+		commandList->SetPipelineState(skyboxLightingPSO);
+		commandList->SetGraphicsRootSignature(m_shadingRS.get());
 
 		commandList.resource_barrier_transition(gbuffer[0]->get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 		commandList.resource_barrier_transition(gbuffer[1]->get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 		commandList.resource_barrier_transition(gbuffer[2]->get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 		commandList.resource_barrier_transition(gbuffer[3]->get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-
-		commandList->SetGraphicsRootSignature(m_shadingRS.get());
 
 		commandList->SetGraphicsRootConstantBufferView(0, cbPerFrame);
 		commandList->SetGraphicsRootConstantBufferView(1, address);
@@ -272,8 +303,12 @@ void deferred_renderer::render_skybox(
 
 		if (shadowMapInfo)
 		{
+
 			commandList.resource_barrier_transition(shadowMapInfo->shadowMap->get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 			commandList->SetGraphicsRootDescriptorTable(3, shadowMapInfo->shadowMap->get_srv_gpu_descriptor_handle());
+
+			commandList->SetGraphicsRootConstantBufferView(5, shadowMapInfo->sdsmCBAddress);
+
 		}
 
 		commandList->OMSetRenderTargets(1, &rtv, false, nullptr);
@@ -316,20 +351,15 @@ void deferred_renderer::render_skybox(
 bool deferred_renderer::create_psos(ID3D12Device * device)
 {
 	return create_gbuffer_pso(device) &&
-	       create_directional_light_pso(device) &&
-	       create_skybox_lighting_pso(device) &&
+	       create_shading_pst(device) &&
 	       create_skybox_pso(device);
 }
 
 bool deferred_renderer::create_gbuffer_pso(ID3D12Device * device)
 {
 
-	com_ptr<ID3DBlob> gbufferVS, gbufferPS;
-	std::vector<D3D12_INPUT_ELEMENT_DESC> inputLayoutVector;
-
 	com_ptr<ID3DBlob> serializedSignature;
 	com_ptr<ID3DBlob> errorsBlob;
-	com_ptr<ID3D12ShaderReflection> shaderReflection;
 
 	CD3DX12_ROOT_PARAMETER rootParameters[2];
 
@@ -340,130 +370,55 @@ bool deferred_renderer::create_gbuffer_pso(ID3D12Device * device)
 
 	UINT compileFlags = 0;
 
-	if (compile_shader("shaders/deferred_shading_gbuffer.hlsl", nullptr, "gbuffer_vs", "vs_5_0", compileFlags, &gbufferVS) &&
-		compile_shader("shaders/deferred_shading_gbuffer.hlsl", nullptr, "gbuffer_ps", "ps_5_0", compileFlags, &gbufferPS) &&
-		reflect_input_layout(gbufferVS.get(), std::back_inserter(inputLayoutVector), &shaderReflection) &&
-		!FUSE_HR_FAILED_BLOB(D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &serializedSignature, &errorsBlob), errorsBlob) &&
-		!FUSE_HR_FAILED(device->CreateRootSignature(0, FUSE_BLOB_ARGS(serializedSignature), IID_PPV_ARGS(&m_gbufferRS))))
+	if (!FUSE_HR_FAILED_BLOB(D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &serializedSignature, &errorsBlob), errorsBlob) &&
+	    !FUSE_HR_FAILED(device->CreateRootSignature(0, FUSE_BLOB_ARGS(serializedSignature), IID_PPV_ARGS(&m_gbufferRS))))
 	{
 
-		// Adjust the input desc since gpu_mesh uses slot 0 for position and
-		// slot 1 for non position data (tangent space vectors, texcoords, ...)
+		D3D12_GRAPHICS_PIPELINE_STATE_DESC gbufferPSODesc = {};
 
-		for (auto & elementDesc : inputLayoutVector)
-		{
-			if (strcmp(elementDesc.SemanticName, "POSITION"))
-			{
-				elementDesc.InputSlot = 1;
-			}
-		}
-
-		D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = { };
-
-		psoDesc.BlendState        = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
-		psoDesc.RasterizerState   = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-		psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+		gbufferPSODesc.BlendState        = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+		gbufferPSODesc.RasterizerState   = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+		gbufferPSODesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
 
 		// For each pixel in the gbuffer, we set to 1 the stencil value
 		// to render the skybox at the end using a stencil test.
 
-		psoDesc.DepthStencilState.StencilEnable           = TRUE;
-		psoDesc.DepthStencilState.StencilWriteMask        = 0x1;
-		psoDesc.DepthStencilState.FrontFace.StencilPassOp = D3D12_STENCIL_OP_REPLACE;
-		psoDesc.DepthStencilState.BackFace.StencilPassOp  = D3D12_STENCIL_OP_REPLACE;
+		gbufferPSODesc.DepthStencilState.StencilEnable = TRUE;
+		gbufferPSODesc.DepthStencilState.StencilWriteMask = 0x1;
+		gbufferPSODesc.DepthStencilState.FrontFace.StencilPassOp = D3D12_STENCIL_OP_REPLACE;
+		gbufferPSODesc.DepthStencilState.BackFace.StencilPassOp  = D3D12_STENCIL_OP_REPLACE;
 
-		psoDesc.NumRenderTargets      = 4;
-		psoDesc.RTVFormats[0]         = m_configuration.gbufferFormat[0];
-		psoDesc.RTVFormats[1]         = m_configuration.gbufferFormat[1];
-		psoDesc.RTVFormats[2]         = m_configuration.gbufferFormat[2];
-		psoDesc.RTVFormats[3]         = m_configuration.gbufferFormat[3];
-		psoDesc.DSVFormat             = m_configuration.dsvFormat;
-		psoDesc.VS                    = { FUSE_BLOB_ARGS(gbufferVS) };
-		psoDesc.PS                    = { FUSE_BLOB_ARGS(gbufferPS) };
-		psoDesc.InputLayout           = make_input_layout_desc(inputLayoutVector);
-		psoDesc.pRootSignature        = m_gbufferRS.get();
-		psoDesc.SampleMask            = UINT_MAX;
-		psoDesc.SampleDesc            = { 1, 0 };
-		psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+		gbufferPSODesc.NumRenderTargets      = 4;
+		gbufferPSODesc.RTVFormats[0]         = m_configuration.gbufferFormat[0];
+		gbufferPSODesc.RTVFormats[1]         = m_configuration.gbufferFormat[1];
+		gbufferPSODesc.RTVFormats[2]         = m_configuration.gbufferFormat[2];
+		gbufferPSODesc.RTVFormats[3]         = m_configuration.gbufferFormat[3];
+		gbufferPSODesc.DSVFormat             = m_configuration.dsvFormat;
+		gbufferPSODesc.SampleMask            = UINT_MAX;
+		gbufferPSODesc.SampleDesc            = { 1, 0 };
+		gbufferPSODesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+		gbufferPSODesc.pRootSignature        = m_gbufferRS.get();
 
-		return !FUSE_HR_FAILED(device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_gbufferPSO)));
+		m_gbufferPST = pipeline_state_template({ },	gbufferPSODesc, "5_0");
 
-	}
+		m_gbufferPST.set_vertex_shader("shaders/deferred_shading_gbuffer.hlsl", "gbuffer_vs");
+		m_gbufferPST.set_pixel_shader("shaders/deferred_shading_gbuffer.hlsl", "gbuffer_ps");
 
-	return false;
+		m_gbufferPST.set_ilv_functor(
+			[](D3D12_INPUT_ELEMENT_DESC & elementDesc)
+		{
 
-}
+			// Adjust the input desc since gpu_mesh uses slot 0 for position and
+			// slot 1 for non position data (tangent space vectors, texcoords, ...)
 
-bool deferred_renderer::create_directional_light_pso(ID3D12Device * device)
-{
+			if (strcmp(elementDesc.SemanticName, "POSITION"))
+			{
+				elementDesc.InputSlot = 1;
+			}
 
-	com_ptr<ID3DBlob> quadVS, shadingPS;
-	std::vector<D3D12_INPUT_ELEMENT_DESC> inputLayoutVector;
+		});
 
-	com_ptr<ID3DBlob> serializedSignature;
-	com_ptr<ID3DBlob> errorsBlob;
-	com_ptr<ID3D12ShaderReflection> shaderReflection;
-
-	CD3DX12_ROOT_PARAMETER rootParameters[4];
-
-	CD3DX12_DESCRIPTOR_RANGE gbufferSRV;
-
-	gbufferSRV.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 4, 0);
-
-	CD3DX12_DESCRIPTOR_RANGE shadowMapSRV;
-
-	shadowMapSRV.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 4);
-
-	rootParameters[0].InitAsConstantBufferView(0, 0, D3D12_SHADER_VISIBILITY_PIXEL);
-	rootParameters[1].InitAsConstantBufferView(1, 0, D3D12_SHADER_VISIBILITY_PIXEL);
-	rootParameters[2].InitAsDescriptorTable(1, &gbufferSRV, D3D12_SHADER_VISIBILITY_PIXEL);
-	rootParameters[3].InitAsDescriptorTable(1, &shadowMapSRV, D3D12_SHADER_VISIBILITY_PIXEL);
-
-	CD3DX12_STATIC_SAMPLER_DESC staticSamplers[] = {
-		CD3DX12_STATIC_SAMPLER_DESC(0, D3D12_FILTER_MIN_MAG_MIP_POINT),
-		CD3DX12_STATIC_SAMPLER_DESC(1, D3D12_FILTER_MIN_MAG_MIP_LINEAR),
-		CD3DX12_STATIC_SAMPLER_DESC(2, D3D12_FILTER_ANISOTROPIC)
-	};
-
-	CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc(_countof(rootParameters), rootParameters, _countof(staticSamplers), staticSamplers, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
-
-	UINT compileFlags = 0;
-
-	std::string algorithmValue = std::to_string(static_cast<uint32_t>(m_configuration.shadowMappingAlgorithm));
-
-	D3D_SHADER_MACRO shadingDefines[] = {
-		{ "SHADOW_MAPPING_ALGORITHM", algorithmValue.c_str() },
-		{ "LIGHT_TYPE", "LIGHT_TYPE_DIRECTIONAL" },
-		{ NULL, NULL }
-	};
-
-	if (compile_shader("shaders/quad_vs.hlsl", nullptr, "quad_vs", "vs_5_0", compileFlags, &quadVS) &&
-		compile_shader("shaders/deferred_shading_final.hlsl", shadingDefines, "shading_ps", "ps_5_0", compileFlags, &shadingPS) &&
-		reflect_input_layout(quadVS.get(), std::back_inserter(inputLayoutVector), &shaderReflection) &&
-		!FUSE_HR_FAILED_BLOB(D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &serializedSignature, &errorsBlob), errorsBlob) &&
-		!FUSE_HR_FAILED(device->CreateRootSignature(0, FUSE_BLOB_ARGS(serializedSignature), IID_PPV_ARGS(&m_shadingRS))))
-	{
-
-		D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = { };
-
-		psoDesc.BlendState                             = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
-		psoDesc.BlendState.RenderTarget[0].BlendEnable = TRUE;
-		psoDesc.BlendState.RenderTarget[0].SrcBlend    = D3D12_BLEND_ONE;
-		psoDesc.BlendState.RenderTarget[0].DestBlend   = D3D12_BLEND_ONE;
-		psoDesc.RasterizerState                        = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-		psoDesc.DepthStencilState                      = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
-		psoDesc.DepthStencilState.DepthEnable          = FALSE;
-		psoDesc.NumRenderTargets                       = 1;
-		psoDesc.RTVFormats[0]                          = m_configuration.shadingFormat;
-		psoDesc.VS                                     = { FUSE_BLOB_ARGS(quadVS) };
-		psoDesc.PS                                     = { FUSE_BLOB_ARGS(shadingPS) };
-		psoDesc.InputLayout                            = make_input_layout_desc(inputLayoutVector);
-		psoDesc.pRootSignature                         = m_shadingRS.get();
-		psoDesc.SampleMask                             = UINT_MAX;
-		psoDesc.SampleDesc                             = { 1, 0 };
-		psoDesc.PrimitiveTopologyType                  = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-
-		return !FUSE_HR_FAILED(device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_directionalPSO)));
+		return true;
 
 	}
 
@@ -471,35 +426,26 @@ bool deferred_renderer::create_directional_light_pso(ID3D12Device * device)
 
 }
 
-bool deferred_renderer::create_skybox_lighting_pso(ID3D12Device * device)
+bool deferred_renderer::create_shading_pst(ID3D12Device * device)
 {
-
-	com_ptr<ID3DBlob> quadVS, shadingPS;
-	std::vector<D3D12_INPUT_ELEMENT_DESC> inputLayoutVector;
 
 	com_ptr<ID3DBlob> serializedSignature;
 	com_ptr<ID3DBlob> errorsBlob;
-	com_ptr<ID3D12ShaderReflection> shaderReflection;
 
-	CD3DX12_ROOT_PARAMETER rootParameters[5];
+	CD3DX12_ROOT_PARAMETER rootParameters[6];
 
-	CD3DX12_DESCRIPTOR_RANGE gbufferSRV;
+	CD3DX12_DESCRIPTOR_RANGE gbufferSRV, shadowMapSRV, skyboxSRV;
 
 	gbufferSRV.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 4, 0);
-
-	CD3DX12_DESCRIPTOR_RANGE shadowMapSRV;
-
-	shadowMapSRV.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 4);
-
-	CD3DX12_DESCRIPTOR_RANGE skyboxSRV;
-
 	skyboxSRV.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 5);
+	shadowMapSRV.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 4);
 
 	rootParameters[0].InitAsConstantBufferView(0, 0, D3D12_SHADER_VISIBILITY_PIXEL);
 	rootParameters[1].InitAsConstantBufferView(1, 0, D3D12_SHADER_VISIBILITY_PIXEL);
 	rootParameters[2].InitAsDescriptorTable(1, &gbufferSRV, D3D12_SHADER_VISIBILITY_PIXEL);
 	rootParameters[3].InitAsDescriptorTable(1, &shadowMapSRV, D3D12_SHADER_VISIBILITY_PIXEL);
 	rootParameters[4].InitAsDescriptorTable(1, &skyboxSRV, D3D12_SHADER_VISIBILITY_PIXEL);
+	rootParameters[5].InitAsConstantBufferView(3, 0, D3D12_SHADER_VISIBILITY_PIXEL);
 
 	CD3DX12_STATIC_SAMPLER_DESC staticSamplers[] = {
 		CD3DX12_STATIC_SAMPLER_DESC(0, D3D12_FILTER_MIN_MAG_MIP_POINT),
@@ -511,41 +457,40 @@ bool deferred_renderer::create_skybox_lighting_pso(ID3D12Device * device)
 
 	UINT compileFlags = 0;
 
-	std::string algorithmValue = std::to_string(static_cast<uint32_t>(m_configuration.shadowMappingAlgorithm));
-
-	D3D_SHADER_MACRO shadingDefines[] = {
-		{ "SHADOW_MAPPING_ALGORITHM", algorithmValue.c_str() },
-		{ "LIGHT_TYPE", "LIGHT_TYPE_SKYBOX" },
-		{ NULL, NULL }
-	};
-
-	if (compile_shader("shaders/quad_vs.hlsl", nullptr, "quad_vs", "vs_5_0", compileFlags, &quadVS) &&
-		compile_shader("shaders/deferred_shading_final.hlsl", shadingDefines, "shading_ps", "ps_5_0", compileFlags, &shadingPS) &&
-		reflect_input_layout(quadVS.get(), std::back_inserter(inputLayoutVector), &shaderReflection) &&
-		!FUSE_HR_FAILED_BLOB(D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &serializedSignature, &errorsBlob), errorsBlob) &&
-		!FUSE_HR_FAILED(device->CreateRootSignature(0, FUSE_BLOB_ARGS(serializedSignature), IID_PPV_ARGS(&m_skyboxLightingRS))))
+	if (!FUSE_HR_FAILED_BLOB(D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &serializedSignature, &errorsBlob), errorsBlob) &&
+	    !FUSE_HR_FAILED(device->CreateRootSignature(0, FUSE_BLOB_ARGS(serializedSignature), IID_PPV_ARGS(&m_shadingRS))))
 	{
 
-		D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc     = {};
+		D3D12_GRAPHICS_PIPELINE_STATE_DESC shadingPSODesc = {};
 
-		psoDesc.BlendState                             = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
-		psoDesc.BlendState.RenderTarget[0].BlendEnable = TRUE;
-		psoDesc.BlendState.RenderTarget[0].SrcBlend    = D3D12_BLEND_ONE;
-		psoDesc.BlendState.RenderTarget[0].DestBlend   = D3D12_BLEND_ONE;
-		psoDesc.RasterizerState                        = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-		psoDesc.DepthStencilState                      = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
-		psoDesc.DepthStencilState.DepthEnable          = FALSE;
-		psoDesc.NumRenderTargets                       = 1;
-		psoDesc.RTVFormats[0]                          = m_configuration.shadingFormat;
-		psoDesc.VS                                     = { FUSE_BLOB_ARGS(quadVS) };
-		psoDesc.PS                                     = { FUSE_BLOB_ARGS(shadingPS) };
-		psoDesc.InputLayout                            = make_input_layout_desc(inputLayoutVector);
-		psoDesc.pRootSignature                         = m_skyboxLightingRS.get();
-		psoDesc.SampleMask                             = UINT_MAX;
-		psoDesc.SampleDesc                             = { 1, 0 };
-		psoDesc.PrimitiveTopologyType                  = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+		shadingPSODesc.BlendState                             = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+		shadingPSODesc.BlendState.RenderTarget[0].BlendEnable = TRUE;
+		shadingPSODesc.BlendState.RenderTarget[0].SrcBlend    = D3D12_BLEND_ONE;
+		shadingPSODesc.BlendState.RenderTarget[0].DestBlend   = D3D12_BLEND_ONE;
+		shadingPSODesc.RasterizerState                        = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+		shadingPSODesc.DepthStencilState                      = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+		shadingPSODesc.DepthStencilState.DepthEnable          = FALSE;
+		shadingPSODesc.NumRenderTargets                       = 1;
+		shadingPSODesc.RTVFormats[0]                          = m_configuration.shadingFormat;
+		shadingPSODesc.pRootSignature                         = m_shadingRS.get();
+		shadingPSODesc.SampleMask                             = UINT_MAX;
+		shadingPSODesc.SampleDesc                             = { 1, 0 };
+		shadingPSODesc.PrimitiveTopologyType                  = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+		shadingPSODesc.pRootSignature                         = m_shadingRS.get();
 
-		return !FUSE_HR_FAILED(device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_skyboxLightingPSO)));
+		m_shadingPST = pipeline_state_template(
+		{
+			{ "LIGHT_TYPE",{ "LIGHT_TYPE_SKYBOX", "LIGHT_TYPE_DIRECTIONAL" } },
+			{ "SHADOW_MAPPING_ALGORITHM",{ "SHADOW_MAPPING_NONE", "SHADOW_MAPPING_VSM", "SHADOW_MAPPING_EVSM2", "SHADOW_MAPPING_EVSM4" } }
+		},
+			shadingPSODesc,
+			"5_0",
+			0);
+
+		m_shadingPST.set_vertex_shader("shaders/quad_vs.hlsl", "quad_vs");
+		m_shadingPST.set_pixel_shader("shaders/deferred_shading_final.hlsl", "shading_ps");
+
+		return true;
 
 	}
 

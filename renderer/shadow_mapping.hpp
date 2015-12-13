@@ -17,10 +17,16 @@ enum shadow_mapping_algorithm
 namespace fuse
 {
 
-	struct shadow_map_info
+	struct alignas(16) shadow_map_info
 	{
-		const render_resource * shadowMap;
+
 		XMMATRIX lightMatrix;
+
+		const render_resource * shadowMap;
+
+		D3D12_GPU_VIRTUAL_ADDRESS sdsmCBAddress;
+		bool                      sdsm;
+
 	};
 
 	inline float esm_clamp_exponent_positive(float exponent, unsigned int precision)

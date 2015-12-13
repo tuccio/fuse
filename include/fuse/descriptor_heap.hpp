@@ -6,6 +6,8 @@
 #include <fuse/properties_macros.hpp>
 #include <fuse/pool_manager.hpp>
 
+#define FUSE_DESCRIPTOR_INVALID (FUSE_POOL_INVALID)
+
 namespace fuse
 {
 

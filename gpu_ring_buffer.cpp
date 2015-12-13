@@ -123,13 +123,13 @@ gpu_ring_buffer::allocated_chunk * gpu_ring_buffer::allocate(gpu_command_queue &
 
 		allocated_chunk chunk;
 
-		chunk.offset = m_offset;
+		chunk.offset        = m_offset;
 		chunk.alignedOffset = FUSE_ALIGN_OFFSET(m_offset, alignment);
-		chunk.frameIndex = commandQueue.get_frame_index();
-		chunk.size = alignedAllocationSize;
-		chunk.alignment = alignment;
+		chunk.frameIndex    = commandQueue.get_frame_index();
+		chunk.size          = alignedAllocationSize;
+		chunk.alignment     = alignment;
 
-		m_offset += alignedAllocationSize;
+		m_offset    += alignedAllocationSize;
 		m_freeSpace -= alignedAllocationSize;
 
 		m_allocatedChunks.push(chunk);

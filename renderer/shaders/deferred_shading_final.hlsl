@@ -18,6 +18,11 @@ cbuffer cbShadowMapAlgorithm : register(b2)
 	uint g_shadowMapAlgorithm;
 };
 
+cbuffer cbSDSM : register(b3)
+{
+	float4 g_sdsm;
+};
+
 Texture2D g_gbuffer0  : register(t0);
 Texture2D g_gbuffer1  : register(t1);
 Texture2D g_gbuffer2  : register(t2);
@@ -90,6 +95,10 @@ float4 shading_ps(QuadInput input) : SV_Target0
 	{
 		diffuse = NoL * data.baseColor * g_light.luminance;
 	}
+	#endif
+	
+	#if (LIGHT_TYPE == LIGHT_TYPE_SKYBOX)
+		//diffuse = g_sdsm;
 	#endif
 	
 	float3 luminance = visibility * diffuse;

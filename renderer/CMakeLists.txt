@@ -21,6 +21,7 @@ add_executable (
 	blur.hpp blur.cpp
 	alpha_composer.hpp alpha_composer.cpp
 	skybox.hpp skybox.cpp
+	sdsm.hpp sdsm.cpp
 )
 
 target_link_libraries ( renderer fuse ${DirectX12_LIBRARY} )

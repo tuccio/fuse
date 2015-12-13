@@ -58,7 +58,7 @@ bool tonemapper::create_pso(ID3D12Device * device)
 	rootParameters[0].InitAsDescriptorTable(1, &srvDescRange);
 	rootParameters[1].InitAsDescriptorTable(1, &uavDescRange);
 
-	CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc(2, rootParameters, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_NONE);
+	CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc(_countof(rootParameters), rootParameters, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_NONE);
 
 	if (compile_shader("shaders/tonemapping.hlsl", nullptr, "tonemap_cs", "cs_5_0", 0, &tonemapCS) &&
 		!FUSE_HR_FAILED_BLOB(D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &serializedSignature, &errorsBlob), errorsBlob) &&
