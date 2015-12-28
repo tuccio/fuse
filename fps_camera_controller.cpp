@@ -233,37 +233,37 @@ LRESULT fps_camera_controller::on_update(float dt)
 	if (m_strafingForward)
 	{
 		auto position = m_camera->get_position();
-		m_camera->set_position(position + m_camera->forward() * m_speed.z * dt);
+		m_camera->set_position(XMVectorAdd(position, XMVectorScale(m_camera->forward(), m_speed.z * dt)));
 	}
 
 	if (m_strafingBackward)
 	{
 		auto position = m_camera->get_position();
-		m_camera->set_position(position - m_camera->forward() * m_speed.z * dt);
+		m_camera->set_position(XMVectorSubtract(position, XMVectorScale(m_camera->forward(), m_speed.z * dt)));
 	}
 
 	if (m_strafingLeft)
 	{
 		auto position = m_camera->get_position();
-		m_camera->set_position(position - m_camera->right() * m_speed.x * dt);
+		m_camera->set_position(XMVectorSubtract(position, XMVectorScale(m_camera->right(), m_speed.x * dt)));
 	}
 
 	if (m_strafingRight)
 	{
 		auto position = m_camera->get_position();
-		m_camera->set_position(position + m_camera->right() * m_speed.x * dt);
+		m_camera->set_position(XMVectorAdd(position, XMVectorScale(m_camera->right(), m_speed.x * dt)));
 	}
 
 	if (m_strafingUpward)
 	{
 		auto position = m_camera->get_position();
-		m_camera->set_position(position + m_camera->up() * m_speed.y * dt);
+		m_camera->set_position(XMVectorAdd(position, XMVectorScale(m_camera->up(), m_speed.y * dt)));
 	}
 
 	if (m_strafingDownward)
 	{
 		auto position = m_camera->get_position();
-		m_camera->set_position(position - m_camera->up() * m_speed.y * dt);
+		m_camera->set_position(XMVectorSubtract(position, XMVectorScale(m_camera->up(), m_speed.y * dt)));
 	}
 
 	return 0;

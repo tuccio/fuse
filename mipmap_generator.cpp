@@ -1,5 +1,6 @@
 #include <fuse/mipmap_generator.hpp>
 #include <fuse/pipeline_state.hpp>
+#include <fuse/descriptor_heap.hpp>
 
 using namespace fuse;
 
@@ -20,7 +21,7 @@ bool mipmap_generator::generate_mipmaps(
 	ID3D12Resource * resource)
 {
 
-	D3D12_RESOURCE_DESC desc = resource->GetDesc();
+	const D3D12_RESOURCE_DESC desc = resource->GetDesc();
 
 	// Get the PSO
 
@@ -47,23 +48,7 @@ bool mipmap_generator::generate_mipmaps(
 	// Create the mip 0 SRV
 	// For each mip, create the RTV and render
 
-	D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
-
-	srvHeapDesc.NumDescriptors = 1;
-	srvHeapDesc.Type           = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-	srvHeapDesc.Flags          = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-
-	D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc = {};
-
-	rtvHeapDesc.NumDescriptors = desc.MipLevels - 1;
-	rtvHeapDesc.Type           = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
-	rtvHeapDesc.Flags          = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-
-	com_ptr<ID3D12DescriptorHeap> srvHeap;
-	com_ptr<ID3D12DescriptorHeap> rtvHeap;
-
-	FUSE_HR_CHECK(device->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&srvHeap)));
-	FUSE_HR_CHECK(device->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(&rtvHeap)));
+	descriptor_token_t rtvToken = rtv_descriptor_heap::get_singleton_pointer()->allocate(desc.MipLevels - 1);
 
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
 
@@ -72,14 +57,13 @@ bool mipmap_generator::generate_mipmaps(
 	srvDesc.Shader4ComponentMapping   = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 	srvDesc.Texture2D.MostDetailedMip = 0;
 	srvDesc.Texture2D.MipLevels       = 1;
+	
+	descriptor_token_t srvToken = cbv_uav_srv_descriptor_heap::get_singleton_pointer()->create_shader_resource_view(device, resource, &srvDesc);
 
-	device->CreateShaderResourceView(resource, &srvDesc, srvHeap->GetCPUDescriptorHandleForHeapStart());
-
-	D3D12_CPU_DESCRIPTOR_HANDLE rtvHeapCPUDesc = rtvHeap->GetCPUDescriptorHandleForHeapStart();
-	D3D12_GPU_DESCRIPTOR_HANDLE srvHeapGPUDesc = srvHeap->GetGPUDescriptorHandleForHeapStart();
+	D3D12_CPU_DESCRIPTOR_HANDLE rtvHeapCPUDesc = rtv_descriptor_heap::get_singleton_pointer()->get_cpu_descriptor_handle(rtvToken);
+	D3D12_GPU_DESCRIPTOR_HANDLE srvHeapGPUDesc = cbv_uav_srv_descriptor_heap::get_singleton_pointer()->get_gpu_descriptor_handle(srvToken);
 
 	UINT rtvDescSize = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-	UINT srvDescSize = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
 	commandList->SetPipelineState(pso);
 	commandList->SetGraphicsRootSignature(m_rs.get());
@@ -87,20 +71,17 @@ bool mipmap_generator::generate_mipmaps(
 	commandList.resource_barrier_transition(resource, D3D12_RESOURCE_STATE_RENDER_TARGET);
 
 	// Need an SRV access to the mip 0
-	commandList->ResourceBarrier(1,
-		&CD3DX12_RESOURCE_BARRIER::Transition(resource, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, 0));
+	commandList->ResourceBarrier(1,	&CD3DX12_RESOURCE_BARRIER::Transition(resource, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, 0));
 
 	commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 
 	D3D12_VIEWPORT viewport = {};
-	D3D12_RECT scissorRect = {};
+	D3D12_RECT scissorRect  = {};
 
 	viewport.MaxDepth = 1.f;
 
-	UINT width = desc.Width;
+	UINT width  = desc.Width;
 	UINT height = desc.Height;
-
-	commandList->SetDescriptorHeaps(1, &srvHeap);
 
 	const float black[4] = { 0 };
 
@@ -140,11 +121,12 @@ bool mipmap_generator::generate_mipmaps(
 
 	// Transition to make the state coherent to the global state for each subresource
 
-	commandList->ResourceBarrier(1,
-		&CD3DX12_RESOURCE_BARRIER::Transition(resource, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET, 0));
+	commandList->ResourceBarrier(1,	&CD3DX12_RESOURCE_BARRIER::Transition(resource, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET, 0));
 
-	commandQueue.safe_release(srvHeap.get());
-	commandQueue.safe_release(rtvHeap.get());
+	// Release the descriptors after the frame is done
+
+	commandQueue.safe_release(rtv_descriptor_heap::get_singleton_pointer(), rtvToken, desc.MipLevels - 1);
+	commandQueue.safe_release(cbv_uav_srv_descriptor_heap::get_singleton_pointer(), srvToken);
 
 	return true;
 

@@ -91,7 +91,7 @@ namespace fuse
 
 		void clear(void);
 
-		inline ID3D12PipelineState * get_permutation(ID3D12Device * device, std::initializer_list<D3D_SHADER_MACRO> macros = {})
+		inline ID3D12PipelineState * get_pso_instance(ID3D12Device * device, std::initializer_list<D3D_SHADER_MACRO> macros = {})
 		{
 			return compile_permutation(device, macros);
 		}

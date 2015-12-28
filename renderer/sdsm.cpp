@@ -30,9 +30,7 @@ void sdsm::create_log_partitions(ID3D12Device * device, gpu_command_queue & comm
 {
 	
 	commandList->SetPipelineState(m_minMaxReductionPSO.get());
-	commandList->SetComputeRootSignature(m_minMaxReductionRS.get());
-
-	commandList->SetDescriptorHeaps(1, cbv_uav_srv_descriptor_heap::get_singleton_pointer()->get_address());
+	commandList->SetComputeRootSignature(m_minMaxReductionRS.get());	
 
 	commandList->SetComputeRootDescriptorTable(1, output.get_uav_gpu_descriptor_handle());
 

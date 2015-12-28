@@ -39,7 +39,7 @@ namespace fuse
 
 		render_resource & get_cubemap(void);
 
-		light get_sun_light(void) const;
+		light get_sun_light(void);
 
 	private:
 

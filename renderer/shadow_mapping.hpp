@@ -41,6 +41,6 @@ namespace fuse
 		return std::copysign(clampedValue, exponent);
 	}
 
-	XMMATRIX sm_directional_light_matrix(const XMFLOAT3 & lightDirection, renderable_iterator begin, renderable_iterator end);
+	XMMATRIX sm_crop_matrix_lh(const XMMATRIX & viewMatrix, renderable_iterator begin, renderable_iterator end);
 
 }

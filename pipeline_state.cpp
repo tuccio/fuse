@@ -66,7 +66,7 @@ ID3D12PipelineState * pipeline_state_template::compile_permutation(ID3D12Device 
 	{
 		return it->second.get();
 	}
-	
+
 	std::vector<D3D_SHADER_MACRO> definesVector(defines.size() + m_commonDefines.size() + 1);
 
 	std::transform(m_commonDefines.begin(), m_commonDefines.end(), definesVector.begin(),
@@ -80,7 +80,7 @@ ID3D12PipelineState * pipeline_state_template::compile_permutation(ID3D12Device 
 	com_ptr<ID3DBlob> vertexShader, pixelShader;
 	std::vector<D3D12_INPUT_ELEMENT_DESC> inputLayoutVector;
 
-	D3D12_SHADER_BYTECODE vertexShaderBytecode, pixelShaderBytecode;
+	D3D12_SHADER_BYTECODE vertexShaderBytecode = {}, pixelShaderBytecode = {};
 
 	com_ptr<ID3D12ShaderReflection> shaderReflection;
 

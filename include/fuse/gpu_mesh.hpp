@@ -34,10 +34,10 @@ namespace fuse
 
 	private:
 
-		uint32_t                m_storageFlags;
+		uint32_t m_storageFlags;
 
-		uint32_t                m_numVertices;
-		uint32_t                m_numTriangles;
+		uint32_t m_numVertices;
+		uint32_t m_numTriangles;
 
 		com_ptr<ID3D12Resource> m_dataBuffer;
 

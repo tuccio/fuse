@@ -14,6 +14,8 @@ enum light_type
 namespace fuse
 {
 
+	class skybox;
+
 	struct light
 	{
 
@@ -25,7 +27,14 @@ namespace fuse
 		color_rgb ambient;
 		XMFLOAT3  direction;
 
-		float spotAngle;
+		bool castShadow;
+
+		union
+		{
+			float spotAngle;
+			skybox * skybox;
+		};
+
 
 	};
 

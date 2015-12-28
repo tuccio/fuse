@@ -78,3 +78,14 @@ gbuffer_out gbuffer_ps(PSInput input)
 	return output;
 
 }
+
+float4 query_vs(float3 position : POSITION) : SV_Position
+{
+	float4 positionH = float4(position, 1);
+	return mul(positionH, g_transform.worldViewProjection);
+}
+
+gbuffer_out query_ps(float4 positionCS : SV_Position)
+{
+	return (gbuffer_out) 0;
+}

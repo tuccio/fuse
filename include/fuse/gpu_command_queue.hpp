@@ -3,9 +3,12 @@
 #include <fuse/directx_helper.hpp>
 #include <fuse/gpu_graphics_command_list.hpp>
 #include <fuse/properties_macros.hpp>
+#include <fuse/descriptor_heap.hpp>
 
 #include <queue>
 #include <unordered_map>
+
+#include <boost/variant.hpp>
 
 namespace fuse
 {
@@ -40,6 +43,7 @@ namespace fuse
 
 		// Releases a resource when the current frame is completed by the GPU
 		void safe_release(IUnknown * resource) const;
+		void safe_release(descriptor_heap * heap, descriptor_token_t token, uint32_t count = 1) const;
 
 		void set_aux_command_list(gpu_graphics_command_list & commandList);
 
@@ -52,7 +56,35 @@ namespace fuse
 
 		gpu_graphics_command_list * m_auxCommandList;
 
-		typedef std::pair<uint32_t, com_ptr<IUnknown>> garbage_type;
+		struct garbage_descriptor_type
+		{
+			descriptor_heap * heap;
+			descriptor_token_t token;
+			uint32_t count;
+		};
+
+		struct garbage_object_type
+		{
+
+			enum { GARBAGE_RESOURCE, GARBAGE_DESCRIPTOR } type;
+
+			union
+			{
+				garbage_descriptor_type descriptor;
+				com_ptr<IUnknown>       resource;
+			};
+
+			garbage_object_type(com_ptr<IUnknown> && resource) :
+				resource(std::forward<com_ptr<IUnknown>>(resource)), type(GARBAGE_RESOURCE) { }
+
+			garbage_object_type(garbage_descriptor_type && descriptor) :
+				descriptor(std::forward<garbage_descriptor_type>(descriptor)), type(GARBAGE_DESCRIPTOR) { }
+
+			~garbage_object_type(void);
+
+		};
+
+		typedef std::pair<uint32_t, garbage_object_type> garbage_type;
 
 		mutable std::queue<garbage_type> m_garbage;
 

@@ -902,18 +902,18 @@ void render_options::fill_form(void)
 	__RENDER_OPTIONS_FILL(float, shadow_map_resolution)
 	__RENDER_OPTIONS_FILL(float, vsm_min_variance)
 	__RENDER_OPTIONS_FILL(float, vsm_min_bleeding)
-	__RENDER_OPTIONS_FILL(float, vsm_blur_kernel_size)
+	__RENDER_OPTIONS_FILL(uint32_t, vsm_blur_kernel_size)
 
 	__RENDER_OPTIONS_FILL(float, evsm2_exponent)
 	__RENDER_OPTIONS_FILL(float, evsm2_min_variance)
 	__RENDER_OPTIONS_FILL(float, evsm2_min_bleeding)
-	__RENDER_OPTIONS_FILL(float, evsm2_blur_kernel_size)
+	__RENDER_OPTIONS_FILL(uint32_t, evsm2_blur_kernel_size)
 
 	__RENDER_OPTIONS_FILL(float, evsm4_positive_exponent)
 	__RENDER_OPTIONS_FILL(float, evsm4_negative_exponent)
 	__RENDER_OPTIONS_FILL(float, evsm4_min_variance)
 	__RENDER_OPTIONS_FILL(float, evsm4_min_bleeding)
-	__RENDER_OPTIONS_FILL(float, evsm4_blur_kernel_size)
+	__RENDER_OPTIONS_FILL(uint32_t, evsm4_blur_kernel_size)
 
 	dynamic_cast<Rocket::Controls::ElementFormControlSelect *>(m_panel->GetElementById("shadow_mapping_algorithm"))->
 		SetSelection(static_cast<int>(m_configuration->get_shadow_mapping_algorithm()));

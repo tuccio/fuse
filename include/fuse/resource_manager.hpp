@@ -5,7 +5,7 @@
 #include <unordered_map>
 
 #include <fuse/resource.hpp>
-#include <fuse/lockable.hpp>>
+#include <fuse/lockable.hpp>
 
 namespace fuse
 {

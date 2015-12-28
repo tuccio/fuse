@@ -71,14 +71,14 @@ void gpu_command_queue::shutdown(void)
 bool gpu_command_queue::wait_for_frame(UINT64 fenceValue, UINT time) const
 {
 
-	collect_garbage();
-
-	m_fenceValue = m_fence->GetCompletedValue();
-
 	if (m_fenceValue >= fenceValue)
 	{
 		return true;
 	}
+
+	m_fenceValue = m_fence->GetCompletedValue();
+
+	collect_garbage();
 
 	FUSE_HR_CHECK(m_fence->SetEventOnCompletion(fenceValue, m_hFenceEvent));
 
@@ -155,7 +155,12 @@ void gpu_command_queue::execute(gpu_graphics_command_list & commandList)
 
 void gpu_command_queue::safe_release(IUnknown * resource) const
 {
-	m_garbage.push(garbage_type(m_frameIndex, com_ptr<IUnknown>(resource)));
+	m_garbage.emplace(m_frameIndex, com_ptr<IUnknown>(resource));
+}
+
+void gpu_command_queue::safe_release(descriptor_heap * heap, descriptor_token_t token, uint32_t count) const
+{
+	m_garbage.emplace(m_frameIndex, garbage_descriptor_type{ heap, token, count });
 }
 
 void gpu_command_queue::collect_garbage(void) const
@@ -164,6 +169,25 @@ void gpu_command_queue::collect_garbage(void) const
 	{
 		m_garbage.pop();
 	}
+}
+
+gpu_command_queue::garbage_object_type::~garbage_object_type(void)
+{
+
+	/* Release the resource on garbage object destruction */
+
+	switch (type)
+	{
+
+	case garbage_object_type::GARBAGE_DESCRIPTOR:
+		descriptor.heap->free(descriptor.token, descriptor.count);
+		break;
+	case garbage_object_type::GARBAGE_RESOURCE:
+		resource.reset();
+		break;
+
+	}
+
 }
 
 void gpu_command_queue::set_aux_command_list(gpu_graphics_command_list & commandList)

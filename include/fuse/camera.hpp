@@ -3,6 +3,7 @@
 #include <fuse/allocators.hpp>
 #include <fuse/math.hpp>
 #include <fuse/properties_macros.hpp>
+#include <fuse/geometry.hpp>
 
 namespace fuse
 {
@@ -46,7 +47,7 @@ namespace fuse
 
 		inline XMVECTOR left(void) const
 		{
-			return -left();
+			return -right();
 		}
 
 		XMMATRIX get_view_matrix(void) const;
@@ -63,6 +64,11 @@ namespace fuse
 		void set_fovx(float fovx);
 		void set_znear(float znear);
 		void set_zfar(float zfar);
+
+		inline frustum get_frustum(void) const
+		{
+			return frustum(XMMatrixMultiply(m_viewMatrix, m_projectionMatrix));
+		}
 
 	private:
 

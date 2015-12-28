@@ -41,4 +41,35 @@ namespace fuse
 
 	};
 
+	template <typename Iterator>
+	void destroy_command_lists(Iterator begin, Iterator end)
+	{
+		for (Iterator it = begin; it != end; it++)
+		{
+			it->shutdown();
+		}
+	}
+
+	template <typename Iterator>
+	bool create_command_lists(Iterator begin, Iterator end, ID3D12Device * device, UINT nodeMask, D3D12_COMMAND_LIST_TYPE type, ID3D12PipelineState * initialState)
+	{
+
+		for (Iterator it = begin; it != end; it++)
+		{
+
+			com_ptr<ID3D12CommandAllocator> commandAllocator;
+
+			if (FUSE_HR_FAILED(device->CreateCommandAllocator(type, IID_PPV_ARGS(&commandAllocator))) ||
+			    !it->init(device, nodeMask, type, commandAllocator.get(), initialState))
+			{
+				destroy_command_lists(begin, it);
+				return false;
+			}
+
+		}
+
+		return true;
+
+	}
+	
 }

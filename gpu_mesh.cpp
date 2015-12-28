@@ -105,13 +105,13 @@ bool gpu_mesh::create(ID3D12Device * device, gpu_command_queue & commandQueue, g
 	// Now create the vertex buffer and upload the data
 
 	if (gpu_global_resource_state::get_singleton_pointer()->create_committed_resource(
-		device,
-		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
-		D3D12_HEAP_FLAG_NONE,
-		&CD3DX12_RESOURCE_DESC::Buffer(bufferSize),
-		D3D12_RESOURCE_STATE_COPY_DEST,
-		nullptr,
-		IID_PPV_ARGS(&m_dataBuffer)))
+			device,
+			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+			D3D12_HEAP_FLAG_NONE,
+			&CD3DX12_RESOURCE_DESC::Buffer(bufferSize),
+			D3D12_RESOURCE_STATE_COPY_DEST,
+			nullptr,
+			IID_PPV_ARGS(&m_dataBuffer)))
 	{
 
 		UINT64 heapOffset;
@@ -121,24 +121,28 @@ bool gpu_mesh::create(ID3D12Device * device, gpu_command_queue & commandQueue, g
 
 		gpu_upload_buffer(commandQueue, commandList, m_dataBuffer.get(), 0, ringBuffer.get_heap(), heapOffset, bufferSize);
 
+		commandList.resource_barrier_transition(m_dataBuffer.get(), D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER | D3D12_RESOURCE_STATE_INDEX_BUFFER);
+
 		// Finally setup views
 
 		D3D12_GPU_VIRTUAL_ADDRESS dataAddress = m_dataBuffer->GetGPUVirtualAddress();
 
 		m_positionData.BufferLocation = dataAddress;
-		m_positionData.StrideInBytes = sizeof(float) * 3;
-		m_positionData.SizeInBytes = verticesBufferSize;
+		m_positionData.StrideInBytes  = sizeof(float) * 3;
+		m_positionData.SizeInBytes    = verticesBufferSize;
 
 		m_indexData.BufferLocation = m_positionData.BufferLocation + m_positionData.SizeInBytes;
-		m_indexData.SizeInBytes = indicesBufferSize;
-		m_indexData.Format = DXGI_FORMAT_R32_UINT;
+		m_indexData.SizeInBytes    = indicesBufferSize;
+		m_indexData.Format         = DXGI_FORMAT_R32_UINT;
 
 		uint32_t stride = 0;
 		std::for_each(dataSize.begin(), dataSize.end(), [&stride](uint32_t x) { stride += x; });
 
 		m_nonPositionData.BufferLocation = m_indexData.BufferLocation + m_indexData.SizeInBytes;
-		m_nonPositionData.StrideInBytes = stride;
-		m_nonPositionData.SizeInBytes = stride * m_numVertices;
+		m_nonPositionData.StrideInBytes  = stride;
+		m_nonPositionData.SizeInBytes    = stride * m_numVertices;
+
+		recalculate_size();
 
 		return true;
 

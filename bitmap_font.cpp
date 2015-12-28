@@ -2,6 +2,7 @@
 #include <fuse/image.hpp>
 
 #include <fuse/resource_factory.hpp>
+#include <fuse/gpu_render_context.hpp>
 
 #include <boost/property_tree/xml_parser.hpp>
 #include <boost/property_tree/ptree_fwd.hpp>
@@ -42,8 +43,7 @@ bool bitmap_font::load_impl(void)
 	if (m_texture->load() && load_metafile(metaFile.c_str()))
 	{
 
-		com_ptr<ID3D12Device> device;
-		m_texture->get_resource()->GetDevice(IID_PPV_ARGS(&device));
+		ID3D12Device * device = gpu_render_context::get_singleton_pointer()->get_device();
 
 		D3D12_DESCRIPTOR_HEAP_DESC srvDesc = {};
 
@@ -51,12 +51,9 @@ bool bitmap_font::load_impl(void)
 		srvDesc.Type           = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 		srvDesc.Flags          = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 
-		if (!FUSE_HR_FAILED(device->CreateDescriptorHeap(&srvDesc, IID_PPV_ARGS(&m_srvHeap))))
-		{
-			device->CreateShaderResourceView(m_texture->get_resource(), nullptr, CD3DX12_CPU_DESCRIPTOR_HANDLE(m_srvHeap->GetCPUDescriptorHandleForHeapStart()));
-			m_srvDescriptor = m_srvHeap->GetGPUDescriptorHandleForHeapStart();
-			return true;
-		}
+		m_srvToken = cbv_uav_srv_descriptor_heap::get_singleton_pointer()->create_shader_resource_view(device, m_texture->get_resource());
+
+		return true;
 		
 	}
 

@@ -107,13 +107,18 @@ add_library ( fuse
 	include/fuse/mipmap_generator.hpp mipmap_generator.cpp
 	include/fuse/rocket_interface.hpp rocket_interface.cpp
 	include/fuse/rocket_input.hpp rocket_input.cpp
+	include/fuse/leading_zeros.hpp
+	include/fuse/morton.hpp
 	include/fuse/geometry.hpp
 	include/fuse/geometry/sphere.hpp sphere.cpp
 	include/fuse/geometry/aabb.hpp aabb.cpp
 	include/fuse/geometry/frustum.hpp frustum.cpp
 	include/fuse/geometry/plane.hpp plane.cpp
+	include/fuse/geometry/ray.hpp ray.cpp
 	include/fuse/geometry/bounding_volumes.hpp
+	include/fuse/geometry/intersection.hpp include/fuse/geometry/intersection.inl
 	include/fuse/geometry/transform_affine.hpp
+	include/fuse/geometry/loose_octree.hpp include/fuse/geometry/loose_octree.inl
 )
 
 add_subdirectory ( renderer )

@@ -37,17 +37,7 @@ namespace fuse
 		com_ptr<ID3D12PipelineState> m_pso;
 		com_ptr<ID3D12RootSignature> m_rs;
 
-		D3D12_VIEWPORT               m_viewport;
-		D3D12_RECT                   m_scissorRect;
-
 		bool create_pso(ID3D12Device * device);
-
-	public:
-
-		FUSE_PROPERTIES_BY_CONST_REFERENCE(
-			(viewport,     m_viewport)
-			(scissor_rect, m_scissorRect)
-		)
 
 	};
 

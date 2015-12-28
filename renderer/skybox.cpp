@@ -84,7 +84,7 @@ static XMFLOAT3 compute_sun_direction(float zenith, float azimuth)
 
 }
 
-light skybox::get_sun_light(void) const
+light skybox::get_sun_light(void)
 {
 
 	// TODO
@@ -99,6 +99,7 @@ light skybox::get_sun_light(void) const
 	sun.ambient   = color_rgb(0, 0, 0);
 
 	sun.direction = compute_sun_direction(m_zenith, m_azimuth);
+	sun.skybox    = this;
 
 	return sun;
 
@@ -137,7 +138,7 @@ struct cbSkybox
 
 };
 
-void skybox_setup_constant_buffer(cbSkybox & skydata, float thetaSun, float azimuth, float turbidity)
+static void skybox_setup_constant_buffer(cbSkybox & skydata, float thetaSun, float azimuth, float turbidity)
 {
 
 	float theta2 = thetaSun * thetaSun;

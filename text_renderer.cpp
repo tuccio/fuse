@@ -112,19 +112,13 @@ void text_renderer::render(
 			commandList.resource_barrier_transition(rtResource, D3D12_RESOURCE_STATE_RENDER_TARGET);
 			commandList.resource_barrier_transition(font->get_texture()->get_resource(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
-
 			commandList->SetGraphicsRootConstantBufferView(0, cbPerFrame);
 
 			auto srvDescriptor = font->get_srv_descriptor();
-			auto srvHeap       = font->get_srv_heap();
 
-			commandList->SetDescriptorHeaps(1, &srvHeap);
 			commandList->SetGraphicsRootDescriptorTable(1, srvDescriptor);
 
 			commandList->OMSetRenderTargets(1, rtv, false, nullptr);
-
-			commandList->RSSetViewports(1, &m_viewport);
-			commandList->RSSetScissorRects(1, &m_scissorRect);
 
 			D3D12_VERTEX_BUFFER_VIEW vb;
 

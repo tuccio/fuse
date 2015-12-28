@@ -2,7 +2,7 @@ cmake_minimum_required ( VERSION 2.8 )
 
 project ( renderer )
 
-option ( FUSE_EDITOR_GUI "Compiles with editor GUI (Requires AntTweakBar)" OFF )
+option ( FUSE_EDITOR_GUI "Compiles with editor GUI" OFF )
 
 add_executable ( 
 	renderer WIN32
@@ -12,7 +12,7 @@ add_executable (
 	scene.hpp scene.cpp
 	cbuffer_structs.hpp
 	light.hpp
-	renderable.hpp
+	renderable.hpp renderable.cpp
 	tonemapper.hpp tonemapper.cpp
 	shadow_mapping.hpp shadow_mapping.cpp
 	shadow_mapper.hpp shadow_mapper.cpp
@@ -22,6 +22,7 @@ add_executable (
 	alpha_composer.hpp alpha_composer.cpp
 	skybox.hpp skybox.cpp
 	sdsm.hpp sdsm.cpp
+	debug_renderer.hpp debug_renderer.cpp
 )
 
 target_link_libraries ( renderer fuse ${DirectX12_LIBRARY} )

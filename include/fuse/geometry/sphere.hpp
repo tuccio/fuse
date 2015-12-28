@@ -26,6 +26,8 @@ namespace fuse
 		float get_radius(void) const;
 		void set_radius(float radius);
 
+		inline XMVECTOR get_splat_radius(void) const { return XMVectorSplatW(m_sphere); }
+
 		sphere & operator= (const sphere &) = default;
 		sphere & operator= (sphere &&) = default;
 

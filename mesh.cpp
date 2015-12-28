@@ -51,6 +51,8 @@ bool mesh::create(size_t vertices, size_t triangles, unsigned int storage_semant
 
 	}
 
+	recalculate_size();
+
 	return true;
 
 }

@@ -106,6 +106,8 @@ namespace fuse
 
 	public:
 
+		dynamic_resource_loader(void) = default;
+
 		template <typename Loader, typename Unloader>
 		dynamic_resource_loader(Loader && loader, Unloader && unloader) :
 			m_loader(loader),

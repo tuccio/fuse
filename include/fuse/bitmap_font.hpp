@@ -4,6 +4,7 @@
 #include <fuse/directx_helper.hpp>
 #include <fuse/texture.hpp>
 #include <fuse/properties_macros.hpp>
+#include <fuse/descriptor_heap.hpp>
 
 #include <unordered_map>
 
@@ -32,6 +33,8 @@ namespace fuse
 
 		const bitmap_char & operator[] (char code);
 
+		inline D3D12_GPU_DESCRIPTOR_HANDLE get_srv_descriptor(void) const { return cbv_uav_srv_descriptor_heap::get_singleton_pointer()->get_gpu_descriptor_handle(m_srvToken); }
+
 	protected:
 
 		bool   load_impl(void) override;
@@ -44,20 +47,17 @@ namespace fuse
 		std::unordered_map<char, bitmap_char> m_characters;
 		UINT m_height;
 
-		com_ptr<ID3D12DescriptorHeap> m_srvHeap;
-		D3D12_GPU_DESCRIPTOR_HANDLE   m_srvDescriptor;
+		descriptor_token_t m_srvToken;
 
 		bool load_metafile(const char * metafile);
 
 	public:
 
 		FUSE_PROPERTIES_BY_VALUE_READ_ONLY(
-			(srv_descriptor, m_srvDescriptor)
 			(height, m_height)
 		)
 
 		FUSE_PROPERTIES_SMART_POINTER_READ_ONLY(
-			(srv_heap, m_srvHeap)
 			(texture, m_texture)
 		)
 

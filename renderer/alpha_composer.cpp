@@ -30,9 +30,6 @@ void alpha_composer::render(
 
 	commandList->OMSetRenderTargets(1, &renderTarget.get_rtv_cpu_descriptor_handle(), false, nullptr);
 
-	commandList->RSSetScissorRects(1, &m_scissorRect);
-	commandList->RSSetViewports(1, &m_viewport);
-
 	commandList.resource_barrier_transition(renderTarget.get(), D3D12_RESOURCE_STATE_RENDER_TARGET);
 
 	for (uint32_t i = 0; i < numSRVs; i++)
@@ -41,7 +38,6 @@ void alpha_composer::render(
 		commandList.resource_barrier_transition(shaderResources[i]->get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 		
 		commandList->SetGraphicsRootSignature(m_rs.get());
-		commandList->SetDescriptorHeaps(1, cbv_uav_srv_descriptor_heap::get_singleton_pointer()->get_address());
 		commandList->SetGraphicsRootDescriptorTable(0, shaderResources[i]->get_srv_gpu_descriptor_handle());
 
 		commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);

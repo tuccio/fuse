@@ -8,6 +8,8 @@
 
 using namespace fuse;
 
+#define OCTREE_MAX_DEPTH 9
+
 FUSE_DEFINE_ALIGNED_ALLOCATOR_NEW(renderable, 16)
 
 static const XMFLOAT3 & to_xmfloat3(const aiVector3D & color)
@@ -138,7 +140,7 @@ bool scene::import_static_objects(assimp_loader * loader)
 			object->set_mesh(nodeGPUMesh);
 			object->set_bounding_sphere(boundingSphere);
 
-			m_staticObjects.push_back(object);
+			m_renderableObjects.push_back(object);
 
 		}
 
@@ -283,9 +285,9 @@ bool scene::import_lights(assimp_loader * loader)
 
 }
 
-std::pair<renderable_iterator, renderable_iterator> scene::get_static_objects(void)
+std::pair<renderable_iterator, renderable_iterator> scene::get_renderable_objects(void)
 {
-	return std::make_pair(m_staticObjects.begin(), m_staticObjects.end());
+	return std::make_pair(m_renderableObjects.begin(), m_renderableObjects.end());
 }
 
 std::pair<camera_iterator, camera_iterator> scene::get_cameras(void)
@@ -301,11 +303,30 @@ std::pair<light_iterator, light_iterator> scene::get_lights(void)
 void scene::clear(void)
 {
 
-	for (auto r : m_staticObjects)
+	for (auto r : m_renderableObjects)
 	{
 		delete r;
 	}
 
-	m_staticObjects.clear();
+	m_renderableObjects.clear();
 
+}
+
+void scene::recalculate_octree(void)
+{
+
+	m_octree = renderable_octree(m_sceneBounds.get_center(), XMVectorGetX(m_sceneBounds.get_half_extents()), OCTREE_MAX_DEPTH);
+
+	for (renderable * r : m_renderableObjects)
+	{
+		m_octree.insert(r);
+	}
+
+}
+
+renderable_vector scene::frustum_culling(const frustum & f)
+{
+	renderable_vector renderables;
+	m_octree.query(f, [&](renderable * r) { renderables.push_back(r); });
+	return renderables;
 }

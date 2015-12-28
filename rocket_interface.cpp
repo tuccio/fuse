@@ -172,8 +172,6 @@ void rocket_interface::render_begin(
 
 	commandList->SetGraphicsRootConstantBufferView(0, cbPerFrame);
 
-	commandList->SetDescriptorHeaps(1, cbv_uav_srv_descriptor_heap::get_singleton_pointer()->get_address());
-
 	commandList->OMSetRenderTargets(1, &rtv, true, nullptr);
 
 	commandList->RSSetViewports(1, &make_fullscreen_viewport(m_width, m_height));

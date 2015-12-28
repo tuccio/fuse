@@ -26,8 +26,6 @@ void tonemapper::render(
 	commandList.resource_barrier_transition(source.get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 	commandList.resource_barrier_transition(destination.get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
-	commandList->SetDescriptorHeaps(1, cbv_uav_srv_descriptor_heap::get_singleton_pointer()->get_address());
-
 	commandList->SetComputeRootSignature(m_rs.get());
 	commandList->SetComputeRootDescriptorTable(0, source.get_srv_gpu_descriptor_handle());
 	commandList->SetComputeRootDescriptorTable(1, destination.get_uav_gpu_descriptor_handle());

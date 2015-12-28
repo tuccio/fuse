@@ -4,6 +4,21 @@
 #include <fuse/allocators.hpp>
 #include <fuse/properties_macros.hpp>
 
+#include <array>
+
+enum aabb_corners
+{
+	FUSE_AABB_FRONT_BOTTOM_LEFT,
+	FUSE_AABB_FRONT_BOTTOM_RIGHT,
+	FUSE_AABB_FRONT_TOP_LEFT,
+	FUSE_AABB_FRONT_TOP_RIGHT,
+	FUSE_AABB_BACK_BOTTOM_LEFT,
+	FUSE_AABB_BACK_BOTTOM_RIGHT,
+	FUSE_AABB_BACK_TOP_LEFT,
+	FUSE_AABB_BACK_TOP_RIGHT,
+};
+
+
 namespace fuse
 {
 
@@ -16,14 +31,29 @@ namespace fuse
 		aabb(const aabb &) = default;
 		aabb(aabb &&) = default;
 
-		static aabb from_min_max(const XMVECTOR & min, const XMVECTOR & max);
-		static aabb from_center_half_extents(const XMVECTOR & center, const XMVECTOR & halfExtents);
+		static inline aabb from_min_max(const XMVECTOR & min, const XMVECTOR & max)
+		{
+			aabb box;
+			box.m_center      = XMVectorAdd(min, max) * .5f;
+			box.m_halfExtents = XMVectorSubtract(max, min) * .5f;
+			return box;
+		}
 
-		aabb & operator= (const aabb &) = default;
-		aabb & operator= (aabb &&) = default;
+		static inline aabb from_center_half_extents(const XMVECTOR & center, const XMVECTOR & halfExtents)
+		{
+			aabb box;
+			box.m_center      = center;
+			box.m_halfExtents = halfExtents;
+			return box;
+		}
 
-		inline XMVECTOR get_min(void) const { return m_center - m_halfExtents; }
-		inline XMVECTOR get_max(void) const { return m_center + m_halfExtents; }
+		inline aabb & operator= (const aabb &) = default;
+		inline aabb & operator= (aabb &&) = default;
+
+		inline XMVECTOR get_min(void) const { return XMVectorSubtract(m_center, m_halfExtents); }
+		inline XMVECTOR get_max(void) const { return XMVectorAdd(m_center, m_halfExtents); }
+
+		std::array<XMVECTOR, 8> get_corners(void) const;
 
 	private:
 

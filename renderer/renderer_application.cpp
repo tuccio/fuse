@@ -32,6 +32,7 @@
 
 #include "alpha_composer.hpp"
 #include "cbuffer_structs.hpp"
+#include "debug_renderer.hpp"
 #include "deferred_renderer.hpp"
 #include "scene.hpp"
 #include "shadow_mapper.hpp"
@@ -90,6 +91,8 @@ std::unique_ptr<gpu_mesh_manager>    g_gpuMeshManager;
 std::unique_ptr<texture_manager>     g_textureManager;
 std::unique_ptr<bitmap_font_manager> g_bitmapFontManager;
 
+std::array<gpu_graphics_command_list, NUM_BUFFERS> g_guiCommandList;
+
 fps_camera_controller g_cameraController;
 
 rocket_interface   g_rocketInterface;
@@ -97,9 +100,11 @@ rocket_interface   g_rocketInterface;
 bitmap_font_ptr    g_font;
 
 scene              g_scene;
+
+debug_renderer     g_debugRenderer;
 deferred_renderer  g_deferredRenderer;
-tonemapper         g_tonemapper;
 text_renderer      g_textRenderer;
+tonemapper         g_tonemapper;
 shadow_mapper      g_shadowMapper;
 sdsm               g_sdsm;
 
@@ -109,6 +114,9 @@ blur           g_shadowMapBlur;
 alpha_composer g_alphaComposer;
 
 skybox_renderer g_skyboxRenderer;
+
+D3D12_VIEWPORT g_fullscreenViewport;
+D3D12_RECT     g_fullscreenScissorRect;
 
 #ifdef FUSE_USE_EDITOR_GUI
 
@@ -148,9 +156,9 @@ bool renderer_application::on_render_context_created(gpu_render_context & render
 	/* Load scene */
 
 	//g_sceneLoader = std::make_unique<assimp_loader>("scene/default.fbx");
+	
 	g_sceneLoader = std::make_unique<assimp_loader>("scene/cornellbox_solid.fbx");
-
-	//g_sceneLoader = std::make_unique<assimp_loader>("scene/sponza.fbx", ppsteps);
+	//g_sceneLoader = std::make_unique<assimp_loader>("scene/sponza.fbx");
 
 	FAIL_IF(
 		!g_scene.import_static_objects(g_sceneLoader.get()) ||
@@ -162,6 +170,9 @@ bool renderer_application::on_render_context_created(gpu_render_context & render
 
 	g_scene.get_skybox()->set_zenith(1.02539599f);
 	g_scene.get_skybox()->set_azimuth(-1.70169306f);
+
+	g_scene.set_scene_bounds(XMVectorZero(), 300000.f);
+	g_scene.recalculate_octree();
 	
 	/*auto light = *g_scene.get_lights().first;
 
@@ -213,9 +224,9 @@ bool renderer_application::on_render_context_created(gpu_render_context & render
 
 		D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
 
-		uavDesc.Buffer.NumElements = 1;
+		uavDesc.Buffer.NumElements         = 1;
 		uavDesc.Buffer.StructureByteStride = sdsm::get_constant_buffer_size();
-		uavDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
+		uavDesc.ViewDimension              = D3D12_UAV_DIMENSION_BUFFER;
 
 		g_sdsmConstantBuffer[i].create_unordered_access_view(device, &uavDesc);
 
@@ -234,6 +245,10 @@ bool renderer_application::on_render_context_created(gpu_render_context & render
 	rendererCFG.dsvFormat              = DXGI_FORMAT_D24_UNORM_S8_UINT;
 	rendererCFG.shadingFormat          = DXGI_FORMAT_R16G16B16A16_FLOAT;
 	rendererCFG.shadowMappingAlgorithm = g_rendererConfiguration.get_shadow_mapping_algorithm();
+
+	FAIL_IF(!create_command_lists(g_guiCommandList.begin(), g_guiCommandList.end(), device, 0, D3D12_COMMAND_LIST_TYPE_DIRECT, nullptr));
+
+	for (auto & commandList : g_guiCommandList) FAIL_IF(FUSE_HR_FAILED(commandList->Close()));
 
 #ifdef FUSE_USE_EDITOR_GUI
 
@@ -273,18 +288,24 @@ bool renderer_application::on_render_context_created(gpu_render_context & render
 
 #endif
 
+	debug_renderer_configuration debugRendererCFG;
+
+	debugRendererCFG.rtvFormat = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+	debugRendererCFG.dsvFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
+
 	alpha_composer_configuration composerCFG;
 
-	composerCFG.blendDesc                              = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+	composerCFG.blendDesc = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
 	composerCFG.blendDesc.RenderTarget[0].BlendEnable  = TRUE;
 	composerCFG.blendDesc.RenderTarget[0].SrcBlend     = D3D12_BLEND_SRC_ALPHA;
 	composerCFG.blendDesc.RenderTarget[0].DestBlend    = D3D12_BLEND_INV_SRC_ALPHA;
 	composerCFG.blendDesc.RenderTarget[0].BlendOp      = D3D12_BLEND_OP_ADD;
 	composerCFG.blendDesc.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_MAX;
 
-	composerCFG.rtvFormat                             = DXGI_FORMAT_R8G8B8A8_UNORM;
+	composerCFG.rtvFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
 
 	if (g_deferredRenderer.init(device, rendererCFG) &&
+	    g_debugRenderer.init(device, debugRendererCFG) &&
 	    g_tonemapper.init(device) &&
 	    g_textRenderer.init(device) &&
 	    g_alphaComposer.init(device, composerCFG) &&
@@ -344,25 +365,12 @@ void renderer_application::on_render_context_released(gpu_render_context & rende
 bool renderer_application::on_swap_chain_resized(ID3D12Device * device, IDXGISwapChain * swapChain, const DXGI_SURFACE_DESC * desc)
 {
 
-	D3D12_VIEWPORT viewport = {};
+	g_fullscreenViewport.Width    = desc->Width;
+	g_fullscreenViewport.Height   = desc->Height;
+	g_fullscreenViewport.MaxDepth = 1.f;
 
-	viewport.Width    = desc->Width;
-	viewport.Height   = desc->Height;
-	viewport.MaxDepth = 1.f;
-
-	D3D12_RECT scissorRect = {};
-
-	scissorRect.right  = desc->Width;
-	scissorRect.bottom = desc->Height;
-
-	g_deferredRenderer.set_viewport(viewport);
-	g_deferredRenderer.set_scissor_rect(scissorRect);
-
-	g_textRenderer.set_viewport(viewport);
-	g_textRenderer.set_scissor_rect(scissorRect);
-
-	g_alphaComposer.set_viewport(viewport);
-	g_alphaComposer.set_scissor_rect(scissorRect);
+	g_fullscreenScissorRect.right  = desc->Width;
+	g_fullscreenScissorRect.bottom = desc->Height;
 
 	g_cameraController.on_resize(desc->Width, desc->Height);
 
@@ -573,7 +581,7 @@ bool renderer_application::on_swap_chain_resized(ID3D12Device * device, IDXGISwa
 			!r.create_shader_resource_view(device)
 		)
 
-			r->SetName(L"fullres_gui");
+		r->SetName(L"fullres_gui");
 
 	}
 
@@ -754,10 +762,14 @@ void renderer_application::upload_per_frame_resources(ID3D12Device * device, gpu
 void renderer_application::on_render(gpu_render_context & renderContext, const render_resource & backBuffer)
 {
 
-	ID3D12Device * device       = renderContext.get_device();
-	auto &         commandQueue = renderContext.get_command_queue();
-	auto &         commandList  = renderContext.get_command_list();
-	uint32_t       bufferIndex  = renderContext.get_buffer_index();
+	ID3D12Device * device = renderContext.get_device();
+
+	uint32_t bufferIndex  = renderContext.get_buffer_index();
+
+	auto & commandQueue   = renderContext.get_command_queue();
+
+	auto & commandList    = renderContext.get_command_list();
+	auto & guiCommandList = g_guiCommandList[bufferIndex];
 
 	update_renderer_configuration(device, commandQueue);
 
@@ -766,11 +778,20 @@ void renderer_application::on_render(gpu_render_context & renderContext, const r
 	renderContext.reset_command_allocators();
 	commandList.reset_command_list(nullptr);
 
+	guiCommandList.reset_command_allocator();
+	guiCommandList.reset_command_list(nullptr);
+
 	/* Setup render */
+
+	commandList->SetDescriptorHeaps(1, cbv_uav_srv_descriptor_heap::get_singleton_pointer()->get_address());
+	guiCommandList->SetDescriptorHeaps(1, cbv_uav_srv_descriptor_heap::get_singleton_pointer()->get_address());
 
 	D3D12_GPU_VIRTUAL_ADDRESS cbPerFrameAddress = g_cbPerFrame[bufferIndex]->GetGPUVirtualAddress();
 
 	upload_per_frame_resources(device, commandQueue, commandList, renderContext.get_ring_buffer(), g_cbPerFrame[bufferIndex].get());
+
+	auto shadowMapViewport    = make_fullscreen_viewport(g_rendererConfiguration.get_shadow_map_resolution(), g_rendererConfiguration.get_shadow_map_resolution());
+	auto shadowMapScissorRect = make_fullscreen_scissor_rect(g_rendererConfiguration.get_shadow_map_resolution(), g_rendererConfiguration.get_shadow_map_resolution());
 
 	/* Clear the buffers */
 
@@ -791,18 +812,29 @@ void renderer_application::on_render(gpu_render_context & renderContext, const r
 	commandList->ClearRenderTargetView(gbuffer[2]->get_rtv_cpu_descriptor_handle(), clearColor, 0, nullptr);
 	commandList->ClearRenderTargetView(gbuffer[3]->get_rtv_cpu_descriptor_handle(), clearColor, 0, nullptr);
 
-	commandList->ClearRenderTargetView(g_fullresGUI[bufferIndex].get_rtv_cpu_descriptor_handle(), clearColor, 0, nullptr);
 	commandList->ClearDepthStencilView(g_depthBuffer[bufferIndex].get_dsv_cpu_descriptor_handle(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.f, 0, 0, nullptr);
 
 	commandList.resource_barrier_transition(g_cbPerFrame[bufferIndex].get(), D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
 
 	/* Draw GUI */
 
-	draw_gui(device, commandQueue, commandList, renderContext.get_ring_buffer());
+	guiCommandList.resource_barrier_transition(g_fullresGUI[bufferIndex].get(), D3D12_RESOURCE_STATE_RENDER_TARGET);
+	guiCommandList->ClearRenderTargetView(g_fullresGUI[bufferIndex].get_rtv_cpu_descriptor_handle(), clearColor, 0, nullptr);
+
+	draw_gui(device, commandQueue, guiCommandList, renderContext.get_ring_buffer());
+
+	FUSE_HR_CHECK(guiCommandList->Close());
+	commandQueue.execute(guiCommandList);
 
 	/* GBuffer rendering */
 
-	auto staticObjects = g_scene.get_static_objects();
+	auto culledObjects = g_scene.frustum_culling(g_scene.get_active_camera()->get_frustum());
+
+	auto renderableObjects = std::make_pair(culledObjects.begin(), culledObjects.end());
+	//auto renderableObjects = g_scene.get_renderable_objects();
+
+	commandList->RSSetViewports(1, &g_fullscreenViewport);
+	commandList->RSSetScissorRects(1, &g_fullscreenScissorRect);
 
 	g_deferredRenderer.render_gbuffer(
 		device,
@@ -813,8 +845,8 @@ void renderer_application::on_render(gpu_render_context & renderContext, const r
 		gbuffer,
 		g_depthBuffer[bufferIndex],
 		g_scene.get_active_camera(),
-		staticObjects.first,
-		staticObjects.second);
+		renderableObjects.first,
+		renderableObjects.second);
 
 	g_sdsm.create_log_partitions(device, commandQueue, commandList, g_depthBuffer[bufferIndex], g_sdsmConstantBuffer[bufferIndex]);
 
@@ -892,8 +924,25 @@ void renderer_application::on_render(gpu_render_context & renderContext, const r
 
 		light sunLight = skybox->get_sun_light();
 
-		shadowMapInfo.shadowMap = std::addressof(g_shadowmap0[bufferIndex]);
-		shadowMapInfo.lightMatrix = sm_directional_light_matrix(sunLight.direction, staticObjects.first, staticObjects.second);
+		shadowMapInfo.shadowMap   = std::addressof(g_shadowmap0[bufferIndex]);
+
+		{
+
+			XMMATRIX lightViewMatrix = XMMatrixLookAtLH(XMVectorZero(),
+			                                            to_vector(sunLight.direction),
+			                                            g_scene.get_active_camera()->left());
+			                                            //XMVectorSet(sunLight.direction.y > .99f ? 1.f : 0.f, sunLight.direction.y > .99f ? 0.f : 1.f, 0.f, 0.f));
+
+			XMMATRIX lightCropMatrix = sm_crop_matrix_lh(lightViewMatrix, renderableObjects.first, renderableObjects.second);
+
+			shadowMapInfo.lightMatrix = XMMatrixMultiply(lightViewMatrix, lightCropMatrix);
+
+		}
+
+		/* Sun shadow map */
+
+		commandList->RSSetViewports(1, &shadowMapViewport);
+		commandList->RSSetScissorRects(1, &shadowMapScissorRect);
 
 		g_shadowMapper.render(
 			device,
@@ -904,8 +953,8 @@ void renderer_application::on_render(gpu_render_context & renderContext, const r
 			shadowMapInfo.lightMatrix,
 			g_shadowmap0[bufferIndex],
 			g_shadowmap32F[bufferIndex],
-			staticObjects.first,
-			staticObjects.second);
+			renderableObjects.first,
+			renderableObjects.second);
 
 		g_shadowMapBlur.render(
 			commandQueue,
@@ -915,7 +964,12 @@ void renderer_application::on_render(gpu_render_context & renderContext, const r
 
 		g_mipmapGenerator->generate_mipmaps(device, commandQueue, commandList, g_shadowmap0[bufferIndex].get());
 
-		g_deferredRenderer.render_skybox(
+		/* Skylight rendering */
+
+		commandList->RSSetViewports(1, &g_fullscreenViewport);
+		commandList->RSSetScissorRects(1, &g_fullscreenScissorRect);
+
+		g_deferredRenderer.render_light(
 			device,
 			commandQueue,
 			commandList,
@@ -923,9 +977,34 @@ void renderer_application::on_render(gpu_render_context & renderContext, const r
 			cbPerFrameAddress,
 			g_fullresRGBA16F2[bufferIndex],
 			gbuffer,
-			g_depthBuffer[bufferIndex],
-			*skybox,
+			&sunLight,
 			&shadowMapInfo);
+		
+		/* Skybox rendering */
+
+		g_deferredRenderer.render_skybox(
+			device,
+			commandQueue,
+			commandList,
+			cbPerFrameAddress,
+			g_fullresRGBA16F2[bufferIndex],
+			g_depthBuffer[bufferIndex],
+			*skybox);
+
+	}
+
+	for (auto it = renderableObjects.first; it != renderableObjects.second; it++)
+	{
+
+		g_debugRenderer.render_aabb(
+			device,
+			commandQueue,
+			commandList,
+			renderContext.get_ring_buffer(),
+			cbPerFrameAddress,
+			bounding_aabb(transform_affine((*it)->get_bounding_sphere(), (*it)->get_world_matrix())),
+			g_fullresRGBA16F2[bufferIndex],
+			g_depthBuffer[bufferIndex]);
 
 	}
 
@@ -953,6 +1032,9 @@ void renderer_application::on_render(gpu_render_context & renderContext, const r
 		std::addressof(g_fullresGUI[bufferIndex])
 	};
 
+	commandList->RSSetViewports(1, &g_fullscreenViewport);
+	commandList->RSSetScissorRects(1, &g_fullscreenScissorRect);
+
 	g_alphaComposer.render(
 		commandQueue,
 		commandList,
@@ -971,6 +1053,9 @@ void renderer_application::on_render(gpu_render_context & renderContext, const r
 
 void renderer_application::draw_gui(ID3D12Device * device, gpu_command_queue & commandQueue, gpu_graphics_command_list & commandList, gpu_ring_buffer & ringBuffer)
 {
+
+	commandList->RSSetViewports(1, &g_fullscreenViewport);
+	commandList->RSSetScissorRects(1, &g_fullscreenScissorRect);
 
 	uint32_t bufferIndex = get_buffer_index();
 

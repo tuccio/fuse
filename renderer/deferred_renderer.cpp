@@ -5,10 +5,48 @@
 #include <fuse/compile_shader.hpp>
 #include <fuse/pipeline_state.hpp>
 #include <fuse/descriptor_heap.hpp>
+#include <fuse/gpu_global_resource_state.hpp>
 
 #include "cbuffer_structs.hpp"
 
 using namespace fuse;
+
+static const char * get_shadow_mapping_define(shadow_mapping_algorithm algorithm)
+{
+
+	switch (algorithm)
+	{
+	case FUSE_SHADOW_MAPPING_NONE:
+		return "SHADOW_MAPPING_NONE";
+	case FUSE_SHADOW_MAPPING_VSM:
+		return "SHADOW_MAPPING_VSM";
+	case FUSE_SHADOW_MAPPING_EVSM2:
+		return "SHADOW_MAPPING_EVSM2";
+	case FUSE_SHADOW_MAPPING_EVSM4:
+		return "SHADOW_MAPPING_EVSM4";
+	default:
+		return nullptr;
+	}
+
+}
+
+static const char * get_light_define(light_type type)
+{
+
+	switch (type)
+	{
+	case FUSE_LIGHT_TYPE_DIRECTIONAL:
+		return "LIGHT_TYPE_DIRECTIONAL";
+	case FUSE_LIGHT_TYPE_POINTLIGHT:
+		return "LIGHT_TYPE_POINTLIGHT";
+	case FUSE_LIGHT_TYPE_SKYBOX:
+		return "LIGHT_SKYBOX";
+	case FUSE_LIGHT_TYPE_SPOTLIGHT:
+		return "LIGHT_TYPE_SPOTLIGHT";
+	default:
+		return nullptr;
+	}
+}
 
 deferred_renderer::deferred_renderer(void) { }
 
@@ -39,30 +77,7 @@ void deferred_renderer::shutdown(void)
 
 bool deferred_renderer::set_shadow_mapping_algorithm(shadow_mapping_algorithm algorithm)
 {
-	
-	m_configuration.shadowMappingAlgorithm = algorithm;
-
-	switch (algorithm)
-	{
-
-	case FUSE_SHADOW_MAPPING_NONE:
-		m_shadowMapAlgorithmDefine = "SHADOW_MAPPING_NONE";
-		break;
-
-	case FUSE_SHADOW_MAPPING_VSM:
-		m_shadowMapAlgorithmDefine = "SHADOW_MAPPING_VSM";
-		break;
-
-	case FUSE_SHADOW_MAPPING_EVSM2:
-		m_shadowMapAlgorithmDefine = "SHADOW_MAPPING_EVSM2";
-		break;
-
-	case FUSE_SHADOW_MAPPING_EVSM4:
-		m_shadowMapAlgorithmDefine = "SHADOW_MAPPING_EVSM4";
-		break;
-
-	}
-
+	m_shadowMapAlgorithmDefine = get_shadow_mapping_define(algorithm);
 	return true;
 }
 
@@ -88,7 +103,8 @@ void deferred_renderer::render_gbuffer(
 
 	/* Setup the pipeline state */
 
-	auto gbufferPSO = m_gbufferPST.get_permutation(device);
+	auto queryPSO   = m_queryPST.get_pso_instance(device);
+	auto gbufferPSO = m_gbufferPST.get_pso_instance(device);
 
 	commandList->SetPipelineState(gbufferPSO);
 
@@ -111,9 +127,6 @@ void deferred_renderer::render_gbuffer(
 	commandList->OMSetRenderTargets(_countof(gbufferRTV), gbufferRTV, false, &dsv);
 	commandList->OMSetStencilRef(1);
 
-	commandList->RSSetViewports(1, &m_viewport);
-	commandList->RSSetScissorRects(1, &m_scissorRect);
-
 	commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 	commandList->SetGraphicsRootSignature(m_gbufferRS.get());
@@ -124,6 +137,8 @@ void deferred_renderer::render_gbuffer(
 
 	material defaultMaterial;
 	defaultMaterial.set_default();
+
+	uint32_t objectIndex = 0;
 
 	for (auto it = begin; it != end; it++)
 	{
@@ -160,23 +175,68 @@ void deferred_renderer::render_gbuffer(
 
 			commandList->SetGraphicsRootConstantBufferView(1, address);
 
-			/* Draw */
-
+			auto boundingBox = object->get_occlusion_bounding_box();
 			auto mesh = object->get_mesh();
+
+			///* GPU culling */
+			//
+			//bool gpuOcclusion = object->load_occlusion_resources(device);
+
+			//if (gpuOcclusion)
+			//{
+			//	
+			//	//// Resolve query from last frame
+
+			//	//commandList.resource_barrier_transition(object->get_query_result().get(), D3D12_RESOURCE_STATE_COPY_DEST);
+			//	//commandList->ResolveQueryData(m_queryHeap.get(), D3D12_QUERY_TYPE_BINARY_OCCLUSION, objectIndex, 1, object->get_query_result().get(), 0);
+			//	//commandList.resource_barrier_transition(object->get_query_result().get(), D3D12_RESOURCE_STATE_GENERIC_READ);
+
+			//	//// Set predication
+			//	//
+			//	//commandList->SetPredication(object->get_query_result().get(), 0, D3D12_PREDICATION_OP_EQUAL_ZERO);
+
+			//}
+			//else
+			//{
+			//	// Disable predication if the bounding box isn't loaded
+			//	commandList->SetPredication(nullptr, 0, D3D12_PREDICATION_OP_EQUAL_ZERO);
+			//}
+			
+			/* Draw */
 
 			if (mesh && mesh->load())
 			{
-
-				commandList.resource_barrier_transition(mesh->get_resource(), D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER | D3D12_RESOURCE_STATE_INDEX_BUFFER);
 
 				commandList->IASetVertexBuffers(0, 2, mesh->get_vertex_buffers());
 				commandList->IASetIndexBuffer(&mesh->get_index_data());
 
 				commandList->DrawIndexedInstanced(mesh->get_num_indices(), 1, 0, 0, 0);
 
-			}			
+			}
 
+			/* Submit query for the next frame */
+
+			//if (gpuOcclusion)
+			//{
+
+			//	// Draw bounding box
+
+			//	commandList->SetPipelineState(queryPSO);
+
+			//	commandList->IASetVertexBuffers(0, 1, boundingBox->get_vertex_buffers());
+			//	commandList->IASetIndexBuffer(&boundingBox->get_index_data());
+
+			//	commandList->BeginQuery(m_queryHeap.get(), D3D12_QUERY_TYPE_BINARY_OCCLUSION, objectIndex);
+			//	commandList->DrawIndexedInstanced(boundingBox->get_num_indices(), 1, 0, 0, 0);
+			//	commandList->EndQuery(m_queryHeap.get(), D3D12_QUERY_TYPE_BINARY_OCCLUSION, objectIndex);
+
+			//	commandList->SetPipelineState(gbufferPSO);
+
+			//}
+			
 		}
+
+		++objectIndex;
 
 	}
 
@@ -213,9 +273,9 @@ void deferred_renderer::render_light(
 
 		memcpy(cbData, &cbPerLight, sizeof(cb_per_light));
 
-		auto directionalLightingPSO = m_shadingPST.get_permutation(device, { { "LIGHT_TYPE", "LIGHT_TYPE_DIRECTIONAL" }, { "SHADOW_MAPPING_ALGORITHM", m_shadowMapAlgorithmDefine } });
+		auto shadingPSO = m_shadingPST.get_pso_instance(device, { { "LIGHT_TYPE", get_light_define(light->type) }, { "SHADOW_MAPPING_ALGORITHM", m_shadowMapAlgorithmDefine } });
 
-		commandList->SetPipelineState(directionalLightingPSO);
+		commandList->SetPipelineState(shadingPSO);
 		commandList->SetGraphicsRootSignature(m_shadingRS.get());
 
 		commandList.resource_barrier_transition(gbuffer[0]->get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
@@ -227,20 +287,23 @@ void deferred_renderer::render_light(
 
 		commandList->SetGraphicsRootConstantBufferView(0, cbPerFrame);
 		commandList->SetGraphicsRootConstantBufferView(1, address);
-		
-		commandList->SetDescriptorHeaps(1, cbv_uav_srv_descriptor_heap::get_singleton_pointer()->get_address());
+
 		commandList->SetGraphicsRootDescriptorTable(2, gbuffer[0]->get_srv_gpu_descriptor_handle());
 
 		if (shadowMapInfo)
 		{
+
 			commandList.resource_barrier_transition(shadowMapInfo->shadowMap->get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 			commandList->SetGraphicsRootDescriptorTable(3, shadowMapInfo->shadowMap->get_srv_gpu_descriptor_handle());
+
+			if (light->type == FUSE_LIGHT_TYPE_SKYBOX)
+			{
+				commandList->SetGraphicsRootConstantBufferView(5, shadowMapInfo->sdsmCBAddress);
+			}
+
 		}
 
 		commandList->OMSetRenderTargets(1, &renderTarget.get_rtv_cpu_descriptor_handle(), false, nullptr);
-
-		commandList->RSSetViewports(1, &m_viewport);
-		commandList->RSSetScissorRects(1, &m_scissorRect);
 
 		commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 		commandList->DrawInstanced(4, 1, 0, 0);
@@ -253,73 +316,11 @@ void deferred_renderer::render_skybox(
 	ID3D12Device * device,
 	gpu_command_queue & commandQueue,
 	gpu_graphics_command_list & commandList,
-	gpu_ring_buffer & ringBuffer,
 	D3D12_GPU_VIRTUAL_ADDRESS cbPerFrame,
 	const render_resource & renderTarget,
-	render_resource * const * gbuffer,
 	const render_resource & depthBuffer,
-	skybox & sky,
-	const shadow_map_info * shadowMapInfo)
+	skybox & sky)
 {
-
-	D3D12_GPU_VIRTUAL_ADDRESS address;
-
-	void * cbData = ringBuffer.allocate_constant_buffer(device, commandQueue, sizeof(cb_per_light), &address);
-
-	auto rtv = renderTarget.get_rtv_cpu_descriptor_handle();
-
-	if (cbData)
-	{
-
-		light light = sky.get_sun_light();
-
-		cb_per_light cbPerLight = {};
-
-		cbPerLight.light.type        = light.type;
-		cbPerLight.light.castShadows = shadowMapInfo ? 1u : 0u;
-		cbPerLight.light.direction   = light.direction;
-		cbPerLight.light.luminance   = to_float3(light.color * light.intensity);
-		cbPerLight.light.ambient     = to_float3(light.ambient);
-
-		cbPerLight.shadowMapping.lightMatrix = XMMatrixTranspose(shadowMapInfo->lightMatrix);
-
-		memcpy(cbData, &cbPerLight, sizeof(cb_per_light));
-
-		auto skyboxLightingPSO = m_shadingPST.get_permutation(device, { { "LIGHT_TYPE", "LIGHT_TYPE_SKYBOX" }, { "SHADOW_MAPPING_ALGORITHM", m_shadowMapAlgorithmDefine } });
-
-		commandList->SetPipelineState(skyboxLightingPSO);
-		commandList->SetGraphicsRootSignature(m_shadingRS.get());
-
-		commandList.resource_barrier_transition(gbuffer[0]->get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-		commandList.resource_barrier_transition(gbuffer[1]->get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-		commandList.resource_barrier_transition(gbuffer[2]->get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-		commandList.resource_barrier_transition(gbuffer[3]->get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-
-		commandList->SetGraphicsRootConstantBufferView(0, cbPerFrame);
-		commandList->SetGraphicsRootConstantBufferView(1, address);
-
-		commandList->SetDescriptorHeaps(1, cbv_uav_srv_descriptor_heap::get_singleton_pointer()->get_address());
-		commandList->SetGraphicsRootDescriptorTable(2, gbuffer[0]->get_srv_gpu_descriptor_handle());
-
-		if (shadowMapInfo)
-		{
-
-			commandList.resource_barrier_transition(shadowMapInfo->shadowMap->get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-			commandList->SetGraphicsRootDescriptorTable(3, shadowMapInfo->shadowMap->get_srv_gpu_descriptor_handle());
-
-			commandList->SetGraphicsRootConstantBufferView(5, shadowMapInfo->sdsmCBAddress);
-
-		}
-
-		commandList->OMSetRenderTargets(1, &rtv, false, nullptr);
-
-		commandList->RSSetViewports(1, &m_viewport);
-		commandList->RSSetScissorRects(1, &m_scissorRect);
-
-		commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
-		commandList->DrawInstanced(4, 1, 0, 0);
-
-	}
 
 	commandList->SetPipelineState(m_skyboxPSO.get());
 
@@ -329,19 +330,11 @@ void deferred_renderer::render_skybox(
 
 	commandList.resource_barrier_transition(sky.get_cubemap().get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
-	commandList->SetDescriptorHeaps(1, cbv_uav_srv_descriptor_heap::get_singleton_pointer()->get_address());
 	commandList->SetGraphicsRootDescriptorTable(1, sky.get_cubemap().get_srv_gpu_descriptor_handle());
 
 	commandList->SetGraphicsRootConstantBufferView(0, cbPerFrame);
-
-	D3D12_VIEWPORT skyboxVP = m_viewport;
-	skyboxVP.MinDepth = skyboxVP.MaxDepth = 1.1f;
-
 	commandList->OMSetStencilRef(0);
-	commandList->OMSetRenderTargets(1, &rtv, false, &depthBuffer.get_dsv_cpu_descriptor_handle());
-	
-	commandList->RSSetViewports(1, &skyboxVP);
-	commandList->RSSetScissorRects(1, &m_scissorRect);
+	commandList->OMSetRenderTargets(1, &renderTarget.get_rtv_cpu_descriptor_handle(), false, &depthBuffer.get_dsv_cpu_descriptor_handle());
 
 	commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 	commandList->DrawInstanced(4, 1, 0, 0);
@@ -374,6 +367,7 @@ bool deferred_renderer::create_gbuffer_pso(ID3D12Device * device)
 	    !FUSE_HR_FAILED(device->CreateRootSignature(0, FUSE_BLOB_ARGS(serializedSignature), IID_PPV_ARGS(&m_gbufferRS))))
 	{
 
+		/* GBuffer PSO */
 		D3D12_GRAPHICS_PIPELINE_STATE_DESC gbufferPSODesc = {};
 
 		gbufferPSODesc.BlendState        = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
@@ -383,8 +377,8 @@ bool deferred_renderer::create_gbuffer_pso(ID3D12Device * device)
 		// For each pixel in the gbuffer, we set to 1 the stencil value
 		// to render the skybox at the end using a stencil test.
 
-		gbufferPSODesc.DepthStencilState.StencilEnable = TRUE;
-		gbufferPSODesc.DepthStencilState.StencilWriteMask = 0x1;
+		gbufferPSODesc.DepthStencilState.StencilEnable           = TRUE;
+		gbufferPSODesc.DepthStencilState.StencilWriteMask        = 0x1;
 		gbufferPSODesc.DepthStencilState.FrontFace.StencilPassOp = D3D12_STENCIL_OP_REPLACE;
 		gbufferPSODesc.DepthStencilState.BackFace.StencilPassOp  = D3D12_STENCIL_OP_REPLACE;
 
@@ -418,7 +412,36 @@ bool deferred_renderer::create_gbuffer_pso(ID3D12Device * device)
 
 		});
 
-		return true;
+		/* Occlusion query PSO */
+
+		D3D12_GRAPHICS_PIPELINE_STATE_DESC queryPSODesc = gbufferPSODesc;
+
+		queryPSODesc.DepthStencilState.StencilWriteMask = 0;
+		queryPSODesc.DepthStencilState.DepthWriteMask   = D3D12_DEPTH_WRITE_MASK_ZERO;
+
+		queryPSODesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+		
+		m_queryPST = pipeline_state_template({}, queryPSODesc, "5_0");
+
+		m_queryPST.set_vertex_shader("shaders/deferred_shading_gbuffer.hlsl", "query_vs");
+		m_queryPST.set_pixel_shader("shaders/deferred_shading_gbuffer.hlsl", "query_ps");
+
+		D3D12_QUERY_HEAP_DESC queryHeapDesc = {};
+
+		queryHeapDesc.Count = 4096;
+		queryHeapDesc.Type  = D3D12_QUERY_HEAP_TYPE_OCCLUSION;
+
+		return 
+			gpu_global_resource_state::get_singleton_pointer()->create_committed_resource(
+				device,
+				&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+				D3D12_HEAP_FLAG_NONE,
+				&CD3DX12_RESOURCE_DESC::Buffer(8),
+				D3D12_RESOURCE_STATE_COPY_DEST,
+				nullptr,
+				IID_PPV_ARGS(&m_queryResult)) &&
+			!FUSE_HR_FAILED(device->CreateQueryHeap(&queryHeapDesc, IID_PPV_ARGS(&m_queryHeap)));
+		//return true;
 
 	}
 
@@ -480,8 +503,8 @@ bool deferred_renderer::create_shading_pst(ID3D12Device * device)
 
 		m_shadingPST = pipeline_state_template(
 		{
-			{ "LIGHT_TYPE",{ "LIGHT_TYPE_SKYBOX", "LIGHT_TYPE_DIRECTIONAL" } },
-			{ "SHADOW_MAPPING_ALGORITHM",{ "SHADOW_MAPPING_NONE", "SHADOW_MAPPING_VSM", "SHADOW_MAPPING_EVSM2", "SHADOW_MAPPING_EVSM4" } }
+			{ "LIGHT_TYPE", { "LIGHT_TYPE_SKYBOX", "LIGHT_TYPE_DIRECTIONAL" } },
+			{ "SHADOW_MAPPING_ALGORITHM", { "SHADOW_MAPPING_NONE", "SHADOW_MAPPING_VSM", "SHADOW_MAPPING_EVSM2", "SHADOW_MAPPING_EVSM4" } }
 		},
 			shadingPSODesc,
 			"5_0",

@@ -72,50 +72,33 @@ namespace fuse
 			ID3D12Device * device,
 			gpu_command_queue & commandQueue,
 			gpu_graphics_command_list & commandList,
-			gpu_ring_buffer & ringBuffer,
 			D3D12_GPU_VIRTUAL_ADDRESS cbPerFrame,
 			const render_resource & renderTarget,
-			render_resource * const * gbuffer,
 			const render_resource & depthBuffer,
-			skybox & skybox,
-			const shadow_map_info * shadowMapInfo = nullptr);
+			skybox & skybox);
 
 	private:
+
+		pipeline_state_template m_gbufferPST;
+		pipeline_state_template m_queryPST;
+		pipeline_state_template m_shadingPST;
+
+		com_ptr<ID3D12QueryHeap> m_queryHeap;
+		com_ptr<ID3D12Resource>  m_queryResult;
 
 		com_ptr<ID3D12RootSignature> m_gbufferRS;
 		com_ptr<ID3D12RootSignature> m_shadingRS;
 
-		/*com_ptr<ID3D12PipelineState> m_directionalPSO;
-		com_ptr<ID3D12PipelineState> m_skyboxLightingPSO;
-		com_ptr<ID3D12RootSignature> m_skyboxLightingRS;*/
-
 		com_ptr<ID3D12PipelineState> m_skyboxPSO;
 		com_ptr<ID3D12RootSignature> m_skyboxRS;
 
-		D3D12_VIEWPORT m_viewport;
-		D3D12_RECT     m_scissorRect;
-
 		deferred_renderer_configuration m_configuration;
-
-		pipeline_state_template m_gbufferPST;
-		pipeline_state_template m_shadingPST;
-
 		const char * m_shadowMapAlgorithmDefine;
-
-		static inline renderable * get_address(renderable * r) { return r; }
-		static inline renderable * get_address(renderable & r) { return &r; }
 
 		bool create_psos(ID3D12Device * device);
 		bool create_gbuffer_pso(ID3D12Device * device);
 		bool create_shading_pst(ID3D12Device * device);
 		bool create_skybox_pso(ID3D12Device * device);
-
-	public:
-
-		FUSE_PROPERTIES_BY_CONST_REFERENCE(
-			(viewport, m_viewport)
-			(scissor_rect, m_scissorRect)
-		)
 
 	};
 
