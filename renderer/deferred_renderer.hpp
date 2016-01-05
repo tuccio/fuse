@@ -51,7 +51,7 @@ namespace fuse
 			gpu_graphics_command_list & commandList,
 			gpu_ring_buffer & ringBuffer,
 			D3D12_GPU_VIRTUAL_ADDRESS cbPerFrame,
-			render_resource * const * gbuffer,
+			const render_resource * const * gbuffer,
 			const render_resource & depthBuffer,
 			const camera * camera,
 			renderable_iterator begin,
@@ -64,7 +64,8 @@ namespace fuse
 			gpu_ring_buffer & ringBuffer,
 			D3D12_GPU_VIRTUAL_ADDRESS cbPerFrame,
 			const render_resource & renderTarget,
-			render_resource * const * gbuffer,
+			const render_resource * const * gbuffer,
+			const D3D12_GPU_DESCRIPTOR_HANDLE & gbufferSRVTable,
 			const light * light,
 			const shadow_map_info * shadowMapInfo = nullptr);
 

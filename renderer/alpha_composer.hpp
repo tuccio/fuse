@@ -29,7 +29,7 @@ namespace fuse
 			gpu_command_queue & commandQueue,
 			gpu_graphics_command_list & commandList,
 			const render_resource & rtv,
-			render_resource * const * shaderResources,
+			const render_resource * const * shaderResources,
 			uint32_t numSRVs);
 
 	private:

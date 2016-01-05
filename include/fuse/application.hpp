@@ -10,6 +10,7 @@
 #include <fuse/directx_helper.hpp>
 #include <fuse/gpu_global_resource_state.hpp>
 #include <fuse/render_resource.hpp>
+#include <fuse/render_resource_manager.hpp>
 #include <fuse/descriptor_heap.hpp>
 #include <fuse/gpu_render_context.hpp>
 

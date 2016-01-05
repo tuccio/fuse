@@ -18,6 +18,8 @@
 #include <fuse/texture_manager.hpp>
 #include <fuse/bitmap_font_manager.hpp>
 
+#include <fuse/render_resource_manager.hpp>
+
 #include <fuse/assimp_loader.hpp>
 #include <fuse/gpu_ring_buffer.hpp>
 #include <fuse/text_renderer.hpp>
@@ -62,21 +64,7 @@ using namespace fuse;
 
 std::array<com_ptr<ID3D12Resource>, NUM_BUFFERS> g_cbPerFrame;
 
-std::array<UINT, NUM_BUFFERS> g_gbufferSRVTable;
-
-std::array<render_resource, NUM_BUFFERS> g_fullresRGBA16F0;
-std::array<render_resource, NUM_BUFFERS> g_fullresRGBA16F1;
-std::array<render_resource, NUM_BUFFERS> g_fullresRGBA16F2;
-std::array<render_resource, NUM_BUFFERS> g_fullresRGBA8U0;
-std::array<render_resource, NUM_BUFFERS> g_fullresRGBA8U1;
-
-std::array<render_resource, NUM_BUFFERS> g_fullresGUI;
-
-std::array<render_resource, NUM_BUFFERS> g_depthBuffer;
-
-std::array<render_resource, NUM_BUFFERS> g_shadowmap32F;
-std::array<render_resource, NUM_BUFFERS> g_shadowmap0;
-std::array<render_resource, NUM_BUFFERS> g_shadowmap1;
+std::array<descriptor_token_t, NUM_BUFFERS> g_gbufferSRVTable;
 
 std::array<render_resource, NUM_BUFFERS> g_sdsmConstantBuffer;
 
@@ -92,6 +80,8 @@ std::unique_ptr<texture_manager>     g_textureManager;
 std::unique_ptr<bitmap_font_manager> g_bitmapFontManager;
 
 std::array<gpu_graphics_command_list, NUM_BUFFERS> g_guiCommandList;
+
+render_resource_manager g_renderResourceManager;
 
 fps_camera_controller g_cameraController;
 
@@ -117,6 +107,8 @@ skybox_renderer g_skyboxRenderer;
 
 D3D12_VIEWPORT g_fullscreenViewport;
 D3D12_RECT     g_fullscreenScissorRect;
+
+DXGI_FORMAT g_shadowMapRTV;
 
 #ifdef FUSE_USE_EDITOR_GUI
 
@@ -340,11 +332,7 @@ bool renderer_application::on_render_context_created(gpu_render_context & render
 void renderer_application::on_render_context_released(gpu_render_context & renderContext)
 {
 
-	std::for_each(g_fullresRGBA16F0.begin(), g_fullresRGBA16F0.end(), [](auto & r) { r.clear(); });
-	std::for_each(g_fullresRGBA16F1.begin(), g_fullresRGBA16F1.end(), [](auto & r) { r.clear(); });
-	std::for_each(g_fullresRGBA16F2.begin(), g_fullresRGBA16F2.end(), [](auto & r) { r.clear(); });
-	std::for_each(g_fullresRGBA8U0.begin(), g_fullresRGBA8U0.end(), [](auto & r) { r.clear(); });
-	std::for_each(g_depthBuffer.begin(), g_depthBuffer.end(), [](auto & r) { r.clear(); });
+	g_renderResourceManager.clear();
 
 	g_imageManager.reset();
 	g_meshManager.reset();
@@ -365,6 +353,8 @@ void renderer_application::on_render_context_released(gpu_render_context & rende
 bool renderer_application::on_swap_chain_resized(ID3D12Device * device, IDXGISwapChain * swapChain, const DXGI_SURFACE_DESC * desc)
 {
 
+	g_renderResourceManager.clear();
+
 	g_fullscreenViewport.Width    = desc->Width;
 	g_fullscreenViewport.Height   = desc->Height;
 	g_fullscreenViewport.MaxDepth = 1.f;
@@ -383,207 +373,207 @@ bool renderer_application::on_swap_chain_resized(ID3D12Device * device, IDXGISwa
 		mainCamera->set_aspect_ratio((float) desc->Width / desc->Height);
 	}
 
-	for (int i = 0; i < NUM_BUFFERS; i++)
-	{
+	//for (int i = 0; i < NUM_BUFFERS; i++)
+	//{
 
-		auto & r = g_depthBuffer[i];
+	//	auto & r = g_depthBuffer[i];
 
-		r.clear();
+	//	r.clear();
 
-		FAIL_IF (
-			!r.create(
-				device,
-				&CD3DX12_RESOURCE_DESC::Tex2D(
-					DXGI_FORMAT_D24_UNORM_S8_UINT,
-					desc->Width, desc->Height,
-					1, 1, 1, 0,
-					D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL),
-				D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-				&CD3DX12_CLEAR_VALUE(DXGI_FORMAT_D24_UNORM_S8_UINT, 1.f, 0)
-			)  ||
-			!r.create_depth_stencil_view(device)
-		)
+	//	FAIL_IF (
+	//		!r.create(
+	//			device,
+	//			&CD3DX12_RESOURCE_DESC::Tex2D(
+	//				DXGI_FORMAT_D24_UNORM_S8_UINT,
+	//				desc->Width, desc->Height,
+	//				1, 1, 1, 0,
+	//				D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL),
+	//			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+	//			&CD3DX12_CLEAR_VALUE(DXGI_FORMAT_D24_UNORM_S8_UINT, 1.f, 0)
+	//		)  ||
+	//		!r.create_depth_stencil_view(device)
+	//	)
 
-		r->SetName(L"main_depth_buffer");
+	//	r->SetName(L"main_depth_buffer");
 
-	}
+	//}
 
-	const float black[4] = { 0 };
+	//const float black[4] = { 0 };
 
-	for (int i = 0; i < NUM_BUFFERS; i++)
-	{
+	//for (int i = 0; i < NUM_BUFFERS; i++)
+	//{
 
-		auto & r = g_fullresRGBA16F0[i];
-		
-		r.clear();
+	//	auto & r = g_fullresRGBA16F0[i];
+	//	
+	//	r.clear();
 
-		// gbuffer 0
-		r.set_srv_token(g_gbufferSRVTable[i]);
+	//	// gbuffer 0
+	//	r.set_srv_token(g_gbufferSRVTable[i]);
 
-		FAIL_IF (
-			!r.create(
-				device,
-				&CD3DX12_RESOURCE_DESC::Tex2D(
-					DXGI_FORMAT_R16G16B16A16_FLOAT,
-					desc->Width,
-					desc->Height,
-					1, 1, 1, 0,
-					D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET),
-				D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-				&CD3DX12_CLEAR_VALUE(DXGI_FORMAT_R16G16B16A16_FLOAT, black)
-			)  ||
-			!r.create_render_target_view(device) ||
-			!r.create_shader_resource_view(device)
-		)
+	//	FAIL_IF (
+	//		!r.create(
+	//			device,
+	//			&CD3DX12_RESOURCE_DESC::Tex2D(
+	//				DXGI_FORMAT_R16G16B16A16_FLOAT,
+	//				desc->Width,
+	//				desc->Height,
+	//				1, 1, 1, 0,
+	//				D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET),
+	//			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+	//			&CD3DX12_CLEAR_VALUE(DXGI_FORMAT_R16G16B16A16_FLOAT, black)
+	//		)  ||
+	//		!r.create_render_target_view(device) ||
+	//		!r.create_shader_resource_view(device)
+	//	)
 
-		r->SetName(L"fullres_rgba16f0");
-		
-	}
+	//	r->SetName(L"fullres_rgba16f0");
+	//	
+	//}
 
-	for (int i = 0; i < NUM_BUFFERS; i++)
-	{
+	//for (int i = 0; i < NUM_BUFFERS; i++)
+	//{
 
-		auto & r = g_fullresRGBA16F1[i];
+	//	auto & r = g_fullresRGBA16F1[i];
 
-		r.clear();
+	//	r.clear();
 
-		// gbuffer 1
-		r.set_srv_token(g_gbufferSRVTable[i] + 1);
+	//	// gbuffer 1
+	//	r.set_srv_token(g_gbufferSRVTable[i] + 1);
 
-		FAIL_IF (
-			!r.create(
-				device,
-				&CD3DX12_RESOURCE_DESC::Tex2D(
-					DXGI_FORMAT_R16G16B16A16_FLOAT,
-					desc->Width,
-					desc->Height,
-					1, 1, 1, 0,
-					D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET),
-				D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-				&CD3DX12_CLEAR_VALUE(DXGI_FORMAT_R16G16B16A16_FLOAT, black)
-			)  ||
-			!r.create_render_target_view(device) ||
-			!r.create_shader_resource_view(device)
-		)
+	//	FAIL_IF (
+	//		!r.create(
+	//			device,
+	//			&CD3DX12_RESOURCE_DESC::Tex2D(
+	//				DXGI_FORMAT_R16G16B16A16_FLOAT,
+	//				desc->Width,
+	//				desc->Height,
+	//				1, 1, 1, 0,
+	//				D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET),
+	//			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+	//			&CD3DX12_CLEAR_VALUE(DXGI_FORMAT_R16G16B16A16_FLOAT, black)
+	//		)  ||
+	//		!r.create_render_target_view(device) ||
+	//		!r.create_shader_resource_view(device)
+	//	)
 
-		r->SetName(L"fullres_rgba16f1");
+	//	r->SetName(L"fullres_rgba16f1");
 
-	}
+	//}
 
-	for (int i = 0; i < NUM_BUFFERS; i++)
-	{
+	//for (int i = 0; i < NUM_BUFFERS; i++)
+	//{
 
-		auto & r = g_fullresRGBA16F2[i];
+	//	auto & r = g_fullresRGBA16F2[i];
 
-		r.clear();
+	//	r.clear();
 
-		FAIL_IF (
-			!r.create(
-				device,
-				&CD3DX12_RESOURCE_DESC::Tex2D(
-					DXGI_FORMAT_R16G16B16A16_FLOAT,
-					desc->Width,
-					desc->Height,
-					1, 1, 1, 0,
-					D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET),
-				D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-				&CD3DX12_CLEAR_VALUE(DXGI_FORMAT_R16G16B16A16_FLOAT, black)
-			) ||
-			!r.create_render_target_view(device) ||
-			!r.create_shader_resource_view(device)
-		)
+	//	FAIL_IF (
+	//		!r.create(
+	//			device,
+	//			&CD3DX12_RESOURCE_DESC::Tex2D(
+	//				DXGI_FORMAT_R16G16B16A16_FLOAT,
+	//				desc->Width,
+	//				desc->Height,
+	//				1, 1, 1, 0,
+	//				D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET),
+	//			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+	//			&CD3DX12_CLEAR_VALUE(DXGI_FORMAT_R16G16B16A16_FLOAT, black)
+	//		) ||
+	//		!r.create_render_target_view(device) ||
+	//		!r.create_shader_resource_view(device)
+	//	)
 
-		r->SetName(L"fullres_rgba16f2");
+	//	r->SetName(L"fullres_rgba16f2");
 
-	}
+	//}
 
-	for (int i = 0; i < NUM_BUFFERS; i++)
-	{
+	//for (int i = 0; i < NUM_BUFFERS; i++)
+	//{
 
-		auto & r = g_fullresRGBA8U0[i];
+	//	auto & r = g_fullresRGBA8U0[i];
 
-		r.clear();
+	//	r.clear();
 
-		// gbuffer 2
-		r.set_srv_token(g_gbufferSRVTable[i] + 2);
+	//	// gbuffer 2
+	//	r.set_srv_token(g_gbufferSRVTable[i] + 2);
 
-		FAIL_IF (
-			!r.create(
-				device,
-				&CD3DX12_RESOURCE_DESC::Tex2D(
-					DXGI_FORMAT_R8G8B8A8_UNORM,
-					desc->Width,
-					desc->Height,
-					1, 1, 1, 0,
-					D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET | D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS),
-				D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-				&CD3DX12_CLEAR_VALUE(DXGI_FORMAT_R8G8B8A8_UNORM, black)
-			) ||
-			!r.create_render_target_view(device) ||
-			!r.create_shader_resource_view(device) ||
-			!r.create_unordered_access_view(device)
-		)
+	//	FAIL_IF (
+	//		!r.create(
+	//			device,
+	//			&CD3DX12_RESOURCE_DESC::Tex2D(
+	//				DXGI_FORMAT_R8G8B8A8_UNORM,
+	//				desc->Width,
+	//				desc->Height,
+	//				1, 1, 1, 0,
+	//				D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET | D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS),
+	//			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+	//			&CD3DX12_CLEAR_VALUE(DXGI_FORMAT_R8G8B8A8_UNORM, black)
+	//		) ||
+	//		!r.create_render_target_view(device) ||
+	//		!r.create_shader_resource_view(device) ||
+	//		!r.create_unordered_access_view(device)
+	//	)
 
-		r->SetName(L"fullres_rgba8u0");
+	//	r->SetName(L"fullres_rgba8u0");
 
-	}
+	//}
 
-	for (int i = 0; i < NUM_BUFFERS; i++)
-	{
+	//for (int i = 0; i < NUM_BUFFERS; i++)
+	//{
 
-		auto & r = g_fullresRGBA8U1[i];
+	//	auto & r = g_fullresRGBA8U1[i];
 
-		r.clear();
+	//	r.clear();
 
-		// gbuffer 3
-		r.set_srv_token(g_gbufferSRVTable[i] + 3);
+	//	// gbuffer 3
+	//	r.set_srv_token(g_gbufferSRVTable[i] + 3);
 
-		FAIL_IF (
-			!r.create(
-				device,
-				&CD3DX12_RESOURCE_DESC::Tex2D(
-					DXGI_FORMAT_R16G16B16A16_FLOAT,
-					desc->Width,
-					desc->Height,
-					1, 1, 1, 0,
-					D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET),
-				D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-				&CD3DX12_CLEAR_VALUE(DXGI_FORMAT_R16G16B16A16_FLOAT, black)
-			) ||
-			!r.create_render_target_view(device) ||
-			!r.create_shader_resource_view(device)
-		)
+	//	FAIL_IF (
+	//		!r.create(
+	//			device,
+	//			&CD3DX12_RESOURCE_DESC::Tex2D(
+	//				DXGI_FORMAT_R16G16B16A16_FLOAT,
+	//				desc->Width,
+	//				desc->Height,
+	//				1, 1, 1, 0,
+	//				D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET),
+	//			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+	//			&CD3DX12_CLEAR_VALUE(DXGI_FORMAT_R16G16B16A16_FLOAT, black)
+	//		) ||
+	//		!r.create_render_target_view(device) ||
+	//		!r.create_shader_resource_view(device)
+	//	)
 
-		r->SetName(L"fullres_rgba8u1");
+	//	r->SetName(L"fullres_rgba8u1");
 
-	}
+	//}
 
-	for (int i = 0; i < NUM_BUFFERS; i++)
-	{
+	//for (int i = 0; i < NUM_BUFFERS; i++)
+	//{
 
-		auto & r = g_fullresGUI[i];
+	//	auto & r = g_fullresGUI[i];
 
-		r.clear();
+	//	r.clear();
 
-		FAIL_IF (
-			!r.create(
-				device,
-				&CD3DX12_RESOURCE_DESC::Tex2D(
-					DXGI_FORMAT_R8G8B8A8_UNORM_SRGB,
-					desc->Width,
-					desc->Height,
-					1, 1, 1, 0,
-					D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET),
-				D3D12_RESOURCE_STATE_RENDER_TARGET,
-				&CD3DX12_CLEAR_VALUE(DXGI_FORMAT_R8G8B8A8_UNORM_SRGB, black)
-			) ||
-			!r.create_render_target_view(device) ||
-			!r.create_shader_resource_view(device)
-		)
+	//	FAIL_IF (
+	//		!r.create(
+	//			device,
+	//			&CD3DX12_RESOURCE_DESC::Tex2D(
+	//				DXGI_FORMAT_R8G8B8A8_UNORM_SRGB,
+	//				desc->Width,
+	//				desc->Height,
+	//				1, 1, 1, 0,
+	//				D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET),
+	//			D3D12_RESOURCE_STATE_RENDER_TARGET,
+	//			&CD3DX12_CLEAR_VALUE(DXGI_FORMAT_R8G8B8A8_UNORM_SRGB, black)
+	//		) ||
+	//		!r.create_render_target_view(device) ||
+	//		!r.create_shader_resource_view(device)
+	//	)
 
-		r->SetName(L"fullres_gui");
+	//	r->SetName(L"fullres_gui");
 
-	}
+	//}
 
 #ifdef FUSE_USE_EDITOR_GUI
 	g_rocketInterface.on_resize(desc->Width, desc->Height);
@@ -793,35 +783,91 @@ void renderer_application::on_render(gpu_render_context & renderContext, const r
 	auto shadowMapViewport    = make_fullscreen_viewport(g_rendererConfiguration.get_shadow_map_resolution(), g_rendererConfiguration.get_shadow_map_resolution());
 	auto shadowMapScissorRect = make_fullscreen_scissor_rect(g_rendererConfiguration.get_shadow_map_resolution(), g_rendererConfiguration.get_shadow_map_resolution());
 
-	/* Clear the buffers */
+	/* Get the resources for gbuffer rendering and clear them */
 
-	render_resource * gbuffer[] = {
+	float clearColor[4] = { 0.f };
+
+	render_resource_ptr gbufferResources[] = {
+
+		g_renderResourceManager.get_texture_2d(
+			device, bufferIndex, DXGI_FORMAT_R16G16B16A16_FLOAT,
+			get_screen_width(), get_screen_height(), 1, 1, 1, 0,
+			D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET, &CD3DX12_CLEAR_VALUE(DXGI_FORMAT_R16G16B16A16_FLOAT, clearColor)),
+
+		g_renderResourceManager.get_texture_2d(
+			device, bufferIndex, DXGI_FORMAT_R16G16B16A16_FLOAT,
+			get_screen_width(), get_screen_height(), 1, 1, 1, 0,
+			D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET, &CD3DX12_CLEAR_VALUE(DXGI_FORMAT_R16G16B16A16_FLOAT, clearColor)),
+
+		g_renderResourceManager.get_texture_2d(
+			device, bufferIndex, DXGI_FORMAT_R8G8B8A8_UNORM,
+			get_screen_width(), get_screen_height(), 1, 1, 1, 0,
+			D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET, &CD3DX12_CLEAR_VALUE(DXGI_FORMAT_R8G8B8A8_UNORM, clearColor)),
+
+		g_renderResourceManager.get_texture_2d(
+			device, bufferIndex, DXGI_FORMAT_R16G16B16A16_FLOAT,
+			get_screen_width(), get_screen_height(), 1, 1, 1, 0,
+			D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET, &CD3DX12_CLEAR_VALUE(DXGI_FORMAT_R16G16B16A16_FLOAT, clearColor))
+
+	};
+
+	for (int i = 0; i < 4; i++)
+	{
+
+		device->CreateShaderResourceView(
+			gbufferResources[i]->get(),
+			nullptr,
+			CD3DX12_CPU_DESCRIPTOR_HANDLE(
+				cbv_uav_srv_descriptor_heap::get_singleton_pointer()->get_cpu_descriptor_handle(g_gbufferSRVTable[bufferIndex]),
+				i,
+				cbv_uav_srv_descriptor_heap::get_singleton_pointer()->get_descriptor_size()));
+
+	}
+
+	const render_resource * gbuffer[] = {
+		gbufferResources[0].get(),
+		gbufferResources[1].get(),
+		gbufferResources[2].get(),
+		gbufferResources[3].get()
+	};
+
+	render_resource_ptr sceneDepthBuffer = g_renderResourceManager.get_texture_2d(
+		device, bufferIndex, DXGI_FORMAT_D24_UNORM_S8_UINT,
+		get_screen_width(), get_screen_height(), 1, 1, 1, 0,
+		D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL | D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE, &CD3DX12_CLEAR_VALUE(DXGI_FORMAT_D24_UNORM_S8_UINT, 1.f, 0));
+
+	/*render_resource * gbuffer[] = {
 		std::addressof(g_fullresRGBA16F0[bufferIndex]),
 		std::addressof(g_fullresRGBA16F1[bufferIndex]),
 		std::addressof(g_fullresRGBA8U0[bufferIndex]),
 		std::addressof(g_fullresRGBA8U1[bufferIndex]),
 		std::addressof(g_depthBuffer[bufferIndex])
-	};
+	};*/
 
-	auto dsvHandle = g_depthBuffer[bufferIndex].get_dsv_cpu_descriptor_handle();
+	//auto dsvHandle = g_depthBuffer[bufferIndex].get_dsv_cpu_descriptor_handle();
 
-	float clearColor[4] = { 0.f };
+	auto dsvHandle = sceneDepthBuffer->get_dsv_cpu_descriptor_handle();
 
 	commandList->ClearRenderTargetView(gbuffer[0]->get_rtv_cpu_descriptor_handle(), clearColor, 0, nullptr);
 	commandList->ClearRenderTargetView(gbuffer[1]->get_rtv_cpu_descriptor_handle(), clearColor, 0, nullptr);
 	commandList->ClearRenderTargetView(gbuffer[2]->get_rtv_cpu_descriptor_handle(), clearColor, 0, nullptr);
 	commandList->ClearRenderTargetView(gbuffer[3]->get_rtv_cpu_descriptor_handle(), clearColor, 0, nullptr);
 
-	commandList->ClearDepthStencilView(g_depthBuffer[bufferIndex].get_dsv_cpu_descriptor_handle(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.f, 0, 0, nullptr);
+	commandList->ClearDepthStencilView(sceneDepthBuffer->get_dsv_cpu_descriptor_handle(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.f, 0, 0, nullptr);
 
 	commandList.resource_barrier_transition(g_cbPerFrame[bufferIndex].get(), D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
 
 	/* Draw GUI */
 
-	guiCommandList.resource_barrier_transition(g_fullresGUI[bufferIndex].get(), D3D12_RESOURCE_STATE_RENDER_TARGET);
-	guiCommandList->ClearRenderTargetView(g_fullresGUI[bufferIndex].get_rtv_cpu_descriptor_handle(), clearColor, 0, nullptr);
+	render_resource_ptr guiRenderTarget = g_renderResourceManager.get_texture_2d(
+		device, bufferIndex, DXGI_FORMAT_R8G8B8A8_UNORM_SRGB,
+		get_screen_width(), get_screen_height(), 1, 1, 1, 0,
+		D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET, &CD3DX12_CLEAR_VALUE(DXGI_FORMAT_R8G8B8A8_UNORM_SRGB, clearColor));
 
-	draw_gui(device, commandQueue, guiCommandList, renderContext.get_ring_buffer());
+	guiCommandList.resource_barrier_transition(guiRenderTarget->get(), D3D12_RESOURCE_STATE_RENDER_TARGET);
+	guiCommandList->ClearRenderTargetView(guiRenderTarget->get_rtv_cpu_descriptor_handle(), clearColor, 0, nullptr);
+
+	draw_gui(device, commandQueue, guiCommandList, renderContext.get_ring_buffer(), *guiRenderTarget.get());
 
 	FUSE_HR_CHECK(guiCommandList->Close());
 	commandQueue.execute(guiCommandList);
@@ -843,17 +889,23 @@ void renderer_application::on_render(gpu_render_context & renderContext, const r
 		renderContext.get_ring_buffer(),
 		cbPerFrameAddress,
 		gbuffer,
-		g_depthBuffer[bufferIndex],
+		//g_depthBuffer[bufferIndex],
+		*sceneDepthBuffer.get(),
 		g_scene.get_active_camera(),
 		renderableObjects.first,
 		renderableObjects.second);
 
-	g_sdsm.create_log_partitions(device, commandQueue, commandList, g_depthBuffer[bufferIndex], g_sdsmConstantBuffer[bufferIndex]);
+	g_sdsm.create_log_partitions(device, commandQueue, commandList, *sceneDepthBuffer.get(), g_sdsmConstantBuffer[bufferIndex]);
 
 	/* Prepare for shading */
 
-	commandList.resource_barrier_transition(g_fullresRGBA16F2[bufferIndex].get(), D3D12_RESOURCE_STATE_RENDER_TARGET);
-	commandList->ClearRenderTargetView(g_fullresRGBA16F2[bufferIndex].get_rtv_cpu_descriptor_handle(), clearColor, 0, nullptr);
+	render_resource_ptr hdrRenderTarget = g_renderResourceManager.get_texture_2d(
+		device, bufferIndex, DXGI_FORMAT_R16G16B16A16_FLOAT,
+		get_screen_width(), get_screen_height(), 1, 1, 1, 0,
+		D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET, &CD3DX12_CLEAR_VALUE(DXGI_FORMAT_R16G16B16A16_FLOAT, clearColor));
+
+	commandList.resource_barrier_transition(hdrRenderTarget->get(), D3D12_RESOURCE_STATE_RENDER_TARGET);
+	commandList->ClearRenderTargetView(hdrRenderTarget->get_rtv_cpu_descriptor_handle(), clearColor, 0, nullptr);
 
 	/* Shading */
 
@@ -911,6 +963,23 @@ void renderer_application::on_render(gpu_render_context & renderContext, const r
 
 	/* Skybox and skylight */
 
+	render_resource_ptr shadowMapResources[] = {
+		get_shadow_map_render_target(),
+		get_shadow_map_render_target()
+	};
+
+	D3D12_DEPTH_STENCIL_VIEW_DESC shadowMapDSVDesc = {};
+
+	shadowMapDSVDesc.Format        = DXGI_FORMAT_D32_FLOAT;
+	shadowMapDSVDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+
+	render_resource_ptr shadowMapDepth = g_renderResourceManager.get_texture_2d(
+		device, bufferIndex, DXGI_FORMAT_R32_TYPELESS,
+		g_rendererConfiguration.get_shadow_map_resolution(), g_rendererConfiguration.get_shadow_map_resolution(), 1, 1, 1, 0,
+		D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL | D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE, &CD3DX12_CLEAR_VALUE(DXGI_FORMAT_D32_FLOAT, 1.f, 0),
+		nullptr, nullptr, nullptr,
+		&shadowMapDSVDesc);
+
 	{
 
 		shadow_map_info shadowMapInfo = {};
@@ -924,7 +993,7 @@ void renderer_application::on_render(gpu_render_context & renderContext, const r
 
 		light sunLight = skybox->get_sun_light();
 
-		shadowMapInfo.shadowMap   = std::addressof(g_shadowmap0[bufferIndex]);
+		shadowMapInfo.shadowMap = shadowMapResources[0].get();
 
 		{
 
@@ -951,18 +1020,18 @@ void renderer_application::on_render(gpu_render_context & renderContext, const r
 			renderContext.get_ring_buffer(),
 			cbPerFrameAddress,
 			shadowMapInfo.lightMatrix,
-			g_shadowmap0[bufferIndex],
-			g_shadowmap32F[bufferIndex],
+			*shadowMapResources[0].get(),
+			*shadowMapDepth.get(),
 			renderableObjects.first,
 			renderableObjects.second);
 
 		g_shadowMapBlur.render(
 			commandQueue,
 			commandList,
-			g_shadowmap0[bufferIndex],
-			g_shadowmap1[bufferIndex]);
+			*shadowMapResources[0].get(),
+			*shadowMapResources[1].get());
 
-		g_mipmapGenerator->generate_mipmaps(device, commandQueue, commandList, g_shadowmap0[bufferIndex].get());
+		g_mipmapGenerator->generate_mipmaps(device, commandQueue, commandList, shadowMapResources[0]->get());
 
 		/* Skylight rendering */
 
@@ -975,8 +1044,9 @@ void renderer_application::on_render(gpu_render_context & renderContext, const r
 			commandList,
 			renderContext.get_ring_buffer(),
 			cbPerFrameAddress,
-			g_fullresRGBA16F2[bufferIndex],
+			*hdrRenderTarget.get(),
 			gbuffer,
+			cbv_uav_srv_descriptor_heap::get_singleton_pointer()->get_gpu_descriptor_handle(g_gbufferSRVTable[bufferIndex]),
 			&sunLight,
 			&shadowMapInfo);
 		
@@ -987,11 +1057,29 @@ void renderer_application::on_render(gpu_render_context & renderContext, const r
 			commandQueue,
 			commandList,
 			cbPerFrameAddress,
-			g_fullresRGBA16F2[bufferIndex],
-			g_depthBuffer[bufferIndex],
+			*hdrRenderTarget.get(),
+			//g_depthBuffer[bufferIndex],
+			*sceneDepthBuffer.get(),
 			*skybox);
 
-	}
+	}	
+
+	/* Tonemap */
+
+	render_resource_ptr ldrRenderTarget = g_renderResourceManager.get_texture_2d(
+		device, bufferIndex, DXGI_FORMAT_R8G8B8A8_UNORM,
+		get_screen_width(), get_screen_height(), 1, 1, 1, 0,
+		D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET | D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+		&CD3DX12_CLEAR_VALUE(DXGI_FORMAT_R8G8B8A8_UNORM, clearColor));
+
+	g_tonemapper.render(
+		device,
+		commandQueue,
+		commandList,
+		*hdrRenderTarget.get(),
+		*ldrRenderTarget.get(),
+		get_screen_width(),
+		get_screen_height());
 
 	for (auto it = renderableObjects.first; it != renderableObjects.second; it++)
 	{
@@ -1003,33 +1091,23 @@ void renderer_application::on_render(gpu_render_context & renderContext, const r
 			renderContext.get_ring_buffer(),
 			cbPerFrameAddress,
 			bounding_aabb(transform_affine((*it)->get_bounding_sphere(), (*it)->get_world_matrix())),
-			g_fullresRGBA16F2[bufferIndex],
-			g_depthBuffer[bufferIndex]);
+			*ldrRenderTarget.get(),
+			//g_depthBuffer[bufferIndex]
+			*sceneDepthBuffer.get());
 
 	}
 
-	/* Tonemap */
-
-	g_tonemapper.render(
-		device,
-		commandQueue,
-		commandList,
-		g_fullresRGBA16F2[bufferIndex],
-		g_fullresRGBA8U0[bufferIndex],
-		get_screen_width(),
-		get_screen_height());
-
 	/* Finally copy to backbuffer */
 
-	commandList.resource_barrier_transition(g_fullresRGBA8U0[bufferIndex].get(), D3D12_RESOURCE_STATE_COPY_SOURCE);
+	commandList.resource_barrier_transition(ldrRenderTarget->get(), D3D12_RESOURCE_STATE_COPY_SOURCE);
 	commandList.resource_barrier_transition(backBuffer.get(), D3D12_RESOURCE_STATE_COPY_DEST);
 
-	commandList->CopyResource(backBuffer.get(), g_fullresRGBA8U0[bufferIndex].get());
+	commandList->CopyResource(backBuffer.get(), ldrRenderTarget->get());
 
 	/* Compose */
 
-	render_resource * composeResources[] = {
-		std::addressof(g_fullresGUI[bufferIndex])
+	const render_resource * composeResources[] = {
+		guiRenderTarget.get()
 	};
 
 	commandList->RSSetViewports(1, &g_fullscreenViewport);
@@ -1051,7 +1129,7 @@ void renderer_application::on_render(gpu_render_context & renderContext, const r
 
 }
 
-void renderer_application::draw_gui(ID3D12Device * device, gpu_command_queue & commandQueue, gpu_graphics_command_list & commandList, gpu_ring_buffer & ringBuffer)
+void renderer_application::draw_gui(ID3D12Device * device, gpu_command_queue & commandQueue, gpu_graphics_command_list & commandList, gpu_ring_buffer & ringBuffer, const render_resource & renderTarget)
 {
 
 	commandList->RSSetViewports(1, &g_fullscreenViewport);
@@ -1061,7 +1139,7 @@ void renderer_application::draw_gui(ID3D12Device * device, gpu_command_queue & c
 
 	D3D12_GPU_VIRTUAL_ADDRESS cbPerFrameAddress = g_cbPerFrame[bufferIndex]->GetGPUVirtualAddress();
 
-	auto guiRTV = g_fullresGUI[bufferIndex].get_rtv_cpu_descriptor_handle();
+	auto guiRTV = renderTarget.get_rtv_cpu_descriptor_handle();
 
 	std::stringstream guiSS;
 
@@ -1072,7 +1150,7 @@ void renderer_application::draw_gui(ID3D12Device * device, gpu_command_queue & c
 		commandQueue,
 		commandList,
 		ringBuffer,
-		g_fullresGUI[bufferIndex].get(),
+		renderTarget.get(),
 		&guiRTV,
 		cbPerFrameAddress,
 		g_font.get(),
@@ -1090,7 +1168,7 @@ void renderer_application::draw_gui(ID3D12Device * device, gpu_command_queue & c
 			commandList,
 			ringBuffer,
 			cbPerFrameAddress,
-			g_fullresGUI[bufferIndex].get(),
+			renderTarget.get(),
 			guiRTV);
 
 		g_editorGUI.render();
@@ -1118,8 +1196,6 @@ bool renderer_application::create_shadow_map_resources(ID3D12Device * device, bo
 	uint32_t resolution = g_rendererConfiguration.get_shadow_map_resolution();
 	shadow_mapping_algorithm algorithm = g_rendererConfiguration.get_shadow_mapping_algorithm();
 
-	DXGI_FORMAT rtvFormat;
-
 	switch (algorithm)
 	{
 
@@ -1130,11 +1206,11 @@ bool renderer_application::create_shadow_map_resources(ID3D12Device * device, bo
 
 		if (g_rendererConfiguration.get_evsm2_float_precision() == 16)
 		{
-			rtvFormat = DXGI_FORMAT_R16G16_FLOAT;
+			g_shadowMapRTV = DXGI_FORMAT_R16G16_FLOAT;
 		}
 		else
 		{
-			rtvFormat = DXGI_FORMAT_R32G32_FLOAT;
+			g_shadowMapRTV = DXGI_FORMAT_R32G32_FLOAT;
 		}
 
 		FAIL_IF(!g_shadowMapBlur.init_box_blur(
@@ -1150,11 +1226,11 @@ bool renderer_application::create_shadow_map_resources(ID3D12Device * device, bo
 
 		if (g_rendererConfiguration.get_evsm2_float_precision() == 16)
 		{
-			rtvFormat = DXGI_FORMAT_R16G16_FLOAT;
+			g_shadowMapRTV = DXGI_FORMAT_R16G16_FLOAT;
 		}
 		else
 		{
-			rtvFormat = DXGI_FORMAT_R32G32_FLOAT;
+			g_shadowMapRTV = DXGI_FORMAT_R32G32_FLOAT;
 		}
 		
 		FAIL_IF(!g_shadowMapBlur.init_box_blur(
@@ -1170,11 +1246,11 @@ bool renderer_application::create_shadow_map_resources(ID3D12Device * device, bo
 
 		if (g_rendererConfiguration.get_evsm4_float_precision() == 16)
 		{
-			rtvFormat = DXGI_FORMAT_R16G16B16A16_FLOAT;
+			g_shadowMapRTV = DXGI_FORMAT_R16G16B16A16_FLOAT;
 		}
 		else
 		{
-			rtvFormat = DXGI_FORMAT_R32G32B32A32_FLOAT;
+			g_shadowMapRTV = DXGI_FORMAT_R32G32B32A32_FLOAT;
 		}
 
 		FAIL_IF(!g_shadowMapBlur.init_box_blur(
@@ -1191,7 +1267,7 @@ bool renderer_application::create_shadow_map_resources(ID3D12Device * device, bo
 	shadow_mapper_configuration shadowMapperCFG;
 
 	shadowMapperCFG.cullMode  = D3D12_CULL_MODE_NONE;
-	shadowMapperCFG.rtvFormat = rtvFormat;
+	shadowMapperCFG.rtvFormat = g_shadowMapRTV;
 	shadowMapperCFG.dsvFormat = DXGI_FORMAT_D32_FLOAT;
 	shadowMapperCFG.algorithm = algorithm;
 
@@ -1201,7 +1277,7 @@ bool renderer_application::create_shadow_map_resources(ID3D12Device * device, bo
 	g_shadowMapper.set_viewport(make_fullscreen_viewport(g_rendererConfiguration.get_shadow_map_resolution(), g_rendererConfiguration.get_shadow_map_resolution()));
 	g_shadowMapper.set_scissor_rect(make_fullscreen_scissor_rect(g_rendererConfiguration.get_shadow_map_resolution(), g_rendererConfiguration.get_shadow_map_resolution()));
 
-	if (createBuffers)
+	/*if (createBuffers)
 	{
 
 		for (int i = 0; i < NUM_BUFFERS; i++)
@@ -1295,8 +1371,21 @@ bool renderer_application::create_shadow_map_resources(ID3D12Device * device, bo
 
 		}
 
-	}
+	}*/
 
 	return true;
 
+}
+
+render_resource_ptr renderer_application::get_shadow_map_render_target(void)
+{
+	return g_renderResourceManager.get_texture_2d(
+		get_device(),
+		get_buffer_index(),
+		g_shadowMapRTV,
+		g_rendererConfiguration.get_shadow_map_resolution(),
+		g_rendererConfiguration.get_shadow_map_resolution(),
+		1, 0, 1, 0,
+		D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET | D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+		&CD3DX12_CLEAR_VALUE(g_shadowMapRTV, &std::array<float, 4>()[0]));
 }

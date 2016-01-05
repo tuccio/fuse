@@ -133,7 +133,7 @@ bool debug_renderer::create_psos(ID3D12Device * device)
 		debugPSODesc.DSVFormat             = m_configuration.dsvFormat;
 		debugPSODesc.SampleMask            = UINT_MAX;
 		debugPSODesc.SampleDesc            = { 1, 0 };
-		debugPSODesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+		debugPSODesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_LINE;
 		debugPSODesc.pRootSignature        = m_debugRS.get();
 
 		m_debugPST = pipeline_state_template({}, debugPSODesc, "5_0");

@@ -87,7 +87,7 @@ void deferred_renderer::render_gbuffer(
 	gpu_graphics_command_list & commandList,
 	gpu_ring_buffer & ringBuffer,
 	D3D12_GPU_VIRTUAL_ADDRESS cbPerFrame,
-	render_resource * const * gbuffer,
+	const render_resource * const * gbuffer,
 	const render_resource & depthBuffer,
 	const camera * camera,
 	renderable_iterator begin,
@@ -249,7 +249,8 @@ void deferred_renderer::render_light(
 	gpu_ring_buffer & ringBuffer,
 	D3D12_GPU_VIRTUAL_ADDRESS cbPerFrame,
 	const render_resource & renderTarget,
-	render_resource * const * gbuffer,
+	const render_resource * const * gbuffer,
+	const D3D12_GPU_DESCRIPTOR_HANDLE & gbufferSRVTable,
 	const light * light,
 	const shadow_map_info * shadowMapInfo)
 {
@@ -288,7 +289,7 @@ void deferred_renderer::render_light(
 		commandList->SetGraphicsRootConstantBufferView(0, cbPerFrame);
 		commandList->SetGraphicsRootConstantBufferView(1, address);
 
-		commandList->SetGraphicsRootDescriptorTable(2, gbuffer[0]->get_srv_gpu_descriptor_handle());
+		commandList->SetGraphicsRootDescriptorTable(2, gbufferSRVTable);
 
 		if (shadowMapInfo)
 		{

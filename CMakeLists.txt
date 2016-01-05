@@ -47,7 +47,7 @@ if (FUSE_SSE2)
 endif (FUSE_SSE2)
 
 if (FUSE_SHADER_DEBUG)
-	add_definitions ( "-DFUSE_COMPILE_SHADER_GLOBAL_OPTIONS=(D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION | D3DCOMPILE_PREFER_FLOW_CONTROL)" )
+	add_definitions ( "-DFUSE_COMPILE_SHADER_GLOBAL_OPTIONS=(D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION | D3DCOMPILE_PREFER_FLOW_CONTROL | D3DCOMPILE_ENABLE_STRICTNESS)" )
 endif (FUSE_SHADER_DEBUG)
 
 if ( ASSIMP_FOUND AND FUSE_ASSIMP )
@@ -101,6 +101,7 @@ add_library ( fuse
 	include/fuse/text_renderer.hpp text_renderer.cpp
 	include/fuse/texture.hpp texture.cpp
 	include/fuse/render_resource.hpp render_resource.cpp
+	include/fuse/render_resource_manager.hpp render_resource_manager.cpp
 	include/fuse/texture_manager.hpp
 	include/fuse/gpu_graphics_command_list.hpp gpu_graphics_command_list.cpp
 	include/fuse/gpu_global_resource_state.hpp

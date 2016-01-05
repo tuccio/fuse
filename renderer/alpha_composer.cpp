@@ -22,7 +22,7 @@ void alpha_composer::render(
 	gpu_command_queue & commandQueue,
 	gpu_graphics_command_list & commandList,
 	const render_resource & renderTarget,
-	render_resource * const * shaderResources,
+	const render_resource * const * shaderResources,
 	uint32_t numSRVs)
 {
 

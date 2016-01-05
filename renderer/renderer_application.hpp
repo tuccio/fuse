@@ -31,7 +31,9 @@ namespace fuse
 
 		static void update_renderer_configuration(ID3D12Device * device, gpu_command_queue & commandQueue);
 
-		static void draw_gui(ID3D12Device * device, gpu_command_queue & commandQueue, gpu_graphics_command_list & commandList, gpu_ring_buffer & ringBuffer);
+		static void draw_gui(ID3D12Device * device, gpu_command_queue & commandQueue, gpu_graphics_command_list & commandList, gpu_ring_buffer & ringBuffer, const render_resource & renderTarget);
+
+		static render_resource_ptr get_shadow_map_render_target(void);
 
 	};
 
