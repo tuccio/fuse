@@ -27,8 +27,9 @@ std::array<XMVECTOR, 8> aabb::get_corners(void) const
 
 	for (int i = 0; i < 8; i++)
 	{
-		XMVECTOR sign = XMVectorSetInt((i & 4) << 29, (i & 2) << 30, (i & 1) << 31,	0);
-		v[i] = XMVectorAdd(m_center, XMVectorOrInt(sign, m_halfExtents));
+		XMVECTOR sign  = XMVectorSetInt((i & 1) << 31, (i & 2) << 30, (i & 4) << 29, 0);
+		XMVECTOR delta = XMVectorOrInt(sign, m_halfExtents);
+		v[i] = XMVectorAdd(m_center, delta);
 	}
 
 	return v;

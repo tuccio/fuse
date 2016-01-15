@@ -13,86 +13,90 @@ void debug_renderer::shutdown(void)
 	m_debugPST.clear();
 }
 
-void debug_renderer::render_aabb(
-	ID3D12Device * device,
-	gpu_command_queue & commandQueue,
-	gpu_graphics_command_list & commandList,
-	gpu_ring_buffer & ringBuffer,
-	D3D12_GPU_VIRTUAL_ADDRESS cbPerFrame,
-	const aabb & boudingBox,
-	const render_resource & renderTarget,
-	const render_resource & depthBuffer)
+void debug_renderer::add_aabb(const aabb & boundingBox, const color_rgba & color)
 {
 
-	auto corners = boudingBox.get_corners();
+	auto corners = boundingBox.get_corners();
 
-	XMVECTOR lines[] = {
+	debug_line lines[] = {
 
 		// Back face
-		corners[FUSE_AABB_BACK_BOTTOM_LEFT],  corners[FUSE_AABB_BACK_BOTTOM_RIGHT],
-		corners[FUSE_AABB_BACK_BOTTOM_RIGHT], corners[FUSE_AABB_BACK_TOP_RIGHT],
-		corners[FUSE_AABB_BACK_TOP_RIGHT],    corners[FUSE_AABB_BACK_TOP_LEFT],
-		corners[FUSE_AABB_BACK_TOP_LEFT],     corners[FUSE_AABB_BACK_BOTTOM_LEFT],
+		{ debug_vertex(to_float3(corners[FUSE_AABB_BACK_BOTTOM_LEFT]), to_float4(color)),  debug_vertex(to_float3(corners[FUSE_AABB_BACK_BOTTOM_RIGHT]), to_float4(color)) },
+		{ debug_vertex(to_float3(corners[FUSE_AABB_BACK_BOTTOM_RIGHT]), to_float4(color)), debug_vertex(to_float3(corners[FUSE_AABB_BACK_TOP_RIGHT]), to_float4(color)) },
+		{ debug_vertex(to_float3(corners[FUSE_AABB_BACK_TOP_RIGHT]), to_float4(color)),    debug_vertex(to_float3(corners[FUSE_AABB_BACK_TOP_LEFT]), to_float4(color)) },
+		{ debug_vertex(to_float3(corners[FUSE_AABB_BACK_TOP_LEFT]), to_float4(color)),     debug_vertex(to_float3(corners[FUSE_AABB_BACK_BOTTOM_LEFT]), to_float4(color)) },
 
 		// Front face
-		corners[FUSE_AABB_FRONT_BOTTOM_LEFT],  corners[FUSE_AABB_FRONT_BOTTOM_RIGHT],
-		corners[FUSE_AABB_FRONT_BOTTOM_RIGHT], corners[FUSE_AABB_FRONT_TOP_RIGHT],
-		corners[FUSE_AABB_FRONT_TOP_RIGHT],    corners[FUSE_AABB_FRONT_TOP_LEFT],
-		corners[FUSE_AABB_FRONT_TOP_LEFT],     corners[FUSE_AABB_FRONT_BOTTOM_LEFT]
+		{ debug_vertex(to_float3(corners[FUSE_AABB_FRONT_BOTTOM_LEFT]), to_float4(color)),  debug_vertex(to_float3(corners[FUSE_AABB_FRONT_BOTTOM_RIGHT]), to_float4(color)) },
+		{ debug_vertex(to_float3(corners[FUSE_AABB_FRONT_BOTTOM_RIGHT]), to_float4(color)), debug_vertex(to_float3(corners[FUSE_AABB_FRONT_TOP_RIGHT]), to_float4(color)) },
+		{ debug_vertex(to_float3(corners[FUSE_AABB_FRONT_TOP_RIGHT]), to_float4(color)),    debug_vertex(to_float3(corners[FUSE_AABB_FRONT_TOP_LEFT]), to_float4(color)) },
+		{ debug_vertex(to_float3(corners[FUSE_AABB_FRONT_TOP_LEFT]), to_float4(color)),     debug_vertex(to_float3(corners[FUSE_AABB_FRONT_BOTTOM_LEFT]), to_float4(color)) },
+
+		// Connect the two
+		{ debug_vertex(to_float3(corners[FUSE_AABB_FRONT_BOTTOM_LEFT]), to_float4(color)),  debug_vertex(to_float3(corners[FUSE_AABB_BACK_BOTTOM_LEFT]), to_float4(color)) },
+		{ debug_vertex(to_float3(corners[FUSE_AABB_FRONT_BOTTOM_RIGHT]), to_float4(color)), debug_vertex(to_float3(corners[FUSE_AABB_BACK_BOTTOM_RIGHT]), to_float4(color)) },
+		{ debug_vertex(to_float3(corners[FUSE_AABB_FRONT_TOP_RIGHT]), to_float4(color)),    debug_vertex(to_float3(corners[FUSE_AABB_BACK_TOP_RIGHT]), to_float4(color)) },
+		{ debug_vertex(to_float3(corners[FUSE_AABB_FRONT_TOP_LEFT]), to_float4(color)),     debug_vertex(to_float3(corners[FUSE_AABB_BACK_TOP_LEFT]), to_float4(color)) }
 
 	};
 
-	render_lines(device, commandQueue, commandList, ringBuffer, cbPerFrame, lines, _countof(lines) / 2, renderTarget, depthBuffer);
+	add_lines(lines, lines + _countof(lines));
 
 }
 
-void debug_renderer::render_lines(
+void debug_renderer::render(
 	ID3D12Device * device,
 	gpu_command_queue & commandQueue,
 	gpu_graphics_command_list & commandList,
 	gpu_ring_buffer & ringBuffer,
 	D3D12_GPU_VIRTUAL_ADDRESS cbPerFrame,
-	const XMVECTOR * vertices,
-	size_t nLines,
 	const render_resource & renderTarget,
 	const render_resource & depthBuffer)
 {
 
-	auto pso = m_debugPST.get_pso_instance(device);
-
-	D3D12_GPU_VIRTUAL_ADDRESS vbAddress, cbAddress;
-
-	size_t vbSize = sizeof(XMFLOAT3) * nLines * 2;
-
-	void * vbData = ringBuffer.allocate_constant_buffer(device, commandQueue, vbSize, &vbAddress);
-	void * cbData = ringBuffer.allocate_constant_buffer(device, commandQueue, sizeof(XMFLOAT4), &cbAddress);
-
-	if (vbData && cbData)
+	if (!m_lines.empty())
 	{
 
-		commandList->SetPipelineState(pso);
+		auto pso = m_debugPST.get_pso_instance(device);
 
-		commandList.resource_barrier_transition(renderTarget.get(), D3D12_RESOURCE_STATE_RENDER_TARGET);
-		commandList.resource_barrier_transition(depthBuffer.get(), D3D12_RESOURCE_STATE_DEPTH_READ);
+		D3D12_GPU_VIRTUAL_ADDRESS vbAddress;
 
-		commandList->OMSetRenderTargets(1, &renderTarget.get_rtv_cpu_descriptor_handle(), false, &depthBuffer.get_dsv_cpu_descriptor_handle());
+		size_t vbSize = sizeof(debug_line) * m_lines.size();
 
-		commandList->SetGraphicsRootSignature(m_debugRS.get());
-		commandList->SetGraphicsRootConstantBufferView(0, cbPerFrame);
-		commandList->SetGraphicsRootConstantBufferView(1, cbAddress);
+		void * vbData = ringBuffer.allocate_constant_buffer(device, commandQueue, vbSize, &vbAddress);
 
-		D3D12_VERTEX_BUFFER_VIEW vb;
+		if (vbData)
+		{
 
-		vb.BufferLocation = vbAddress;
-		vb.SizeInBytes    = vbSize;
-		vb.StrideInBytes  = sizeof(XMFLOAT3);
+			memcpy(vbData, &m_lines[0], m_lines.size() * sizeof(debug_line));
 
-		commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_LINELIST);
-		commandList->IASetVertexBuffers(0, 1, &vb);
+			commandList->SetPipelineState(pso);
 
-		commandList->DrawInstanced(nLines * 2, 1, 0, 0);
+			commandList.resource_barrier_transition(renderTarget.get(), D3D12_RESOURCE_STATE_RENDER_TARGET);
+			commandList.resource_barrier_transition(depthBuffer.get(), D3D12_RESOURCE_STATE_DEPTH_READ);
+
+			commandList->OMSetRenderTargets(1, &renderTarget.get_rtv_cpu_descriptor_handle(), false, &depthBuffer.get_dsv_cpu_descriptor_handle());
+
+			commandList->SetGraphicsRootSignature(m_debugRS.get());
+			commandList->SetGraphicsRootConstantBufferView(0, cbPerFrame);
+
+			D3D12_VERTEX_BUFFER_VIEW vb;
+
+			vb.BufferLocation = vbAddress;
+			vb.SizeInBytes    = vbSize;
+			vb.StrideInBytes  = sizeof(debug_vertex);
+
+			commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_LINELIST);
+			commandList->IASetVertexBuffers(0, 1, &vb);
+
+			commandList->DrawInstanced(m_lines.size() * 2, 1, 0, 0);
+
+		}
+
+		m_lines.clear();
 
 	}
+	
 
 }
 
@@ -102,10 +106,9 @@ bool debug_renderer::create_psos(ID3D12Device * device)
 	com_ptr<ID3DBlob> serializedSignature;
 	com_ptr<ID3DBlob> errorsBlob;
 
-	CD3DX12_ROOT_PARAMETER rootParameters[2];
+	CD3DX12_ROOT_PARAMETER rootParameters[1];
 
 	rootParameters[0].InitAsConstantBufferView(0, 0, D3D12_SHADER_VISIBILITY_ALL);
-	rootParameters[1].InitAsConstantBufferView(1, 0, D3D12_SHADER_VISIBILITY_ALL);
 
 	CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc(_countof(rootParameters), rootParameters, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 

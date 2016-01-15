@@ -1,5 +1,6 @@
 #pragma once
 
+#include <fuse/allocators.hpp>
 #include <fuse/properties_macros.hpp>
 #include <fuse/math.hpp>
 
@@ -26,6 +27,8 @@ namespace fuse
 		XMVECTOR m_direction;
 
 	public:
+
+		FUSE_DECLARE_ALIGNED_ALLOCATOR_NEW(16)
 
 		FUSE_PROPERTIES_BY_CONST_REFERENCE(
 			(direction, m_direction)

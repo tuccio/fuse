@@ -282,7 +282,7 @@ bool renderer_application::on_render_context_created(gpu_render_context & render
 
 	debug_renderer_configuration debugRendererCFG;
 
-	debugRendererCFG.rtvFormat = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+	debugRendererCFG.rtvFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
 	debugRendererCFG.dsvFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
 
 	alpha_composer_configuration composerCFG;
@@ -1081,21 +1081,34 @@ void renderer_application::on_render(gpu_render_context & renderContext, const r
 		get_screen_width(),
 		get_screen_height());
 
+	color_rgba debugColors[] = {
+		{ 1, 0, 0, 1 },
+		{ 0, 1, 0, 1 },
+		{ 0, 0, 1, 1 },
+		{ 0, 1, 1, 1 },
+		{ 1, 0, 1, 1 },
+		{ 1, 1, 0, 1 }
+	};
+
 	for (auto it = renderableObjects.first; it != renderableObjects.second; it++)
 	{
 
-		g_debugRenderer.render_aabb(
-			device,
-			commandQueue,
-			commandList,
-			renderContext.get_ring_buffer(),
-			cbPerFrameAddress,
+		int colorIndex = (*it)->get_mesh()->get_id() % _countof(debugColors);
+		
+		g_debugRenderer.add_aabb(
 			bounding_aabb(transform_affine((*it)->get_bounding_sphere(), (*it)->get_world_matrix())),
-			*ldrRenderTarget.get(),
-			//g_depthBuffer[bufferIndex]
-			*sceneDepthBuffer.get());
+			debugColors[colorIndex]);
 
 	}
+
+	g_debugRenderer.render(
+		device,
+		commandQueue,
+		commandList,
+		renderContext.get_ring_buffer(),
+		cbPerFrameAddress,
+		*ldrRenderTarget.get(),
+		*sceneDepthBuffer.get());
 
 	/* Finally copy to backbuffer */
 
