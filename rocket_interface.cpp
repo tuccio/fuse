@@ -271,7 +271,8 @@ void rocket_interface::SetScissorRegion(int x, int y, int width, int height)
 bool rocket_interface::LoadTexture(Rocket::Core::TextureHandle & texture_handle, Rocket::Core::Vector2i & texture_dimensions, const Rocket::Core::String & source)
 {
 
-	texture_ptr tex = resource_factory::get_singleton_pointer()->create<texture>(FUSE_RESOURCE_TYPE_TEXTURE, source.CString());
+	string_t sourceStr = to_string_t(source.CString());
+	texture_ptr tex = resource_factory::get_singleton_pointer()->create<texture>(FUSE_RESOURCE_TYPE_TEXTURE, sourceStr.c_str());
 
 	texture_handle = register_texture(tex);
 
@@ -295,8 +296,8 @@ bool rocket_interface::GenerateTexture(Rocket::Core::TextureHandle & texture_han
 		[](resource * r) { return true; },
 		[this](resource * r) { static_cast<texture*>(r)->clear(*m_commandQueue); });
 
-	image_ptr   img = resource_factory::get_singleton_pointer()->create<image>(FUSE_RESOURCE_TYPE_IMAGE, "", default_parameters(), &fakeImageLoader);
-	texture_ptr tex = resource_factory::get_singleton_pointer()->create<texture>(FUSE_RESOURCE_TYPE_TEXTURE, "", default_parameters(), &fakeTextureLoader);
+	image_ptr   img = resource_factory::get_singleton_pointer()->create<image>(FUSE_RESOURCE_TYPE_IMAGE, FUSE_LITERAL(""), default_parameters(), &fakeImageLoader);
+	texture_ptr tex = resource_factory::get_singleton_pointer()->create<texture>(FUSE_RESOURCE_TYPE_TEXTURE, FUSE_LITERAL(""), default_parameters(), &fakeTextureLoader);
 
 	if (img->create(FUSE_IMAGE_FORMAT_R8G8B8A8_UINT, source_dimensions.x, source_dimensions.y, source) &&
 		tex->create(m_device, *m_commandQueue, *m_commandList, *m_ringBuffer, img.get()))
@@ -378,8 +379,8 @@ bool rocket_interface::create_pso(void)
 
 	UINT compileFlags = 0;
 
-	if (compile_shader("shaders/rocket.hlsl", nullptr, "rocket_vs", "vs_5_0", compileFlags, &rocketVS) &&
-		compile_shader("shaders/rocket.hlsl", nullptr, "rocket_ps", "ps_5_0", compileFlags, &rocketPS) &&
+	if (compile_shader(FUSE_LITERAL("shaders/rocket.hlsl"), nullptr, "rocket_vs", "vs_5_0", compileFlags, &rocketVS) &&
+		compile_shader(FUSE_LITERAL("shaders/rocket.hlsl"), nullptr, "rocket_ps", "ps_5_0", compileFlags, &rocketPS) &&
 		reflect_input_layout(rocketVS.get(), std::back_inserter(inputLayoutVector), &shaderReflection) &&
 		!FUSE_HR_FAILED_BLOB(D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &serializedSignature, &errorsBlob), errorsBlob) &&
 		!FUSE_HR_FAILED(m_device->CreateRootSignature(0, FUSE_BLOB_ARGS(serializedSignature), IID_PPV_ARGS(&m_rs))))
@@ -424,6 +425,7 @@ int rocket_interface::TranslateString(Rocket::Core::String & translated, const R
 
 bool rocket_interface::LogMessage(Rocket::Core::Log::Type type, const Rocket::Core::String & message)
 {
-	FUSE_LOG_OPT("libRocket", message.CString());
+	string_t messageStr = to_string_t(message.CString());
+	FUSE_LOG_OPT(FUSE_LITERAL("libRocket"), messageStr.c_str());
 	return true;
 }

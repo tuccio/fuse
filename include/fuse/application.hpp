@@ -1,11 +1,7 @@
 #pragma once
 
-#include <Windows.h>
-#include <d3d12.h>
-#include <dxgi1_4.h>
-#include <d3dx12.h>
-
 #include <fuse/singleton.hpp>
+#include <fuse/base_windowing.hpp>
 #include <fuse/gpu_command_queue.hpp>
 #include <fuse/directx_helper.hpp>
 #include <fuse/gpu_global_resource_state.hpp>
@@ -14,10 +10,13 @@
 #include <fuse/descriptor_heap.hpp>
 #include <fuse/gpu_render_context.hpp>
 
+#include <d3d12.h>
+#include <dxgi1_4.h>
+#include <d3dx12.h>
+
 #include <queue>
 
-#define FUSE_FPS_SAMPLES  16
-#define FUSE_WINDOW_CLASS "fuse_window_class"
+#define FUSE_FPS_SAMPLES 16
 
 namespace fuse
 {
@@ -45,17 +44,18 @@ namespace fuse
 
 	};
 
-	struct application_base
+	template <typename WindowingSystem = base_windowing>
+	struct application_base :
+		WindowingSystem
 	{
 
 	public:
 
-		typedef application_base base_type;
+		application_base(void) = delete;
 
-		static bool init(HINSTANCE hInstance, bool silent = false);
+		typedef application_base<WindowingSystem> base_type;
+
 		static void shutdown(void);
-
-		static LRESULT CALLBACK window_proc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
 		inline static void on_configuration_init(application_config * configuration) { }
 
@@ -67,10 +67,6 @@ namespace fuse
 
 		inline static void on_update(float dt) { }
 		inline static void on_render(gpu_render_context & renderContext, const render_resource & backBuffer) { }
-		inline static LRESULT on_message(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) { return 0; }
-
-		static LRESULT CALLBACK on_keyboard(int code, WPARAM wParam, LPARAM lParam);
-		static LRESULT CALLBACK on_mouse(int code, WPARAM wParam, LPARAM lParam);
 
 		static float get_fps(void);
 
@@ -80,14 +76,6 @@ namespace fuse
 
 		static bool create_descriptor_heaps(void);
 		static void destroy_descriptor_heaps(void);
-
-		static bool create_window(int width, int height, const char * caption);
-		static void destroy_window(void);
-
-		inline static HWND get_window(void) { return m_hWnd; }
-								
-		inline static int get_screen_width(void) { return m_screenWidth; }
-		inline static int get_screen_height(void) { return m_screenHeight; }
 						   
 		inline static HINSTANCE get_instance(void) { return m_hInstance; }
 		
@@ -111,17 +99,7 @@ namespace fuse
 
 	protected:
 
-		static bool                          m_initialized;
-		static bool                          m_silent;
 		static bool                          m_debug;
-
-		static HINSTANCE                     m_hInstance;
-		static HWND                          m_hWnd;
-
-		static bool                          m_resizeSwapChain;
-
-		static int                           m_screenWidth;
-		static int                           m_screenHeight;
 
 		static com_ptr<ID3D12Device>         m_device;
 		static com_ptr<IDXGISwapChain3>      m_swapChain;
@@ -156,8 +134,6 @@ namespace fuse
 		static void release_swap_chain_buffers(void);
 
 		static const DXGI_SURFACE_DESC * get_swap_chain_buffer_desc(void) { return &m_swapChainBufferDesc; }
-
-		static void signal_error(const char * error);
 
 		inline static float update_fps_counter(void)
 		{
@@ -210,16 +186,16 @@ namespace fuse
 				create_descriptor_heaps() &&
 				create_render_context() &&
 				on_render_context_created(m_renderContext) &&
-				create_swap_chain(debug, get_screen_width(), get_screen_height());
+				create_swap_chain(debug, get_client_width(), get_client_height());
 
 			if (!success)
 			{
-				signal_error("Failed to create graphics pipeline.");
+				signal_error(FUSE_LITERAL("Failed to create graphics pipeline."));
 			}
 			else
 			{
 				SetWindowsHook(WH_KEYBOARD, on_keyboard);
-				SetWindowsHook(WH_MOUSE, on_mouse);
+				SetWindowsHook(WH_MOUSE,    on_mouse);
 			}
 
 			return success;
@@ -279,7 +255,7 @@ namespace fuse
 				
 				if (!update_swapchain())
 				{
-					signal_error("Failed to resize the swap chain.");
+					signal_error(FUSE_LITERAL("Failed to resize the swap chain."));
 					return;
 				}
 
@@ -296,13 +272,10 @@ namespace fuse
 		static inline bool update_swapchain(void)
 		{
 
-			// Only resize if m_resizeSwapChain == true
-
-			bool success = !m_resizeSwapChain ||
-			               (resize_swap_chain(get_screen_width(), get_screen_height()) &&
+			bool success = !get_resize_polling() ||
+			               (resize_swap_chain(get_client_width(), get_client_height()) &&
 			               on_swap_chain_resized(get_device(), get_swap_chain(), get_swap_chain_buffer_desc()));
 			
-			m_resizeSwapChain = false;
 			m_bufferIndex     = m_swapChain->GetCurrentBackBufferIndex();
 
 			return success;
@@ -311,4 +284,34 @@ namespace fuse
 
 	};
 
+#define FUSE_APPLICATION_BASE_VAR(Type, Name) template <typename WindowingSystem> Type application_base<WindowingSystem>::Name;
+
+	/* Static variables definition */
+
+	FUSE_APPLICATION_BASE_VAR(bool, m_debug)
+
+	FUSE_APPLICATION_BASE_VAR(com_ptr<ID3D12Device>,    m_device)
+	FUSE_APPLICATION_BASE_VAR(com_ptr<IDXGISwapChain3>, m_swapChain)
+
+	FUSE_APPLICATION_BASE_VAR(UINT, m_bufferIndex)
+
+	FUSE_APPLICATION_BASE_VAR(DXGI_SURFACE_DESC, m_swapChainBufferDesc)
+
+	FUSE_APPLICATION_BASE_VAR(application_config, m_configuration)
+
+	FUSE_APPLICATION_BASE_VAR(std::vector<render_resource>, m_renderTargets)
+
+	FUSE_APPLICATION_BASE_VAR(float, m_frameSamples[FUSE_FPS_SAMPLES])
+
+	FUSE_APPLICATION_BASE_VAR(gpu_global_resource_state, m_globalState)
+
+	FUSE_APPLICATION_BASE_VAR(cbv_uav_srv_descriptor_heap, m_shaderDescriptorHeap)
+
+	FUSE_APPLICATION_BASE_VAR(rtv_descriptor_heap, m_renderTargetDescriptorHeap)
+	FUSE_APPLICATION_BASE_VAR(dsv_descriptor_heap, m_depthStencilDescriptorHeap)
+
+	FUSE_APPLICATION_BASE_VAR(gpu_render_context, m_renderContext)
+
 }
+
+#include <fuse/application.inl>

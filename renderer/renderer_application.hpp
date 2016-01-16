@@ -6,7 +6,7 @@ namespace fuse
 {
 
 	struct renderer_application :
-		application_base
+		application_base<base_windowing>
 	{
 
 		static bool on_render_context_created(gpu_render_context & renderContext);

@@ -9,7 +9,7 @@ mipmap_generator::mipmap_generator(ID3D12Device * device)
 
 	if (!init(device))
 	{
-		FUSE_LOG_OPT("mipmap_generator", "Failed to construct.");
+		FUSE_LOG_OPT(FUSE_LITERAL("mipmap_generator"), FUSE_LITERAL("Failed to construct."));
 	}
 	
 }
@@ -157,8 +157,8 @@ bool mipmap_generator::init(ID3D12Device * device)
 
 	return m_hFenceEvent &&
 	       !FUSE_HR_FAILED(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_fence))) &&
-	       compile_shader("shaders/quad_vs.hlsl", nullptr, "quad_vs", "vs_5_0", compileFlags, &m_vs) &&
-	       compile_shader("shaders/mipmap_generator.hlsl", nullptr, "mipmap_ps", "ps_5_0", compileFlags, &m_ps) &&
+	       compile_shader(FUSE_LITERAL("shaders/quad_vs.hlsl"), nullptr, "quad_vs", "vs_5_0", compileFlags, &m_vs) &&
+	       compile_shader(FUSE_LITERAL("shaders/mipmap_generator.hlsl"), nullptr, "mipmap_ps", "ps_5_0", compileFlags, &m_ps) &&
 	       reflect_input_layout(m_vs.get(), std::back_inserter(m_inputLayoutVector), &m_vsReflection) &&
 	       !FUSE_HR_FAILED_BLOB(D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &serializedSignature, &errorsBlob), errorsBlob) &&
 	       !FUSE_HR_FAILED(device->CreateRootSignature(0, FUSE_BLOB_ARGS(serializedSignature), IID_PPV_ARGS(&m_rs)));

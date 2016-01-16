@@ -15,7 +15,7 @@
 #include <d3dx12.h>
 
 #define FUSE_BLOB_ARGS(Blob) Blob->GetBufferPointer(), Blob->GetBufferSize()
-#define FUSE_BLOB_LOG(Blob) { const char * msg = static_cast<const char *>(Blob->GetBufferPointer()); FUSE_LOG_OPT_DEBUG(msg); }
+#define FUSE_BLOB_LOG(Blob) { const TCHAR * msg = static_cast<const TCHAR *>(Blob->GetBufferPointer()); FUSE_LOG_OPT_DEBUG(msg); }
 
 #define FUSE_HR_LOG(HR)\
 		{\

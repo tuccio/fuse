@@ -91,7 +91,7 @@ gpu_ring_buffer::allocated_chunk * gpu_ring_buffer::allocate(gpu_command_queue &
 
 	if (allocationSize > m_size)
 	{
-		FUSE_LOG_OPT("gpu_ring_buffer", "Not enough space in the ring buffer for the requested resource.");
+		FUSE_LOG_OPT(FUSE_LITERAL("gpu_ring_buffer"), FUSE_LITERAL("Not enough space in the ring buffer for the requested resource."));
 		return false;
 	}
 
@@ -138,7 +138,7 @@ gpu_ring_buffer::allocated_chunk * gpu_ring_buffer::allocate(gpu_command_queue &
 
 	}
 
-	FUSE_LOG_OPT("gpu_ring_buffer", "Not enough space freed for the buffer");
+	FUSE_LOG_OPT(FUSE_LITERAL("gpu_ring_buffer"), FUSE_LITERAL("Not enough space freed for the buffer"));
 
 	return nullptr;
 

@@ -1,11 +1,12 @@
 #pragma once
 
+#include <fuse/lockable.hpp>
+#include <fuse/types.hpp>
+#include <fuse/string.hpp>
+
 #include <cassert>
 #include <climits>
 #include <functional>
-#include <string>
-
-#include "lockable.hpp"
 
 #include <boost/property_tree/ptree.hpp>
 
@@ -37,12 +38,12 @@ namespace fuse
 	public:
 
 		using id_type         = uint32_t;
-		using parameters_type = boost::property_tree::ptree;
+		using parameters_type = boost::property_tree::basic_ptree<string_t, string_t>;
 
 		resource(void) :
 			m_owner(nullptr), m_loader(nullptr), m_size(0), m_status(FUSE_RESOURCE_NOT_LOADED) { }
 
-		resource(const char * name, resource_loader * loader = nullptr, resource_manager * owner = nullptr) :
+		resource(const char_t * name, resource_loader * loader = nullptr, resource_manager * owner = nullptr) :
 			m_name(name), m_owner(owner), m_loader(loader), m_size(0), m_status(FUSE_RESOURCE_NOT_LOADED) { }
 
 		resource(const resource &) = delete;
@@ -53,7 +54,7 @@ namespace fuse
 		inline resource_manager * get_owner(void) const { return m_owner; }
 		inline void               set_owner(resource_manager * owner) { m_owner = owner; }
 
-		inline const char       * get_name(void) const { return m_name.c_str(); }
+		inline const char_t     * get_name(void) const { return m_name.c_str(); }
 
 		inline resource_status    get_status(void) const { return m_status; }
 
@@ -89,7 +90,7 @@ namespace fuse
 		resource_status    m_status;
 		id_type            m_id;
 
-		std::string        m_name;
+		string_t           m_name;
 		parameters_type    m_parameters;
 
 		friend class resource_manager;

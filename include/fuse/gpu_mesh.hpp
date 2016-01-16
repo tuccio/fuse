@@ -15,7 +15,7 @@ namespace fuse
 	public:
 
 		gpu_mesh(void) = default;
-		gpu_mesh(const char * name, resource_loader * loader, resource_manager * owner);
+		gpu_mesh(const char_t * name, resource_loader * loader, resource_manager * owner);
 
 		bool create(ID3D12Device * device, gpu_command_queue & commandQueue, gpu_graphics_command_list & commandList, gpu_ring_buffer & ringBuffer, mesh * mesh);
 		void clear(gpu_command_queue & commandQueue);

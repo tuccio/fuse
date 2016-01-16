@@ -18,17 +18,19 @@
 
 using namespace fuse;
 
-assimp_loader::assimp_loader(const char * filename, unsigned int flags) :
+assimp_loader::assimp_loader(const char_t * filename, unsigned int flags) :
 	m_filename(filename)
 {
 
-	m_scene = m_importer.ReadFile(filename, flags | aiProcess_Triangulate);
+	auto fnString = string_narrow(filename);
+
+	m_scene = m_importer.ReadFile(fnString.c_str(), flags | aiProcess_Triangulate);
 
 	m_importer.SetPropertyFloat(AI_CONFIG_PP_GSN_MAX_SMOOTHING_ANGLE, 80.f);
 
 	if (!m_scene)
 	{
-		FUSE_LOG_OPT_DEBUG(std::stringstream() << "Failed to load scene \"" << filename << "\": " << m_importer.GetErrorString());
+		FUSE_LOG_OPT_DEBUG(stringstream_t() << "Failed to load scene \"" << filename << "\": " << m_importer.GetErrorString());
 	}
 
 }
@@ -41,13 +43,13 @@ assimp_loader::~assimp_loader(void)
 bool assimp_loader::load(resource * r)
 {
 
-	const char * resourceType = r->get_owner()->get_type();
+	const char_t * resourceType = r->get_owner()->get_type();
 
-	if (!strcmp(resourceType, FUSE_RESOURCE_TYPE_MESH))
+	if (string_equals(resourceType, FUSE_RESOURCE_TYPE_MESH))
 	{
 		return load_mesh(static_cast<mesh *>(r));
 	}
-	else if (!strcmp(resourceType, FUSE_RESOURCE_TYPE_MATERIAL))
+	else if (string_equals(resourceType, FUSE_RESOURCE_TYPE_MATERIAL))
 	{
 		return load_material(static_cast<material *>(r));
 	}
@@ -59,13 +61,13 @@ bool assimp_loader::load(resource * r)
 void assimp_loader::unload(resource * r)
 {
 
-	const char * resourceType = r->get_owner()->get_type();
+	const char_t * resourceType = r->get_owner()->get_type();
 
-	if (!strcmp(resourceType, FUSE_RESOURCE_TYPE_MESH))
+	if (string_equals(resourceType, FUSE_RESOURCE_TYPE_MESH))
 	{
 		unload_mesh(static_cast<mesh *>(r));
 	}
-	else if (!strcmp(resourceType, FUSE_RESOURCE_TYPE_MATERIAL))
+	else if (string_equals(resourceType, FUSE_RESOURCE_TYPE_MATERIAL))
 	{
 		unload_material(static_cast<material *>(r));
 	}
@@ -79,21 +81,22 @@ const aiScene * assimp_loader::get_scene(void) const
 
 std::shared_ptr<mesh> assimp_loader::create_mesh(unsigned int meshIndex)
 {
-	return resource_factory::get_singleton_pointer()->create<mesh>(FUSE_RESOURCE_TYPE_MESH, (std::to_string(meshIndex) + "_assimp_mesh_" + m_filename).c_str(), default_parameters(), this);
+	return resource_factory::get_singleton_pointer()->create<mesh>(FUSE_RESOURCE_TYPE_MESH, (to_string_t(meshIndex) + FUSE_LITERAL("_assimp_mesh_") + m_filename).c_str(), default_parameters(), this);
 }
 
 std::shared_ptr<material> assimp_loader::create_material(unsigned int materialIndex)
 {
-	return resource_factory::get_singleton_pointer()->create<material>(FUSE_RESOURCE_TYPE_MATERIAL, (std::to_string(materialIndex) + "_assimp_material_" + m_filename).c_str(), default_parameters(), this);
+	return resource_factory::get_singleton_pointer()->create<material>(FUSE_RESOURCE_TYPE_MATERIAL, (to_string_t(materialIndex) + FUSE_LITERAL("_assimp_material_") + m_filename).c_str(), default_parameters(), this);
 }
 
 bool assimp_loader::load_mesh(mesh * m)
 {
 
-	const char * name = m->get_name();
+	const char_t * name = m->get_name();
 
 	unsigned int id;
-	std::istringstream ss(name);
+	istringstream_t ss(name);
+
 	ss >> id;
 
 	// Look for the resource in the loaded scene
@@ -103,9 +106,11 @@ bool assimp_loader::load_mesh(mesh * m)
 
 		id = -1;
 
+
 		for (int i = 0; i < m_scene->mNumMeshes; i++)
 		{
-			if (!strcmp(name, m_scene->mMeshes[i]->mName.C_Str()))
+
+			if (!string_equals(name, m_scene->mMeshes[i]->mName.C_Str()))
 			{
 				id = i;
 				break;
@@ -184,10 +189,10 @@ void assimp_loader::unload_mesh(mesh * m)
 bool assimp_loader::load_material(material * m)
 {
 
-	const char * name = m->get_name();
+	const char_t * name = m->get_name();
 
 	unsigned int id;
-	std::istringstream ss(name);
+	istringstream_t ss(name);
 	ss >> id;
 
 	// Look for the resource in the loaded scene

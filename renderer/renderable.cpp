@@ -56,7 +56,7 @@ renderable::renderable(void) :
 	}
 	);
 
-	m_occlusionQueryBB = resource_factory::get_singleton_pointer()->create<gpu_mesh>(FUSE_RESOURCE_TYPE_GPU_MESH, "", default_parameters(), &m_loader);
+	m_occlusionQueryBB = resource_factory::get_singleton_pointer()->create<gpu_mesh>(FUSE_RESOURCE_TYPE_GPU_MESH, FUSE_LITERAL(""), default_parameters(), &m_loader);
 
 }
 

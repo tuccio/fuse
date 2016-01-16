@@ -155,8 +155,8 @@ void render_resource_manager::clear(void)
 	for (auto & r : m_resources)
 	{
 
-		FUSE_LOG_OPT("render_resource_manager::clear",
-			std::stringstream()
+		FUSE_LOG_OPT(FUSE_LITERAL("render_resource_manager::clear"),
+			stringstream_t()
 				<< "A render resource is still in use when clear() is called (Format:"
 				<< r.second->description.Format
 				<< ", Size: " << r.second->description.Width << "x" << r.second->description.Height << ").");

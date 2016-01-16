@@ -266,9 +266,9 @@ bool skybox_renderer::create_pso(ID3D12Device * device)
 		{ nullptr, nullptr }
 	};
 
-	if (compile_shader("shaders/quad_vs.hlsl", quadDefines, "quad_vs", "vs_5_0", compileFlags, &quadVS) &&
-	    compile_shader("shaders/skybox.hlsl", quadDefines, "skybox_gs", "gs_5_0", compileFlags, &skyboxGS) &&
-	    compile_shader("shaders/skybox.hlsl", quadDefines, "skybox_ps", "ps_5_0", compileFlags, &skyboxPS) &&
+	if (compile_shader(FUSE_LITERAL("shaders/quad_vs.hlsl"), quadDefines, "quad_vs", "vs_5_0", compileFlags, &quadVS) &&
+	    compile_shader(FUSE_LITERAL("shaders/skybox.hlsl"), quadDefines, "skybox_gs", "gs_5_0", compileFlags, &skyboxGS) &&
+	    compile_shader(FUSE_LITERAL("shaders/skybox.hlsl"), quadDefines, "skybox_ps", "ps_5_0", compileFlags, &skyboxPS) &&
 	    reflect_input_layout(quadVS.get(), std::back_inserter(inputLayoutVector), &shaderReflection) &&
 	    !FUSE_HR_FAILED_BLOB(D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &serializedSignature, &errorsBlob), errorsBlob) &&
 	    !FUSE_HR_FAILED(device->CreateRootSignature(0, FUSE_BLOB_ARGS(serializedSignature), IID_PPV_ARGS(&m_rs))))

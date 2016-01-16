@@ -141,8 +141,8 @@ bool debug_renderer::create_psos(ID3D12Device * device)
 
 		m_debugPST = pipeline_state_template({}, debugPSODesc, "5_0");
 
-		m_debugPST.set_vertex_shader("shaders/debug.hlsl", "debug_vs");
-		m_debugPST.set_pixel_shader("shaders/debug.hlsl", "debug_ps");
+		m_debugPST.set_vertex_shader(FUSE_LITERAL("shaders/debug.hlsl"), "debug_vs");
+		m_debugPST.set_pixel_shader(FUSE_LITERAL("shaders/debug.hlsl"), "debug_ps");
 
 		return true;
 

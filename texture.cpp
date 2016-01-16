@@ -119,9 +119,9 @@ bool texture::load_impl(void)
 
 		auto renderContext = gpu_render_context::get_singleton_pointer();
 
-		auto mipmaps         = params.get_optional<UINT>("mipmaps");
-		auto generateMipmaps = params.get_optional<bool>("generate_mipmaps");
-		auto resourceFlags   = params.get_optional<UINT>("resource_flags");
+		auto mipmaps         = params.get_optional<UINT>(FUSE_LITERAL("mipmaps"));
+		auto generateMipmaps = params.get_optional<bool>(FUSE_LITERAL("generate_mipmaps"));
+		auto resourceFlags   = params.get_optional<UINT>(FUSE_LITERAL("resource_flags"));
 
 		return create(
 			renderContext->get_device(),

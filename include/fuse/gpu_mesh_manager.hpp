@@ -21,7 +21,7 @@ namespace fuse
 
 	protected:
 
-		resource * create_impl(const char * name, resource_loader * loader) override { return new gpu_mesh(name, loader, this); }
+		resource * create_impl(const char_t * name, resource_loader * loader) override { return new gpu_mesh(name, loader, this); }
 		void       free_impl(resource * resource) override { delete resource; }
 
 	};

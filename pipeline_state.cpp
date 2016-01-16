@@ -1,5 +1,6 @@
 #include <fuse/pipeline_state.hpp>
 #include <fuse/compile_shader.hpp>
+#include <fuse/string.hpp>
 
 #include <algorithm>
 #include <sstream>
@@ -148,7 +149,7 @@ boost::optional<size_t> pipeline_state_template::compute_hash(std::initializer_l
 
 		if (it == m_macros.end() || it->get_macro() != define.Name)
 		{
-			FUSE_LOG_DEBUG(std::stringstream() << "Unrecognized macro definition: \"" << define.Name << "\".");
+			FUSE_LOG_DEBUG(stringstream_t() << "Unrecognized macro definition: \"" << define.Name << "\".");
 			return {};
 		}
 		else
@@ -170,7 +171,7 @@ boost::optional<size_t> pipeline_state_template::compute_hash(std::initializer_l
 			}
 			else
 			{
-				FUSE_LOG_DEBUG(std::stringstream() << "Unrecognized value for macro \"" << define.Name << "\": \"" << define.Definition << "\".");
+				FUSE_LOG_DEBUG(stringstream_t() << "Unrecognized value for macro \"" << define.Name << "\": \"" << define.Definition << "\".");
 				return {};
 			}
 
@@ -207,7 +208,7 @@ bool pipeline_state_template::create_hash_offsets(void)
 
 	if (currentOffset > sizeof(size_t) * 8)
 	{
-		FUSE_LOG_DEBUG(std::stringstream() << "Macro permutations hash values out of range.");
+		FUSE_LOG_DEBUG(stringstream_t() << "Macro permutations hash values out of range.");
 		return false;
 	}
 

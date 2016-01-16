@@ -1,6 +1,7 @@
 #include "renderer_application.hpp"
 
 #include <fuse/debug_ostream.hpp>
+#include <fuse/logger.hpp>
 
 #include <iostream>
 #include <fstream>
@@ -22,7 +23,7 @@ int CALLBACK WinMain(HINSTANCE hInstance,
 	using app = fuse::application<renderer_application>;
 
 	if (app::init(hInstance) &&
-	    app::create_window(1280, 720, "Fuse Renderer") &&
+	    app::create_window(1280, 720, FUSE_LITERAL("Fuse Renderer")) &&
 	    app::create_pipeline(D3D_FEATURE_LEVEL_11_0, true))
 	{
 		app::main_loop();

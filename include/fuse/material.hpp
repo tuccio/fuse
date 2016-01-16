@@ -26,7 +26,7 @@ namespace fuse
 	public:
 
 		material(void);
-		material(const char * name, resource_loader * loader, resource_manager * owner);
+		material(const char_t * name, resource_loader * loader, resource_manager * owner);
 
 		inline bool has_diffuse_texture(void) const { return !m_diffuseTexture.empty(); }
 		inline bool has_specular_texture(void) const { return !m_specularTexture.empty(); }

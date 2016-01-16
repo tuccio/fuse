@@ -153,7 +153,7 @@ bool shadow_mapper::create_regular_pso(ID3D12Device * device)
 
 	UINT compileFlags = 0;
 
-	if (compile_shader("shaders/shadow_mapping.hlsl", nullptr, "shadow_map_vs", "vs_5_0", compileFlags, &shadowMapVS) &&
+	if (compile_shader(FUSE_LITERAL("shaders/shadow_mapping.hlsl"), nullptr, "shadow_map_vs", "vs_5_0", compileFlags, &shadowMapVS) &&
 		reflect_input_layout(shadowMapVS.get(), std::back_inserter(inputLayoutVector), &shaderReflection))
 	{
 
@@ -190,8 +190,8 @@ bool shadow_mapper::create_vsm_pso(ID3D12Device * device)
 
 	UINT compileFlags = 0;
 
-	if (compile_shader("shaders/shadow_mapping.hlsl", nullptr, "shadow_map_vs", "vs_5_0", compileFlags, &shadowMapVS) &&
-		compile_shader("shaders/shadow_mapping.hlsl", nullptr, "vsm_ps", "ps_5_0", compileFlags, &vsmPS) &&
+	if (compile_shader(FUSE_LITERAL("shaders/shadow_mapping.hlsl"), nullptr, "shadow_map_vs", "vs_5_0", compileFlags, &shadowMapVS) &&
+		compile_shader(FUSE_LITERAL("shaders/shadow_mapping.hlsl"), nullptr, "vsm_ps", "ps_5_0", compileFlags, &vsmPS) &&
 		reflect_input_layout(shadowMapVS.get(), std::back_inserter(inputLayoutVector), &shaderReflection))
 	{
 
@@ -230,8 +230,8 @@ bool shadow_mapper::create_evsm2_pso(ID3D12Device * device)
 
 	UINT compileFlags = 0;
 
-	if (compile_shader("shaders/shadow_mapping.hlsl", nullptr, "shadow_map_vs", "vs_5_0", compileFlags, &shadowMapVS) &&
-		compile_shader("shaders/shadow_mapping.hlsl", nullptr, "evsm2_ps", "ps_5_0", compileFlags, &evsm2PS) &&
+	if (compile_shader(FUSE_LITERAL("shaders/shadow_mapping.hlsl"), nullptr, "shadow_map_vs", "vs_5_0", compileFlags, &shadowMapVS) &&
+		compile_shader(FUSE_LITERAL("shaders/shadow_mapping.hlsl"), nullptr, "evsm2_ps", "ps_5_0", compileFlags, &evsm2PS) &&
 		reflect_input_layout(shadowMapVS.get(), std::back_inserter(inputLayoutVector), &shaderReflection))
 	{
 
@@ -270,8 +270,8 @@ bool shadow_mapper::create_evsm4_pso(ID3D12Device * device)
 
 	UINT compileFlags = 0;
 
-	if (compile_shader("shaders/shadow_mapping.hlsl", nullptr, "shadow_map_vs", "vs_5_0", compileFlags, &shadowMapVS) &&
-		compile_shader("shaders/shadow_mapping.hlsl", nullptr, "evsm4_ps", "ps_5_0", compileFlags, &evsm4PS) &&
+	if (compile_shader(FUSE_LITERAL("shaders/shadow_mapping.hlsl"), nullptr, "shadow_map_vs", "vs_5_0", compileFlags, &shadowMapVS) &&
+		compile_shader(FUSE_LITERAL("shaders/shadow_mapping.hlsl"), nullptr, "evsm4_ps", "ps_5_0", compileFlags, &evsm4PS) &&
 		reflect_input_layout(shadowMapVS.get(), std::back_inserter(inputLayoutVector), &shaderReflection))
 	{
 

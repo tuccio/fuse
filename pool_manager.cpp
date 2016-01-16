@@ -48,7 +48,7 @@ pool_size_t pool_manager::allocate(pool_size_t elements)
 
 	if (it == m_freeChunks.end())
 	{
-		FUSE_LOG_OPT("pool_manager", "Not enough memory available for the requested allocation.")
+		FUSE_LOG_OPT(FUSE_LITERAL("pool_manager"), FUSE_LITERAL("Not enough memory available for the requested allocation."))
 		return FUSE_POOL_INVALID;
 	}
 

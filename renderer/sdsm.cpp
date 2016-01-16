@@ -57,7 +57,7 @@ bool sdsm::create_psos(ID3D12Device * device)
 
 	CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc(_countof(rootParameters), rootParameters, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_NONE);
 
-	if (compile_shader("shaders/sdsm.hlsl", nullptr, "min_max_reduction_cs", "cs_5_0", 0, &minmaxCS) &&
+	if (compile_shader(FUSE_LITERAL("shaders/sdsm.hlsl"), nullptr, "min_max_reduction_cs", "cs_5_0", 0, &minmaxCS) &&
 		!FUSE_HR_FAILED_BLOB(D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &serializedSignature, &errorsBlob), errorsBlob) &&
 		!FUSE_HR_FAILED(device->CreateRootSignature(0, FUSE_BLOB_ARGS(serializedSignature), IID_PPV_ARGS(&m_minMaxReductionRS))))
 	{

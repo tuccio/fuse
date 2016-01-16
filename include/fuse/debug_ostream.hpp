@@ -8,7 +8,7 @@ namespace fuse
 {
 
 	class debug_streambuf :
-		public std::streambuf
+		public std::basic_streambuf<TCHAR>
 	{
 
 		std::streamsize xsputn(const char_type * s, std::streamsize n) override
@@ -27,12 +27,12 @@ namespace fuse
 	};
 
 	class debug_ostream :
-		public std::ostream
+		public std::basic_ostream<TCHAR>
 	{
 
 	public:
 
-		debug_ostream(void) : std::ostream(&m_streambuf) { }
+		debug_ostream(void) : std::basic_ostream<TCHAR>(&m_streambuf) { }
 
 	private:
 

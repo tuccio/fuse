@@ -19,7 +19,7 @@ namespace fuse
 
 	public:
 
-		assimp_loader(const char * filename, unsigned int flags = aiProcessPreset_TargetRealtime_MaxQuality | aiProcess_ConvertToLeftHanded);
+		assimp_loader(const char_t * filename, unsigned int flags = aiProcessPreset_TargetRealtime_MaxQuality | aiProcess_ConvertToLeftHanded);
 		~assimp_loader(void);
 
 		bool load(resource * r) override;
@@ -35,7 +35,7 @@ namespace fuse
 
 	private:
 
-		std::string        m_filename;
+		string_t           m_filename;
 		const aiScene    * m_scene;
 		Assimp::Importer   m_importer;
 

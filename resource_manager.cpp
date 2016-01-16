@@ -4,7 +4,7 @@ using namespace fuse;
 
 #define FUSE_RESOURCE_IS_UNNAMED(Name) (!name || *name == '\0')
 
-std::shared_ptr<resource> resource_manager::create(const char * name,
+std::shared_ptr<resource> resource_manager::create(const char_t * name,
 	                                               const resource::parameters_type & parameters,
 	                                               resource_loader * loader)
 {
@@ -40,7 +40,7 @@ std::shared_ptr<resource> resource_manager::create(const char * name,
 
 }
 
-std::shared_ptr<resource> resource_manager::find_by_name(const char * name) const
+std::shared_ptr<resource> resource_manager::find_by_name(const char_t * name) const
 {
 	guard_type lock(m_lock);
 	return find_by_name_unsafe(name);
@@ -54,7 +54,7 @@ std::shared_ptr<resource> resource_manager::find_by_id(resource::id_type id) con
 
 /* Non interlocked implementations */
 
-std::shared_ptr<resource> resource_manager::find_by_name_unsafe(const char * name) const
+std::shared_ptr<resource> resource_manager::find_by_name_unsafe(const char_t * name) const
 {
 
 	if (!FUSE_RESOURCE_IS_UNNAMED(name))

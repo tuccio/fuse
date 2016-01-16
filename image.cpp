@@ -37,7 +37,7 @@ struct scoped_devil_handle
 
 };
 
-image::image(const char * name, resource_loader * loader, resource_manager * owner) :
+image::image(const char_t * name, resource_loader * loader, resource_manager * owner) :
 	resource(name, loader, owner) { }
 
 image::~image(void)
@@ -62,10 +62,7 @@ bool image::load_impl(void)
 		if (ilLoadImage(get_name()))
 		{
 
-			ILenum formatChannels;
-			ILenum formatDataType;
-
-			auto format = get_parameters().get_optional<int>("format");
+			auto format = get_parameters().get_optional<int>(FUSE_LITERAL("format"));
 
 			if (!format)
 			{
@@ -101,7 +98,7 @@ bool image::load_impl(void)
 		}
 		else
 		{
-			FUSE_LOG_OPT_DEBUG(std::stringstream() << "Unable to load image file \"" << get_name() << "\".");
+			FUSE_LOG_OPT_DEBUG(stringstream_t() << "Unable to load image file \"" << get_name() << "\".");
 		}
 
 	}

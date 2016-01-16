@@ -98,8 +98,8 @@ namespace fuse
 
 		inline D3D12_GRAPHICS_PIPELINE_STATE_DESC & get_pso_desc(void) { return m_psoDesc; }
 
-		inline void set_vertex_shader(const char * filename, const char * entrypoint) { m_vertexShader = shader_entry_point { filename, entrypoint }; }
-		inline void set_pixel_shader(const char * filename, const char * entrypoint) { m_pixelShader = shader_entry_point{ filename, entrypoint }; }
+		inline void set_vertex_shader(const char_t * filename, const char * entrypoint) { m_vertexShader = shader_entry_point { filename, entrypoint }; }
+		inline void set_pixel_shader(const char_t * filename, const char * entrypoint) { m_pixelShader = shader_entry_point{ filename, entrypoint }; }
 
 		template <typename Function>
 		inline void set_ilv_functor(Function && f) { m_ilvFunctor = f; }
@@ -112,7 +112,7 @@ namespace fuse
 
 		struct shader_entry_point
 		{
-			std::string filename;
+			string_t    filename;
 			std::string entrypoint;
 		};
 

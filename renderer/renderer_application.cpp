@@ -149,7 +149,7 @@ bool renderer_application::on_render_context_created(gpu_render_context & render
 
 	//g_sceneLoader = std::make_unique<assimp_loader>("scene/default.fbx");
 	
-	g_sceneLoader = std::make_unique<assimp_loader>("scene/cornellbox_solid.fbx");
+	g_sceneLoader = std::make_unique<assimp_loader>(FUSE_LITERAL("scene/cornellbox_solid.fbx"));
 	//g_sceneLoader = std::make_unique<assimp_loader>("scene/sponza.fbx");
 
 	FAIL_IF(
@@ -224,7 +224,7 @@ bool renderer_application::on_render_context_created(gpu_render_context & render
 
 	}
 
-	g_font = resource_factory::get_singleton_pointer()->create<bitmap_font>("bitmap_font", "fonts/consolas_regular_12");
+	g_font = resource_factory::get_singleton_pointer()->create<bitmap_font>(FUSE_LITERAL("bitmap_font"), FUSE_LITERAL("fonts/consolas_regular_12"));
 
 	/* Initialize renderer */
 
@@ -718,8 +718,8 @@ void renderer_application::upload_per_frame_resources(ID3D12Device * device, gpu
 
 	/* Screen settings */
 
-	cbPerFrame.screen.resolution      = XMUINT2(get_screen_width(), get_screen_height());
-	cbPerFrame.screen.orthoProjection = XMMatrixTranspose(XMMatrixOrthographicOffCenterLH(0, get_screen_width(), get_screen_height(), 0, 0, 1));
+	cbPerFrame.screen.resolution      = XMUINT2(get_client_width(), get_client_height());
+	cbPerFrame.screen.orthoProjection = XMMatrixTranspose(XMMatrixOrthographicOffCenterLH(0, get_client_width(), get_client_height(), 0, 0, 1));
 
 	/* Render variables */
 
@@ -791,22 +791,22 @@ void renderer_application::on_render(gpu_render_context & renderContext, const r
 
 		g_renderResourceManager.get_texture_2d(
 			device, bufferIndex, DXGI_FORMAT_R16G16B16A16_FLOAT,
-			get_screen_width(), get_screen_height(), 1, 1, 1, 0,
+			get_client_width(), get_client_height(), 1, 1, 1, 0,
 			D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET, &CD3DX12_CLEAR_VALUE(DXGI_FORMAT_R16G16B16A16_FLOAT, clearColor)),
 
 		g_renderResourceManager.get_texture_2d(
 			device, bufferIndex, DXGI_FORMAT_R16G16B16A16_FLOAT,
-			get_screen_width(), get_screen_height(), 1, 1, 1, 0,
+			get_client_width(), get_client_height(), 1, 1, 1, 0,
 			D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET, &CD3DX12_CLEAR_VALUE(DXGI_FORMAT_R16G16B16A16_FLOAT, clearColor)),
 
 		g_renderResourceManager.get_texture_2d(
 			device, bufferIndex, DXGI_FORMAT_R8G8B8A8_UNORM,
-			get_screen_width(), get_screen_height(), 1, 1, 1, 0,
+			get_client_width(), get_client_height(), 1, 1, 1, 0,
 			D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET, &CD3DX12_CLEAR_VALUE(DXGI_FORMAT_R8G8B8A8_UNORM, clearColor)),
 
 		g_renderResourceManager.get_texture_2d(
 			device, bufferIndex, DXGI_FORMAT_R16G16B16A16_FLOAT,
-			get_screen_width(), get_screen_height(), 1, 1, 1, 0,
+			get_client_width(), get_client_height(), 1, 1, 1, 0,
 			D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET, &CD3DX12_CLEAR_VALUE(DXGI_FORMAT_R16G16B16A16_FLOAT, clearColor))
 
 	};
@@ -833,7 +833,7 @@ void renderer_application::on_render(gpu_render_context & renderContext, const r
 
 	render_resource_ptr sceneDepthBuffer = g_renderResourceManager.get_texture_2d(
 		device, bufferIndex, DXGI_FORMAT_D24_UNORM_S8_UINT,
-		get_screen_width(), get_screen_height(), 1, 1, 1, 0,
+		get_client_width(), get_client_height(), 1, 1, 1, 0,
 		D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL | D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE, &CD3DX12_CLEAR_VALUE(DXGI_FORMAT_D24_UNORM_S8_UINT, 1.f, 0));
 
 	/*render_resource * gbuffer[] = {
@@ -861,7 +861,7 @@ void renderer_application::on_render(gpu_render_context & renderContext, const r
 
 	render_resource_ptr guiRenderTarget = g_renderResourceManager.get_texture_2d(
 		device, bufferIndex, DXGI_FORMAT_R8G8B8A8_UNORM_SRGB,
-		get_screen_width(), get_screen_height(), 1, 1, 1, 0,
+		get_client_width(), get_client_height(), 1, 1, 1, 0,
 		D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET, &CD3DX12_CLEAR_VALUE(DXGI_FORMAT_R8G8B8A8_UNORM_SRGB, clearColor));
 
 	guiCommandList.resource_barrier_transition(guiRenderTarget->get(), D3D12_RESOURCE_STATE_RENDER_TARGET);
@@ -901,7 +901,7 @@ void renderer_application::on_render(gpu_render_context & renderContext, const r
 
 	render_resource_ptr hdrRenderTarget = g_renderResourceManager.get_texture_2d(
 		device, bufferIndex, DXGI_FORMAT_R16G16B16A16_FLOAT,
-		get_screen_width(), get_screen_height(), 1, 1, 1, 0,
+		get_client_width(), get_client_height(), 1, 1, 1, 0,
 		D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET, &CD3DX12_CLEAR_VALUE(DXGI_FORMAT_R16G16B16A16_FLOAT, clearColor));
 
 	commandList.resource_barrier_transition(hdrRenderTarget->get(), D3D12_RESOURCE_STATE_RENDER_TARGET);
@@ -1068,7 +1068,7 @@ void renderer_application::on_render(gpu_render_context & renderContext, const r
 
 	render_resource_ptr ldrRenderTarget = g_renderResourceManager.get_texture_2d(
 		device, bufferIndex, DXGI_FORMAT_R8G8B8A8_UNORM,
-		get_screen_width(), get_screen_height(), 1, 1, 1, 0,
+		get_client_width(), get_client_height(), 1, 1, 1, 0,
 		D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET | D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
 		&CD3DX12_CLEAR_VALUE(DXGI_FORMAT_R8G8B8A8_UNORM, clearColor));
 
@@ -1078,8 +1078,8 @@ void renderer_application::on_render(gpu_render_context & renderContext, const r
 		commandList,
 		*hdrRenderTarget.get(),
 		*ldrRenderTarget.get(),
-		get_screen_width(),
-		get_screen_height());
+		get_client_width(),
+		get_client_height());
 
 	color_rgba debugColors[] = {
 		{ 1, 0, 0, 1 },

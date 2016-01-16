@@ -17,7 +17,7 @@ void resource_factory::register_manager(resource_manager * manager)
 	m_managers[manager->get_type()] = manager;
 }
 
-void resource_factory::unregister_manager(const char * type)
+void resource_factory::unregister_manager(const char_t * type)
 {
 	
 	auto it = m_managers.find(type);

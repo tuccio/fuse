@@ -3,7 +3,7 @@
 
 using namespace fuse;
 
-mesh::mesh(const char * name, resource_loader * loader, resource_manager * owner) :
+mesh::mesh(const char_t * name, resource_loader * loader, resource_manager * owner) :
 	resource(name, loader, owner) { }
 
 mesh::~mesh(void)
@@ -62,11 +62,11 @@ uint32_t mesh::get_parameters_storage_semantic_flags(void)
 
 	auto & params = get_parameters();
 
-	boost::optional<bool> normalsOpt    = params.get_optional<bool>("normals");
-	boost::optional<bool> tangentsOpt   = params.get_optional<bool>("tangents");
-	boost::optional<bool> bitangentsOpt = params.get_optional<bool>("bitangents");
-	boost::optional<bool> texcoords0Opt = params.get_optional<bool>("texcoords0");
-	boost::optional<bool> texcoords1Opt = params.get_optional<bool>("texcoords1");
+	boost::optional<bool> normalsOpt    = params.get_optional<bool>(FUSE_LITERAL("normals"));
+	boost::optional<bool> tangentsOpt   = params.get_optional<bool>(FUSE_LITERAL("tangents"));
+	boost::optional<bool> bitangentsOpt = params.get_optional<bool>(FUSE_LITERAL("bitangents"));
+	boost::optional<bool> texcoords0Opt = params.get_optional<bool>(FUSE_LITERAL("texcoords0"));
+	boost::optional<bool> texcoords1Opt = params.get_optional<bool>(FUSE_LITERAL("texcoords1"));
 
 	uint32_t flags = 0;
 

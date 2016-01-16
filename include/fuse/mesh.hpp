@@ -35,7 +35,7 @@ namespace fuse
 	public:
 
 		mesh(void) = default;
-		mesh(const char * name, resource_loader * loader, resource_manager * owner);
+		mesh(const char_t * name, resource_loader * loader, resource_manager * owner);
 		~mesh(void);
 
 		bool create(size_t vertices, size_t triangles, unsigned int storage_semantics);

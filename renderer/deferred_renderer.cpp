@@ -396,8 +396,8 @@ bool deferred_renderer::create_gbuffer_pso(ID3D12Device * device)
 
 		m_gbufferPST = pipeline_state_template({ },	gbufferPSODesc, "5_0");
 
-		m_gbufferPST.set_vertex_shader("shaders/deferred_shading_gbuffer.hlsl", "gbuffer_vs");
-		m_gbufferPST.set_pixel_shader("shaders/deferred_shading_gbuffer.hlsl", "gbuffer_ps");
+		m_gbufferPST.set_vertex_shader(FUSE_LITERAL("shaders/deferred_shading_gbuffer.hlsl"), "gbuffer_vs");
+		m_gbufferPST.set_pixel_shader(FUSE_LITERAL("shaders/deferred_shading_gbuffer.hlsl"), "gbuffer_ps");
 
 		m_gbufferPST.set_ilv_functor(
 			[](D3D12_INPUT_ELEMENT_DESC & elementDesc)
@@ -424,8 +424,8 @@ bool deferred_renderer::create_gbuffer_pso(ID3D12Device * device)
 		
 		m_queryPST = pipeline_state_template({}, queryPSODesc, "5_0");
 
-		m_queryPST.set_vertex_shader("shaders/deferred_shading_gbuffer.hlsl", "query_vs");
-		m_queryPST.set_pixel_shader("shaders/deferred_shading_gbuffer.hlsl", "query_ps");
+		m_queryPST.set_vertex_shader(FUSE_LITERAL("shaders/deferred_shading_gbuffer.hlsl"), "query_vs");
+		m_queryPST.set_pixel_shader(FUSE_LITERAL("shaders/deferred_shading_gbuffer.hlsl"), "query_ps");
 
 		D3D12_QUERY_HEAP_DESC queryHeapDesc = {};
 
@@ -511,8 +511,8 @@ bool deferred_renderer::create_shading_pst(ID3D12Device * device)
 			"5_0",
 			0);
 
-		m_shadingPST.set_vertex_shader("shaders/quad_vs.hlsl", "quad_vs");
-		m_shadingPST.set_pixel_shader("shaders/deferred_shading_final.hlsl", "shading_ps");
+		m_shadingPST.set_vertex_shader(FUSE_LITERAL("shaders/quad_vs.hlsl"), "quad_vs");
+		m_shadingPST.set_pixel_shader(FUSE_LITERAL("shaders/deferred_shading_final.hlsl"), "shading_ps");
 
 		return true;
 
@@ -555,8 +555,8 @@ bool deferred_renderer::create_skybox_pso(ID3D12Device * device)
 		{ NULL, NULL }
 	};
 
-	if (compile_shader("shaders/quad_vs.hlsl", skyboxDefines, "quad_vs", "vs_5_0", compileFlags, &quadVS) &&
-		compile_shader("shaders/deferred_shading_final.hlsl", skyboxDefines, "skybox_ps", "ps_5_0", compileFlags, &skyboxPS) &&
+	if (compile_shader(FUSE_LITERAL("shaders/quad_vs.hlsl"), skyboxDefines, "quad_vs", "vs_5_0", compileFlags, &quadVS) &&
+		compile_shader(FUSE_LITERAL("shaders/deferred_shading_final.hlsl"), skyboxDefines, "skybox_ps", "ps_5_0", compileFlags, &skyboxPS) &&
 		reflect_input_layout(quadVS.get(), std::back_inserter(inputLayoutVector), &shaderReflection) &&
 		!FUSE_HR_FAILED_BLOB(D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &serializedSignature, &errorsBlob), errorsBlob) &&
 		!FUSE_HR_FAILED(device->CreateRootSignature(0, FUSE_BLOB_ARGS(serializedSignature), IID_PPV_ARGS(&m_skyboxRS))))

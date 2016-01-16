@@ -7,13 +7,16 @@ set ( EXECUTABLE_OUTPUT_PATH ${CMAKE_SOURCE_DIR}/bin )
 set ( LIBRARY_OUTPUT_PATH ${CMAKE_SOURCE_DIR}/lib )
 
 option ( FUSE_SSE2         "Enables SSE intruction set"                                 ON )
-option ( FUSE_ASSIMP       "Enables Assimp support"                                     ON )
+option ( FUSE_ASSIMP       "Enables Assimp support if available"                        ON )
 option ( FUSE_SHADER_DEBUG "Enables shader debugging (disables compiler optimizations)" OFF )
+option ( FUSE_WXWIDGETS    "Enables wxWidgets support if available"                     ON )
+option ( FUSE_UNICODE      "Enables Unicode charset (might be enabled automatically if some components require it)." ON )
 
 find_package ( Boost     REQUIRED )
 find_package ( DirectX12 REQUIRED )
-find_package ( DevIL )
+find_package ( DevIL     REQUIRED )
 find_package ( Assimp )
+find_package ( wxWidgets COMPONENTS core base )
 #find_package ( OpenMP )
 
 include_directories ( ${DirectX12_INCLUDE_DIR} )
@@ -23,45 +26,11 @@ include_directories ( ${IL_INCLUDE_DIR} )
 
 set ( CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} /fp:fast )
 
-set ( libRocket_INCLUDE_DIR libRocket/include )
-
-set (
-	libRocket_LIBRARIES
-	optimized ${CMAKE_SOURCE_DIR}/libRocket/lib/Release/RocketCore.lib
-	optimized ${CMAKE_SOURCE_DIR}/libRocket/lib/Release/RocketControls.lib
-	optimized ${CMAKE_SOURCE_DIR}/libRocket/lib/Release/RocketDebugger.lib
-	debug ${CMAKE_SOURCE_DIR}/libRocket/lib/Debug/RocketCore.lib
-	debug ${CMAKE_SOURCE_DIR}/libRocket/lib/Debug/RocketControls.lib
-	debug ${CMAKE_SOURCE_DIR}/libRocket/lib/Debug/RocketDebugger.lib
-)
-
-set ( freetype_LIBRARY ${CMAKE_SOURCE_DIR}/freetype/lib/freetype240.lib )
-
-add_definitions ( -DROCKET_STATIC_LIB )
-add_definitions ( -DNOMINMAX )
-
-if (FUSE_SSE2)
-
-	set ( CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} /arch:SSE2 )
-
-endif (FUSE_SSE2)
-
-if (FUSE_SHADER_DEBUG)
-	add_definitions ( "-DFUSE_COMPILE_SHADER_GLOBAL_OPTIONS=(D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION | D3DCOMPILE_PREFER_FLOW_CONTROL | D3DCOMPILE_ENABLE_STRICTNESS)" )
-endif (FUSE_SHADER_DEBUG)
-
-if ( ASSIMP_FOUND AND FUSE_ASSIMP )
-
-	add_definitions ( -DFUSE_ASSIMP )
-	include_directories ( ${ASSIMP_INCLUDE_DIR} )
-	
-endif ( ASSIMP_FOUND AND FUSE_ASSIMP )
-
-include_directories ( ${libRocket_INCLUDE_DIR} )
-
-add_library ( fuse
+set ( FUSE_SRC_FILES 
 	include/fuse/singleton.hpp
 	include/fuse/lockable.hpp
+	include/fuse/types.hpp
+	include/fuse/string.hpp
 	include/fuse/logger.hpp logger.cpp
 	include/fuse/resource.hpp resource.cpp
 	include/fuse/resource_types.hpp
@@ -78,7 +47,8 @@ add_library ( fuse
 	include/fuse/mesh.hpp mesh.cpp
 	include/fuse/mesh_manager.hpp
 	include/fuse/model.hpp model.cpp
-	include/fuse/application.hpp application.cpp
+	include/fuse/application.hpp include/fuse/application.inl
+	include/fuse/base_windowing.hpp base_windowing.cpp
 	include/fuse/directx_helper.hpp
 	include/fuse/compile_shader.hpp compile_shader.cpp
 	include/fuse/pipeline_state.hpp pipeline_state.cpp
@@ -121,5 +91,53 @@ add_library ( fuse
 	include/fuse/geometry/transform_affine.hpp
 	include/fuse/geometry/loose_octree.hpp include/fuse/geometry/loose_octree.inl
 )
+
+set ( libRocket_INCLUDE_DIR libRocket/include )
+
+set (
+	libRocket_LIBRARIES
+	optimized ${CMAKE_SOURCE_DIR}/libRocket/lib/Release/RocketCore.lib
+	optimized ${CMAKE_SOURCE_DIR}/libRocket/lib/Release/RocketControls.lib
+	optimized ${CMAKE_SOURCE_DIR}/libRocket/lib/Release/RocketDebugger.lib
+	debug ${CMAKE_SOURCE_DIR}/libRocket/lib/Debug/RocketCore.lib
+	debug ${CMAKE_SOURCE_DIR}/libRocket/lib/Debug/RocketControls.lib
+	debug ${CMAKE_SOURCE_DIR}/libRocket/lib/Debug/RocketDebugger.lib
+)
+
+set ( freetype_LIBRARY ${CMAKE_SOURCE_DIR}/freetype/lib/freetype240.lib )
+
+add_definitions ( -DROCKET_STATIC_LIB )
+add_definitions ( -DNOMINMAX )
+
+if (FUSE_SSE2)
+	set ( CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} /arch:SSE2 )
+endif (FUSE_SSE2)
+
+if (FUSE_SHADER_DEBUG)
+	add_definitions ( "-DFUSE_COMPILE_SHADER_GLOBAL_OPTIONS=(D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION | D3DCOMPILE_PREFER_FLOW_CONTROL | D3DCOMPILE_ENABLE_STRICTNESS)" )
+endif (FUSE_SHADER_DEBUG)
+
+if ( ASSIMP_FOUND AND FUSE_ASSIMP )
+	add_definitions ( -DFUSE_ASSIMP )
+	include_directories ( ${ASSIMP_INCLUDE_DIR} )
+endif ( ASSIMP_FOUND AND FUSE_ASSIMP )
+
+include_directories ( ${libRocket_INCLUDE_DIR} )
+
+if ( wxWidgets_FOUND AND FUSE_WXWIDGETS )
+	include ( ${wxWidgets_USE_FILE} )	
+	add_definitions ( -DFUSE_WXWIDGETS )
+	list ( APPEND FUSE_SRC_FILES include/fuse/wxwidgets_windowing.hpp wxwidgets_windowing.cpp )
+endif ( wxWidgets_FOUND AND FUSE_WXWIDGETS )
+
+if ( FUSE_UNICODE OR FUSE_WXWIDGETS )
+	add_definitions ( -DFUSE_UNICODE -DUNICODE -D_UNICODE )
+endif ( FUSE_UNICODE OR FUSE_WXWIDGETS )
+
+add_library ( fuse ${FUSE_SRC_FILES} )
+
+if ( wxWidgets_FOUND AND FUSE_WXWIDGETS )
+	target_link_libraries(fuse ${wxWidgets_LIBRARIES})
+endif ( wxWidgets_FOUND AND FUSE_WXWIDGETS )
 
 add_subdirectory ( renderer )

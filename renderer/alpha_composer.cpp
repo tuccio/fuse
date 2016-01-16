@@ -73,8 +73,8 @@ bool alpha_composer::create_psos(ID3D12Device * device)
 
 	UINT compileFlags = 0;
 
-	if (compile_shader("shaders/quad_vs.hlsl", nullptr, "quad_vs", "vs_5_0", compileFlags, &quadVS) &&
-		compile_shader("shaders/composer.hlsl", nullptr, "composer_ps", "ps_5_0", compileFlags, &composerPS) &&
+	if (compile_shader(FUSE_LITERAL("shaders/quad_vs.hlsl"), nullptr, "quad_vs", "vs_5_0", compileFlags, &quadVS) &&
+		compile_shader(FUSE_LITERAL("shaders/composer.hlsl"), nullptr, "composer_ps", "ps_5_0", compileFlags, &composerPS) &&
 		reflect_input_layout(quadVS.get(), std::back_inserter(inputLayoutVector), &shaderReflection) &&
 		!FUSE_HR_FAILED_BLOB(D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &serializedSignature, &errorsBlob), errorsBlob) &&
 		!FUSE_HR_FAILED(device->CreateRootSignature(0, FUSE_BLOB_ARGS(serializedSignature), IID_PPV_ARGS(&m_rs))))

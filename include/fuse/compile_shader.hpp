@@ -6,6 +6,7 @@
 #include <d3dcompiler.h>
 
 #include <fuse/directx_helper.hpp>
+#include <fuse/string.hpp>
 
 #include <iterator>
 #include <vector>
@@ -13,10 +14,10 @@
 namespace fuse
 {
 
-	bool compile_shader(const char * filename, const D3D_SHADER_MACRO * defines, const char * entryPoint, const char * target, UINT compileOptions, ID3DBlob ** shader);
+	bool compile_shader(const char_t * filename, const D3D_SHADER_MACRO * defines, const char * entryPoint, const char * target, UINT compileOptions, ID3DBlob ** shader);
 
 	template <typename MacroIterator, typename ShaderIterator>
-	uint32_t compile_shader_variations(const char * filename, uint32_t n, MacroIterator definesIterator, const char * entryPoint, const char * target, UINT compileOptions, ShaderIterator shaderIterator)
+	uint32_t compile_shader_variations(const char_t * filename, uint32_t n, MacroIterator definesIterator, const char * entryPoint, const char * target, UINT compileOptions, ShaderIterator shaderIterator)
 	{
 
 		for (uint32_t i = 0; i < n; i++)

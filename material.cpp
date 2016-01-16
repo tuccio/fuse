@@ -4,7 +4,7 @@ using namespace fuse;
 
 material::material(void) { }
 
-material::material(const char * name, resource_loader * loader, resource_manager * owner) :
+material::material(const char_t * name, resource_loader * loader, resource_manager * owner) :
 	resource(name, loader, owner) { }
 
 bool material::load_impl(void)

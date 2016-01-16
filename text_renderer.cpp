@@ -164,8 +164,8 @@ bool text_renderer::create_pso(ID3D12Device * device)
 
 	UINT compileFlags = 0;
 
-	if (compile_shader("shaders/text_rendering.hlsl", nullptr, "text_vs", "vs_5_0", compileFlags, &textVS) &&
-		compile_shader("shaders/text_rendering.hlsl", nullptr, "text_ps", "ps_5_0", compileFlags, &textPS) &&
+	if (compile_shader(FUSE_LITERAL("shaders/text_rendering.hlsl"), nullptr, "text_vs", "vs_5_0", compileFlags, &textVS) &&
+		compile_shader(FUSE_LITERAL("shaders/text_rendering.hlsl"), nullptr, "text_ps", "ps_5_0", compileFlags, &textPS) &&
 		reflect_input_layout(textVS.get(), std::back_inserter(inputLayoutVector), &shaderReflection) &&
 		!FUSE_HR_FAILED_BLOB(D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &serializedSignature, &errorsBlob), errorsBlob) &&
 		!FUSE_HR_FAILED(device->CreateRootSignature(0, FUSE_BLOB_ARGS(serializedSignature), IID_PPV_ARGS(&m_rs))))

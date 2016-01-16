@@ -18,7 +18,7 @@ namespace fuse
 
 		texture(void) { }
 
-		texture(const char * name, resource_loader * loader, resource_manager * owner) :
+		texture(const char_t * name, resource_loader * loader, resource_manager * owner) :
 			resource(name, loader, owner) { }
 
 		bool create(

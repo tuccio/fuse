@@ -98,7 +98,7 @@ bool scene::import_static_objects(assimp_loader * loader)
 		for (int i = 0; i < node->mNumMeshes; i++)
 		{
 
-			unsigned int meshIndex = node->mMeshes[i];
+			unsigned int meshIndex     = node->mMeshes[i];
 			unsigned int materialIndex = scene->mMeshes[meshIndex]->mMaterialIndex;
 
 			mesh_ptr nodeMesh = loader->create_mesh(meshIndex);
@@ -117,10 +117,10 @@ bool scene::import_static_objects(assimp_loader * loader)
 
 			if (nodeMesh->add_storage_semantic(FUSE_MESH_STORAGE_TEXCOORDS0))
 			{
-				FUSE_LOG_OPT("assimp_loader", "Added phony texcoords to mesh.");
+				FUSE_LOG_OPT(FUSE_LITERAL("assimp_loader"), FUSE_LITERAL("Added phony texcoords to mesh."));
 			}
 
-			gpu_mesh_ptr nodeGPUMesh  = resource_factory::get_singleton_pointer()->create<gpu_mesh>("gpu_mesh", nodeMesh->get_name());
+			gpu_mesh_ptr nodeGPUMesh  = resource_factory::get_singleton_pointer()->create<gpu_mesh>(FUSE_RESOURCE_TYPE_GPU_MESH, nodeMesh->get_name());
 			material_ptr nodeMaterial = loader->create_material(materialIndex);
 
 			if (!nodeGPUMesh || !nodeGPUMesh->load() ||

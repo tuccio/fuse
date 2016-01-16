@@ -28,7 +28,7 @@ bool resource::lock_and_load(void)
 		}
 		else
 		{
-			FUSE_LOG_OPT_DEBUG(std::stringstream() << "Failed to load resource \"" << m_name << "\".");
+			FUSE_LOG_OPT_DEBUG(stringstream_t() << "Failed to load resource \"" << m_name << "\".");
 		}
 
 	}

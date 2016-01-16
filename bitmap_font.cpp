@@ -15,24 +15,24 @@ bool bitmap_font::load_impl(void)
 
 	auto & params = get_parameters();
 
-	auto imageExt = params.get_optional<std::string>("image_extension");
-	auto metaExt = params.get_optional<std::string>("metadata_extension");
+	auto imageExt = params.get_optional<string_t>(FUSE_LITERAL("image_extension"));
+	auto metaExt  = params.get_optional<string_t>(FUSE_LITERAL("metadata_extension"));
 
-	if (!imageExt) imageExt = ".png";
-	if (!metaExt) metaExt = ".xml";
+	if (!imageExt) imageExt  = FUSE_LITERAL(".png");
+	if (!metaExt)  metaExt   = FUSE_LITERAL(".xml");
 
-	std::string name = get_name();
+	string_t name = get_name();
 
-	std::string imageFile = name + (*imageExt);
-	std::string metaFile  = name + (*metaExt);
+	string_t imageFile = name + (*imageExt);
+	string_t metaFile  = name + (*metaExt);
 
 	resource::parameters_type imageParams;
 
-	imageParams.put<UINT>("format", static_cast<UINT>(FUSE_IMAGE_FORMAT_A8_UINT));
+	imageParams.put<UINT>(FUSE_LITERAL("format"), static_cast<UINT>(FUSE_IMAGE_FORMAT_A8_UINT));
 
 	resource::parameters_type textureParams;
-	textureParams.put<UINT>("mipmaps", 0);
-	textureParams.put<bool>("generate_mipmaps", true);
+	textureParams.put<UINT>(FUSE_LITERAL("mipmaps"), 0);
+	textureParams.put<bool>(FUSE_LITERAL("generate_mipmaps"), true);
 
 	resource_factory::get_singleton_pointer()->
 		create<image>(FUSE_RESOURCE_TYPE_IMAGE, imageFile.c_str(), imageParams);
@@ -71,7 +71,7 @@ size_t bitmap_font::calculate_size_impl(void)
 	return m_texture->get_size();
 }
 
-bool bitmap_font::load_metafile(const char * metafile)
+bool bitmap_font::load_metafile(const char_t * metafile)
 {
 
 	using namespace boost::property_tree;
@@ -114,7 +114,7 @@ bool bitmap_font::load_metafile(const char * metafile)
 					c.rect.right  += c.rect.left;
 					c.rect.bottom += c.rect.top;
 
-					c.code = character.second.get<char>("<xmlattr>.code");
+					c.code  = character.second.get<char>("<xmlattr>.code");
 					c.width = character.second.get<unsigned int>("<xmlattr>.width");
 
 					c.minUV[0] = (c.rect.left) * invWidth;
@@ -140,7 +140,7 @@ bool bitmap_font::load_metafile(const char * metafile)
 
 }
 
-const bitmap_char & bitmap_font::operator[] (char code)
+const bitmap_char & bitmap_font::operator[] (char_t code)
 {
 	return m_characters[code];
 }

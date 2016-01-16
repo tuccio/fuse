@@ -12,7 +12,7 @@
 
 using namespace fuse;
 
-gpu_mesh::gpu_mesh(const char * name, resource_loader * loader, resource_manager * owner) :
+gpu_mesh::gpu_mesh(const char_t * name, resource_loader * loader, resource_manager * owner) :
 	resource(name, loader, owner) { }
 
 bool gpu_mesh::create(ID3D12Device * device, gpu_command_queue & commandQueue, gpu_graphics_command_list & commandList, gpu_ring_buffer & ringBuffer, mesh * mesh)

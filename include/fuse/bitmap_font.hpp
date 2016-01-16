@@ -28,10 +28,10 @@ namespace fuse
 	public:
 
 		bitmap_font(void) { }
-		bitmap_font(const char * name, resource_loader * loader, resource_manager * owner) :
+		bitmap_font(const char_t * name, resource_loader * loader, resource_manager * owner) :
 			resource(name, loader, owner) { }
 
-		const bitmap_char & operator[] (char code);
+		const bitmap_char & operator[] (char_t code);
 
 		inline D3D12_GPU_DESCRIPTOR_HANDLE get_srv_descriptor(void) const { return cbv_uav_srv_descriptor_heap::get_singleton_pointer()->get_gpu_descriptor_handle(m_srvToken); }
 
@@ -44,12 +44,12 @@ namespace fuse
 	private:
 
 		texture_ptr m_texture;
-		std::unordered_map<char, bitmap_char> m_characters;
+		std::unordered_map<char_t, bitmap_char> m_characters;
 		UINT m_height;
 
 		descriptor_token_t m_srvToken;
 
-		bool load_metafile(const char * metafile);
+		bool load_metafile(const char_t * metafile);
 
 	public:
 

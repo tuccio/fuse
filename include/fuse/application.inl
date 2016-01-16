@@ -1,107 +1,7 @@
-#define FUSE_WINDOW_MIN_SIZE_X 320
-#define FUSE_WINDOW_MIN_SIZE_Y 240
-
 namespace fuse
 {
 
-	/* Window class and callbacks */
-
-	template <typename WindowingSystem>
-	LRESULT CALLBACK application_base<WindowingSystem>::window_proc(HWND hWnd,
-		UINT   uMsg,
-		WPARAM wParam,
-		LPARAM lParam)
-	{
-
-		switch (uMsg)
-		{
-
-		case WM_DESTROY:
-
-			PostQuitMessage(0);
-			break;
-
-		case WM_SIZE:
-
-		{
-
-			if (wParam == SIZE_MINIMIZED)
-			{
-				// Maybe sleep
-			}
-			else
-			{
-
-				RECT clientRect;
-				GetClientRect(hWnd, &clientRect);
-
-				m_screenWidth = clientRect.right - clientRect.left;
-				m_screenHeight = clientRect.bottom - clientRect.top;
-
-				m_resizeSwapChain = true;
-
-			}
-
-
-			break;
-
-		}
-
-		break;
-
-
-		case WM_GETMINMAXINFO:
-
-		{
-
-			MINMAXINFO * minMaxInfo = reinterpret_cast<MINMAXINFO *>(lParam);
-
-			minMaxInfo->ptMinTrackSize.x = FUSE_WINDOW_MIN_SIZE_X;
-			minMaxInfo->ptMinTrackSize.y = FUSE_WINDOW_MIN_SIZE_Y;
-
-			return 0;
-
-		}
-
-		}
-
-		return DefWindowProc(hWnd, uMsg, wParam, lParam);
-
-	}
-
 	/* application_base */
-
-	template <typename WindowingSystem>
-	bool application_base<WindowingSystem>::init(HINSTANCE hInstance, bool silent)
-	{
-
-		m_silent = silent;
-
-		if (!m_initialized)
-		{
-
-			m_hInstance = hInstance;
-
-			WNDCLASSEX wndClass = { 0 };
-
-			wndClass.cbSize = sizeof(WNDCLASSEX);
-			wndClass.style = CS_HREDRAW | CS_VREDRAW;
-			wndClass.lpfnWndProc = window_proc;
-			wndClass.hInstance = hInstance;
-			wndClass.hCursor = LoadCursor(NULL, IDC_ARROW);
-			wndClass.hbrBackground = (HBRUSH)COLOR_WINDOW;
-			wndClass.lpszClassName = FUSE_WINDOW_CLASS;
-
-			if (!(m_initialized = RegisterClassEx(&wndClass)))
-			{
-				FUSE_LOG_OPT_DEBUG("Failed to register window class.");
-			}
-
-		}
-
-		return m_initialized;
-
-	}
 
 	template <typename WindowingSystem>
 	void application_base<WindowingSystem>::shutdown(void)
@@ -126,68 +26,13 @@ namespace fuse
 		release_swap_chain_buffers();
 		destroy_descriptor_heaps();
 
-		UnregisterClass(FUSE_WINDOW_CLASS, m_hInstance);
-		m_initialized = false;
+		WindowingSystem::shutdown();
 
 		if (m_debug && debugDevice)
 		{
 			debugDevice->ReportLiveDeviceObjects(D3D12_RLDO_DETAIL);
 		}
 
-	}
-
-	template <typename WindowingSystem>
-	LRESULT CALLBACK application_base<WindowingSystem>::on_keyboard(int code, WPARAM wParam, LPARAM lParam)
-	{
-		return CallNextHookEx(NULL, code, wParam, lParam);
-	}
-
-	template <typename WindowingSystem>
-	LRESULT CALLBACK application_base<WindowingSystem>::on_mouse(int code, WPARAM wParam, LPARAM lParam)
-	{
-		return CallNextHookEx(NULL, code, wParam, lParam);
-	}
-
-	template <typename WindowingSystem>
-	bool application_base<WindowingSystem>::create_window(int width, int height, const char * caption)
-	{
-
-		assert(m_hInstance && m_initialized && "Cannot create window before initializing.");
-		assert(!m_hWnd && "Window already exists.");
-
-		RECT windowRect = { 0, 0, static_cast<LONG>(width), static_cast<LONG>(height) };
-		AdjustWindowRect(&windowRect, WS_OVERLAPPEDWINDOW, FALSE);
-
-		m_hWnd = CreateWindowEx(0,
-			FUSE_WINDOW_CLASS,
-			caption,
-			WS_OVERLAPPEDWINDOW,
-			CW_USEDEFAULT, CW_USEDEFAULT,
-			windowRect.right - windowRect.left,
-			windowRect.bottom - windowRect.top,
-			nullptr,
-			nullptr,
-			m_hInstance,
-			nullptr);
-
-		if (!m_hWnd)
-		{
-			FUSE_HR_LOG(GetLastError());
-			return false;
-		}
-		else
-		{
-			ShowWindow(m_hWnd, SW_NORMAL);
-			return true;
-		}
-
-	}
-
-	template <typename WindowingSystem>
-	void application_base<WindowingSystem>::destroy_window(void)
-	{
-		DestroyWindow(m_hWnd);
-		m_hWnd = NULL;
 	}
 
 	template <typename WindowingSystem>
@@ -228,7 +73,7 @@ namespace fuse
 
 			RECT rect;
 
-			return GetWindowRect(m_hWnd, &rect) &&
+			return GetWindowRect(get_window(), &rect) &&
 				ClipCursor(&rect) &&
 				ShowCursor(!hidden);
 
@@ -290,7 +135,9 @@ namespace fuse
 		return false;
 
 	}
-	bool application_base::create_render_context(void)
+
+	template <typename WindowingSystem>
+	bool application_base<WindowingSystem>::create_render_context(void)
 	{
 		return m_renderContext.init(m_device.get(), m_configuration.swapChainBufferCount, m_configuration.uploadHeapSize);
 	}
@@ -303,29 +150,29 @@ namespace fuse
 
 		DXGI_SWAP_CHAIN_DESC swapChainDesc = {};
 
-		swapChainDesc.BufferDesc.RefreshRate = m_configuration.refreshRate;
+		swapChainDesc.BufferDesc.RefreshRate      = m_configuration.refreshRate;
 
-		swapChainDesc.BufferDesc.Width = width;
-		swapChainDesc.BufferDesc.Height = height;
+		swapChainDesc.BufferDesc.Width            = width;
+		swapChainDesc.BufferDesc.Height           = height;
 
-		swapChainDesc.BufferDesc.Format = m_configuration.swapChainFormat;
+		swapChainDesc.BufferDesc.Format           = m_configuration.swapChainFormat;
 
 		swapChainDesc.BufferDesc.ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;
-		swapChainDesc.BufferDesc.Scaling = DXGI_MODE_SCALING_UNSPECIFIED;
+		swapChainDesc.BufferDesc.Scaling          = DXGI_MODE_SCALING_UNSPECIFIED;
 
-		swapChainDesc.BufferCount = m_configuration.swapChainBufferCount;
-		swapChainDesc.BufferUsage = m_configuration.swapChainBufferUsage;
-		swapChainDesc.OutputWindow = m_hWnd;
-		swapChainDesc.Windowed = TRUE;
-		swapChainDesc.SwapEffect = m_configuration.swapChainSwapEffect;
-		swapChainDesc.Flags = m_configuration.swapChainFlags;
+		swapChainDesc.BufferCount                 = m_configuration.swapChainBufferCount;
+		swapChainDesc.BufferUsage                 = m_configuration.swapChainBufferUsage;
+		swapChainDesc.OutputWindow                = get_window();
+		swapChainDesc.Windowed                    = TRUE;
+		swapChainDesc.SwapEffect                  = m_configuration.swapChainSwapEffect;
+		swapChainDesc.Flags                       = m_configuration.swapChainFlags;
 
-		swapChainDesc.SampleDesc = m_configuration.sampleDesc;
+		swapChainDesc.SampleDesc                  = m_configuration.sampleDesc;
 
-		m_swapChainBufferDesc.Format = swapChainDesc.BufferDesc.Format;
-		m_swapChainBufferDesc.Width = width;
-		m_swapChainBufferDesc.Height = height;
-		m_swapChainBufferDesc.SampleDesc = swapChainDesc.SampleDesc;
+		m_swapChainBufferDesc.Format              = swapChainDesc.BufferDesc.Format;
+		m_swapChainBufferDesc.Width               = width;
+		m_swapChainBufferDesc.Height              = height;
+		m_swapChainBufferDesc.SampleDesc          = swapChainDesc.SampleDesc;
 
 		com_ptr<IDXGIFactory2> dxgiFactory;
 
@@ -374,7 +221,8 @@ namespace fuse
 
 	}
 
-	void application_base::destroy_descriptor_heaps(void)
+	template <typename WindowingSystem>
+	void application_base<WindowingSystem>::destroy_descriptor_heaps(void)
 	{
 		m_depthStencilDescriptorHeap.shutdown();
 		m_renderTargetDescriptorHeap.shutdown();
@@ -413,12 +261,4 @@ namespace fuse
 		m_renderTargets.clear();
 	}
 
-	template <typename WindowingSystem>
-	void application_base<WindowingSystem>::signal_error(const char * error)
-	{
-		if (!m_silent) MessageBox(m_hWnd, error, "Fuse error", MB_ICONERROR);
-	}
-
 }
-
-#include <fuse/application.inl>

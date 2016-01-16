@@ -99,8 +99,8 @@ bool blur::create_box_pso(ID3D12Device * device, const char * type, uint32_t ker
 		{ nullptr, nullptr }
 	};
 
-	if (compile_shader("shaders/blur.hlsl", horizontalDefines, "box_blur_cs", "cs_5_0", 0, &horizontalCS) &&
-	    compile_shader("shaders/blur.hlsl", verticalDefines, "box_blur_cs", "cs_5_0", 0, &verticalCS) &&
+	if (compile_shader(FUSE_LITERAL("shaders/blur.hlsl"), horizontalDefines, "box_blur_cs", "cs_5_0", 0, &horizontalCS) &&
+	    compile_shader(FUSE_LITERAL("shaders/blur.hlsl"), verticalDefines, "box_blur_cs", "cs_5_0", 0, &verticalCS) &&
 	    !FUSE_HR_FAILED_BLOB(D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &serializedSignature, &errorsBlob), errorsBlob) &&
 	    !FUSE_HR_FAILED(device->CreateRootSignature(0, FUSE_BLOB_ARGS(serializedSignature), IID_PPV_ARGS(&m_rs))))
 	{
@@ -219,8 +219,8 @@ bool blur::init_gaussian_blur(ID3D12Device * device, const char * type, uint32_t
 		{ nullptr, nullptr }
 	};
 
-	if (compile_shader("shaders/blur.hlsl", horizontalDefines, "gaussian_blur_cs", "cs_5_0", 0, &horizontalCS) &&
-	    compile_shader("shaders/blur.hlsl", verticalDefines, "gaussian_blur_cs", "cs_5_0", 0, &verticalCS) &&
+	if (compile_shader(FUSE_LITERAL("shaders/blur.hlsl"), horizontalDefines, "gaussian_blur_cs", "cs_5_0", 0, &horizontalCS) &&
+	    compile_shader(FUSE_LITERAL("shaders/blur.hlsl"), verticalDefines, "gaussian_blur_cs", "cs_5_0", 0, &verticalCS) &&
 	    !FUSE_HR_FAILED_BLOB(D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &serializedSignature, &errorsBlob), errorsBlob) &&
 	    !FUSE_HR_FAILED(device->CreateRootSignature(0, FUSE_BLOB_ARGS(serializedSignature), IID_PPV_ARGS(&m_rs))))
 	{
@@ -304,8 +304,8 @@ bool blur::init_bilateral_blur(ID3D12Device * device, const char * type, uint32_
 		{ nullptr, nullptr }
 	};
 
-	if (compile_shader("shaders/blur.hlsl", horizontalDefines, "bilateral_blur_cs", "cs_5_0", 0, &horizontalCS) &&
-		compile_shader("shaders/blur.hlsl", verticalDefines, "bilateral_blur_cs", "cs_5_0", 0, &verticalCS) &&
+	if (compile_shader(FUSE_LITERAL("shaders/blur.hlsl"), horizontalDefines, "bilateral_blur_cs", "cs_5_0", 0, &horizontalCS) &&
+		compile_shader(FUSE_LITERAL("shaders/blur.hlsl"), verticalDefines, "bilateral_blur_cs", "cs_5_0", 0, &verticalCS) &&
 		!FUSE_HR_FAILED_BLOB(D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &serializedSignature, &errorsBlob), errorsBlob) &&
 		!FUSE_HR_FAILED(device->CreateRootSignature(0, FUSE_BLOB_ARGS(serializedSignature), IID_PPV_ARGS(&m_rs))))
 	{

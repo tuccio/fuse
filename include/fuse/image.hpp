@@ -30,7 +30,7 @@ namespace fuse
 	public:
 
 		image(void) = default;
-		image(const char * name, resource_loader * loader, resource_manager * owner);
+		image(const char_t * name, resource_loader * loader, resource_manager * owner);
 
 		~image(void);
 
