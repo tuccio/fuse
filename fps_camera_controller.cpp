@@ -23,12 +23,12 @@ fps_camera_controller::fps_camera_controller(void) :
 {
 
 	m_keyboardBinds = {
-		{ 'W', FUSE_CAMERA_ACTION_FORWARD },
-		{ 'A', FUSE_CAMERA_ACTION_LEFT },
-		{ 'S', FUSE_CAMERA_ACTION_BACKWARD },
-		{ 'D', FUSE_CAMERA_ACTION_RIGHT },
-		{ 'E', FUSE_CAMERA_ACTION_UP },
-		{ 'Q', FUSE_CAMERA_ACTION_DOWN }
+		{ FUSE_KEYBOARD_VK_W, FUSE_CAMERA_ACTION_FORWARD },
+		{ FUSE_KEYBOARD_VK_A, FUSE_CAMERA_ACTION_LEFT },
+		{ FUSE_KEYBOARD_VK_S, FUSE_CAMERA_ACTION_BACKWARD },
+		{ FUSE_KEYBOARD_VK_D, FUSE_CAMERA_ACTION_RIGHT },
+		{ FUSE_KEYBOARD_VK_E, FUSE_CAMERA_ACTION_UP },
+		{ FUSE_KEYBOARD_VK_Q, FUSE_CAMERA_ACTION_DOWN }
 	};
 
 	m_mouseBinds = {
@@ -43,12 +43,12 @@ fps_camera_controller::fps_camera_controller(camera * cam) :
 	m_camera = cam;
 }
 
-void fps_camera_controller::bind_keyboard_key(UINT key, camera_action action)
+void fps_camera_controller::bind_keyboard_key(keyboard_vk key, camera_action action)
 {
 	m_keyboardBinds[key] = action;
 }
 
-void fps_camera_controller::unbind_keyboard_key(UINT key)
+void fps_camera_controller::unbind_keyboard_key(keyboard_vk key)
 {
 
 	auto it = m_keyboardBinds.find(key);
@@ -92,12 +92,12 @@ LRESULT fps_camera_controller::on_keyboard(WPARAM wParam, LPARAM lParam)
 
 	// TODO: proper velocity/acceleration movement
 
-	auto it = m_keyboardBinds.find(wParam);
+	/*auto it = m_keyboardBinds.find(wParam);
 
 	if (it != m_keyboardBinds.end())
 	{
 		handle_action_key(it->second, ((KF_UP << 16) & lParam) == 0);
-	}
+	}*/
 
 	return 0;
 
@@ -107,112 +107,112 @@ LRESULT fps_camera_controller::on_mouse(WPARAM wParam, LPARAM lParam)
 {
 	// TODO: proper velocity/acceleration movement
 
-	if (wParam == WM_MOUSEMOVE)
-	{
+	//if (wParam == WM_MOUSEMOVE)
+	//{
 
-		if (m_centeringMouse)
-		{
-			m_centeringMouse = false;
-			return 0;
-		}
+	//	if (m_centeringMouse)
+	//	{
+	//		m_centeringMouse = false;
+	//		return 0;
+	//	}
 
-		LRESULT returnValue = 0;
+	//	LRESULT returnValue = 0;
 
-		LPMOUSEHOOKSTRUCT mouseStruct = (LPMOUSEHOOKSTRUCT)lParam;
+	//	LPMOUSEHOOKSTRUCT mouseStruct = (LPMOUSEHOOKSTRUCT)lParam;
 
-		POINT pt = mouseStruct->pt;
-		ScreenToClient(mouseStruct->hwnd, &pt);
+	//	POINT pt = mouseStruct->pt;
+	//	ScreenToClient(mouseStruct->hwnd, &pt);
 
-		static XMVECTOR lastPos = fuse::to_vector(XMFLOAT2(pt.x, pt.y));
-		XMVECTOR to = fuse::to_vector(XMFLOAT2(pt.x, pt.y));
+	//	static XMVECTOR lastPos = fuse::to_vector(XMFLOAT2(pt.x, pt.y));
+	//	XMVECTOR to = fuse::to_vector(XMFLOAT2(pt.x, pt.y));
 
-		if (m_rotating)
-		{
+	//	if (m_rotating)
+	//	{
 
-			XMVECTOR from = lastPos;
+	//		XMVECTOR from = lastPos;
 
-			XMVECTOR delta = XMVectorATan((to - from) / fuse::to_vector(m_screenSize));
+	//		XMVECTOR delta = XMVectorATan((to - from) / fuse::to_vector(m_screenSize));
 
-			XMVECTOR r1 = XMQuaternionRotationAxis(to_vector(XMFLOAT3(0, 1, 0)), XMVectorGetX(delta));
-			XMVECTOR r2 = XMQuaternionRotationAxis(to_vector(XMFLOAT3(1, 0, 0)), XMVectorGetY(delta));
+	//		XMVECTOR r1 = XMQuaternionRotationAxis(to_vector(XMFLOAT3(0, 1, 0)), XMVectorGetX(delta));
+	//		XMVECTOR r2 = XMQuaternionRotationAxis(to_vector(XMFLOAT3(1, 0, 0)), XMVectorGetY(delta));
 
-			XMVECTOR newOrientation = XMQuaternionNormalize(XMQuaternionMultiply(XMQuaternionMultiply(r2, m_camera->get_orientation()), r1));
+	//		XMVECTOR newOrientation = XMQuaternionNormalize(XMQuaternionMultiply(XMQuaternionMultiply(r2, m_camera->get_orientation()), r1));
 
-			m_camera->set_orientation(newOrientation);
+	//		m_camera->set_orientation(newOrientation);
 
-			returnValue = 1;
+	//		returnValue = 1;
 
-		}
+	//	}
 
-		if (m_centerMouse)
-		{
+	//	if (m_centerMouse)
+	//	{
 
-			lastPos = to_vector(m_screenCenter);
-			m_centeringMouse = true;
+	//		lastPos = to_vector(m_screenCenter);
+	//		m_centeringMouse = true;
 
-			POINT screenCenter = { m_screenCenter.x, m_screenCenter.y };
+	//		POINT screenCenter = { m_screenCenter.x, m_screenCenter.y };
 
-			ClientToScreen(mouseStruct->hwnd, &screenCenter);
-			SetCursorPos(screenCenter.x, screenCenter.y);
+	//		ClientToScreen(mouseStruct->hwnd, &screenCenter);
+	//		SetCursorPos(screenCenter.x, screenCenter.y);
 
-		}
-		else
-		{
-			lastPos = to;
-		}
+	//	}
+	//	else
+	//	{
+	//		lastPos = to;
+	//	}
 
-		return returnValue;
-		
-	}
-	else
-	{
+	//	return returnValue;
+	//	
+	//}
+	//else
+	//{
 
-		UINT vk = 0;
-		bool pressed;
+	//	UINT vk = 0;
+	//	bool pressed;
 
-		switch (wParam)
-		{
-		case WM_RBUTTONDOWN:
-			vk = VK_RBUTTON;
-			pressed = true;
-			break;
-		case WM_RBUTTONUP:
-			vk = VK_RBUTTON;
-			pressed = false;
-			break;
-		case WM_LBUTTONDOWN:
-			vk = VK_LBUTTON;
-			pressed = true;
-			break;
-		case WM_LBUTTONUP:
-			vk = VK_LBUTTON;
-			pressed = false;
-			break;
-		case WM_MBUTTONDOWN:
-			vk = VK_MBUTTON;
-			pressed = true;
-			break;
-		case WM_MBUTTONUP:
-			vk = VK_MBUTTON;
-			pressed = false;
-			break;
-		}
-		
-		if (vk)
-		{
+	//	switch (wParam)
+	//	{
+	//	case WM_RBUTTONDOWN:
+	//		vk = VK_RBUTTON;
+	//		pressed = true;
+	//		break;
+	//	case WM_RBUTTONUP:
+	//		vk = VK_RBUTTON;
+	//		pressed = false;
+	//		break;
+	//	case WM_LBUTTONDOWN:
+	//		vk = VK_LBUTTON;
+	//		pressed = true;
+	//		break;
+	//	case WM_LBUTTONUP:
+	//		vk = VK_LBUTTON;
+	//		pressed = false;
+	//		break;
+	//	case WM_MBUTTONDOWN:
+	//		vk = VK_MBUTTON;
+	//		pressed = true;
+	//		break;
+	//	case WM_MBUTTONUP:
+	//		vk = VK_MBUTTON;
+	//		pressed = false;
+	//		break;
+	//	}
+	//	
+	//	if (vk)
+	//	{
 
-			auto it = m_mouseBinds.find(vk);
+	//		auto it = m_mouseBinds.find(vk);
 
-			if (it != m_mouseBinds.end())
-			{
-				handle_action_key(it->second, pressed);
-			}
+	//		if (it != m_mouseBinds.end())
+	//		{
+	//			handle_action_key(it->second, pressed);
+	//		}
 
-		}
+	//	}
 
-		// TODO: mouse binds
+	//	// TODO: mouse binds
 
-	}
+	//}
 
 	return 0;
 
@@ -296,4 +296,98 @@ void fps_camera_controller::handle_action_key(camera_action action, bool pressed
 		m_rotating = pressed;
 		break;
 	}
+}
+
+bool fps_camera_controller::on_keyboard_event(const keyboard & keyboard, const keyboard_event_info & event)
+{
+
+	// TODO: proper velocity/acceleration movement
+
+	auto it = m_keyboardBinds.find(event.key);
+
+	if (it != m_keyboardBinds.end())
+	{
+		handle_action_key(it->second, event.type != FUSE_KEYBOARD_EVENT_BUTTON_UP);
+	}
+
+	return false;
+
+}
+
+bool fps_camera_controller::on_mouse_event(const mouse & mouse, const mouse_event_info & event)
+{
+
+	if (event.type == FUSE_MOUSE_EVENT_MOVE)
+	{
+
+		/*if (m_centeringMouse)
+		{
+			m_centeringMouse = false;
+			return 0;
+		}*/
+
+		const XMINT2 & pt = event.position;
+
+		static XMVECTOR lastPos = fuse::to_vector(XMFLOAT2(pt.x, pt.y));
+		XMVECTOR to = fuse::to_vector(XMFLOAT2(pt.x, pt.y));
+
+		if (m_rotating)
+		{
+
+			XMVECTOR from = lastPos;
+
+			XMVECTOR delta = XMVectorATan((to - from) / fuse::to_vector(m_screenSize));
+
+			XMVECTOR r1 = XMQuaternionRotationAxis(to_vector(XMFLOAT3(0, 1, 0)), XMVectorGetX(delta));
+			XMVECTOR r2 = XMQuaternionRotationAxis(to_vector(XMFLOAT3(1, 0, 0)), XMVectorGetY(delta));
+
+			XMVECTOR newOrientation = XMQuaternionNormalize(XMQuaternionMultiply(XMQuaternionMultiply(r2, m_camera->get_orientation()), r1));
+
+			m_camera->set_orientation(newOrientation);
+
+		}
+
+		if (m_centerMouse)
+		{
+
+			/*lastPos = to_vector(m_screenCenter);
+			m_centeringMouse = true;
+
+			POINT screenCenter = { m_screenCenter.x, m_screenCenter.y };
+
+			ClientToScreen(mouseStruct->hwnd, &screenCenter);
+			SetCursorPos(screenCenter.x, screenCenter.y);*/
+
+		}
+		else
+		{
+			lastPos = to;
+		}
+
+	}
+	else if (event.type == FUSE_MOUSE_EVENT_BUTTON_DOWN)
+	{
+
+		auto it = m_mouseBinds.find(event.key);
+
+		if (it != m_mouseBinds.end())
+		{
+			handle_action_key(it->second, true);
+		}
+
+	}
+	else if (event.type == FUSE_MOUSE_EVENT_BUTTON_UP)
+	{
+
+		auto it = m_mouseBinds.find(event.key);
+
+		if (it != m_mouseBinds.end())
+		{
+			handle_action_key(it->second, FALSE);
+		}
+
+	}
+
+	return false;
+
 }

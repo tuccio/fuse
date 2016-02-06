@@ -1,12 +1,13 @@
 #pragma once
 
 #include <fuse/application.hpp>
+#include <fuse/wxwidgets_windowing.hpp>
 
 namespace fuse
 {
 
 	struct renderer_application :
-		application_base<base_windowing>
+		application_base<wxwidgets_windowing>
 	{
 
 		static bool on_render_context_created(gpu_render_context & renderContext);
@@ -14,10 +15,7 @@ namespace fuse
 
 		static bool on_swap_chain_resized(ID3D12Device * device, IDXGISwapChain * swapChain, const DXGI_SURFACE_DESC * desc);
 
-		static LRESULT CALLBACK on_keyboard(int code, WPARAM wParam, LPARAM lParam);
-		static LRESULT CALLBACK on_mouse(int code, WPARAM wParam, LPARAM lParam);
-
-		static LRESULT on_message(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+		static bool on_keyboard_event(const keyboard & keyboard, const keyboard_event_info & event);
 
 		static void on_render(gpu_render_context & renderContext, const render_resource & backBuffer);
 		static void on_update(float dt);

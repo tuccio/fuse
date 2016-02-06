@@ -4,26 +4,9 @@ project ( renderer )
 
 option ( FUSE_EDITOR_GUI "Compiles with editor GUI" OFF )
 
-add_executable ( 
-	renderer WIN32
-	renderer.cpp
-	renderer_application.hpp renderer_application.cpp
-	deferred_renderer.hpp deferred_renderer.cpp
-	scene.hpp scene.cpp
-	cbuffer_structs.hpp
-	light.hpp
-	renderable.hpp renderable.cpp
-	tonemapper.hpp tonemapper.cpp
-	shadow_mapping.hpp shadow_mapping.cpp
-	shadow_mapper.hpp shadow_mapper.cpp
-	editor_gui.hpp editor_gui.cpp
-	render_variables.hpp render_variables.cpp
-	blur.hpp blur.cpp
-	alpha_composer.hpp alpha_composer.cpp
-	skybox.hpp skybox.cpp
-	sdsm.hpp sdsm.cpp
-	debug_renderer.hpp debug_renderer.cpp
-)
+file ( GLOB FUSE_RENDERER_SRC_FILES *.cpp *.hpp *.inl )
+
+add_executable ( renderer WIN32 ${FUSE_RENDERER_SRC_FILES} )
 
 target_link_libraries ( renderer fuse ${DirectX12_LIBRARY} )
 target_link_libraries ( renderer ${IL_LIBRARIES} ${ILU_LIBRARIES} ${ILUT_LIBRARIES} )

@@ -1,4 +1,5 @@
 #pragma once
 
-#include <Windows.h>
+#include <fuse/keyboard.hpp>
+#include <fuse/mouse.hpp>
 

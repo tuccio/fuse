@@ -3,6 +3,7 @@
 #ifdef FUSE_USE_EDITOR_GUI
 
 #include <fuse/directx_helper.hpp>
+#include <fuse/input.hpp>
 
 #include <Rocket/Core.h>
 
@@ -159,7 +160,9 @@ namespace fuse
 
 	}
 
-	class editor_gui
+	class editor_gui :
+		public mouse_listener,
+		public keyboard_listener
 	{
 
 	public:
@@ -176,8 +179,10 @@ namespace fuse
 		void on_resize(UINT width, UINT height);
 
 		LRESULT on_keyboard(WPARAM wParam, LPARAM lParam);
-		LRESULT on_mouse(WPARAM wParam, LPARAM lParam);
 		LRESULT on_message(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+
+		bool on_mouse_event(const mouse & mouse, const mouse_event_info & event) override;
+		bool on_keyboard_event(const keyboard & mouse, const keyboard_event_info & event) override;
 
 		void update(void);
 		void render(void);

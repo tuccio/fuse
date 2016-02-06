@@ -27,10 +27,10 @@ namespace fuse
 		static void destroy_window(void);
 
 		inline static HINSTANCE get_instance(void) { return m_hInstance; }
-		inline static HWND get_window(void) { return m_hWnd; }
+		inline static HWND get_render_window(void) { return m_hWnd; }
 
-		inline static int get_client_width(void) { return m_clientWidth; }
-		inline static int get_client_height(void) { return m_clientHeight; }
+		inline static int get_render_window_width(void) { return m_clientWidth; }
+		inline static int get_render_window_height(void) { return m_clientHeight; }
 
 		inline static bool get_resize_polling(void) { bool resized = m_resized; m_resized = false; return resized; }
 

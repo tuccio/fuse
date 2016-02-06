@@ -100,72 +100,41 @@ LRESULT editor_gui::on_message(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lPara
 
 }
 
-LRESULT editor_gui::on_mouse(WPARAM wParam, LPARAM lParam)
+bool editor_gui::on_mouse_event(const mouse & mouse, const mouse_event_info & event)
 {
 
-	if (wParam == WM_MOUSEMOVE)
+	if (event.type == FUSE_MOUSE_EVENT_BUTTON_DOWN)
 	{
-
-		LPMOUSEHOOKSTRUCT mouseStruct = (LPMOUSEHOOKSTRUCT) lParam;
-
-		POINT pt = mouseStruct->pt;
-		ScreenToClient(mouseStruct->hwnd, &pt);
-
-		m_context->ProcessMouseMove(pt.x, pt.y, 0);
-
+		int vk = event.key - FUSE_MOUSE_VK_MOUSE1;
+		m_context->ProcessMouseButtonDown(vk, 0);
 	}
-	else
+	else if (event.type == FUSE_MOUSE_EVENT_BUTTON_UP)
 	{
-
-		int vk = -1;
-		bool pressed;
-
-		switch (wParam)
-		{
-		case WM_RBUTTONDOWN:
-			vk = 1;
-			pressed = true;
-			break;
-		case WM_RBUTTONUP:
-			vk = 1;
-			pressed = false;
-			break;
-		case WM_LBUTTONDOWN:
-			vk = 0;
-			pressed = true;
-			break;
-		case WM_LBUTTONUP:
-			vk = 0;
-			pressed = false;
-			break;
-		case WM_MBUTTONDOWN:
-			vk = 2;
-			pressed = true;
-			break;
-		case WM_MBUTTONUP:
-			vk = 2;
-			pressed = false;
-			break;
-		}
-
-
-		if (vk >= 0)
-		{
-
-			if (pressed)
-			{
-				m_context->ProcessMouseButtonDown(vk, 0);
-			}
-			else
-			{
-				m_context->ProcessMouseButtonUp(vk, 0);
-			}
-
-		}
-
+		int vk = event.key - FUSE_MOUSE_VK_MOUSE1;
+		m_context->ProcessMouseButtonUp(vk, 0);
+	}
+	else if (event.type == FUSE_MOUSE_EVENT_MOVE)
+	{
+		m_context->ProcessMouseMove(event.position.x, event.position.y, 0);
 	}
 
-	return 0;
+	return false;
+
+}
+
+bool editor_gui::on_keyboard_event(const keyboard & mouse, const keyboard_event_info & event)
+{
+
+	if (event.type == FUSE_KEYBOARD_EVENT_BUTTON_DOWN)
+	{
+		if (event.key > 0 && event.key < 256 && isprint(event.key))
+		{
+			return !m_context->ProcessTextInput(event.key);
+		}
+	}
+
+	return false;
+
 }
 
 void editor_gui::set_debugger_visibility(bool visibility)

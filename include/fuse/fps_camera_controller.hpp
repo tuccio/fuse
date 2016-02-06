@@ -3,8 +3,8 @@
 #include <fuse/allocators.hpp>
 #include <fuse/camera.hpp>
 #include <fuse/properties_macros.hpp>
-
-#include <Windows.h>
+#include <fuse/keyboard.hpp>
+#include <fuse/mouse.hpp>
 
 #include <unordered_map>
 
@@ -22,7 +22,9 @@ enum camera_action
 namespace fuse
 {
 
-	class alignas(16) fps_camera_controller
+	class alignas(16) fps_camera_controller :
+		public keyboard_listener,
+		public mouse_listener
 	{
 
 	public:
@@ -30,8 +32,8 @@ namespace fuse
 		fps_camera_controller(void);
 		fps_camera_controller(camera * cam);
 
-		void bind_keyboard_key(UINT key, camera_action action);
-		void unbind_keyboard_key(UINT key);
+		void bind_keyboard_key(keyboard_vk key, camera_action action);
+		void unbind_keyboard_key(keyboard_vk key);
 
 		void bind_mouse_key(UINT key, camera_action action);
 		void unbind_mouse_key(UINT key);
@@ -46,13 +48,15 @@ namespace fuse
 
 		LRESULT on_update(float dt);
 
+		bool on_keyboard_event(const keyboard & keyboard, const keyboard_event_info & event) override;
+		bool on_mouse_event(const mouse & mouse, const mouse_event_info & event) override;
+
 	private:
 
 		XMVECTOR   m_acceleration;
 		XMVECTOR   m_velocity;
 
 		camera   * m_camera;
-
 
 		XMFLOAT3   m_speed;
 
@@ -75,7 +79,7 @@ namespace fuse
 		bool       m_strafingDownward;
 
 
-		std::unordered_map<UINT, camera_action> m_keyboardBinds;
+		std::unordered_map<keyboard_vk, camera_action> m_keyboardBinds;
 		std::unordered_map<UINT, camera_action> m_mouseBinds;
 
 		void handle_action_key(camera_action action, bool pressed);

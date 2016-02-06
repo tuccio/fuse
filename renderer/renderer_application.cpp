@@ -176,6 +176,9 @@ bool renderer_application::on_render_context_created(gpu_render_context & render
 
 	g_cameraController.set_camera(g_scene.get_active_camera());
 	g_cameraController.set_speed(XMFLOAT3(200, 200, 200));
+	
+	add_keyboard_listener(&g_cameraController);
+	add_mouse_listener(&g_cameraController);
 
 	g_scene.get_active_camera()->set_orientation(XMQuaternionIdentity());
 
@@ -277,6 +280,9 @@ bool renderer_application::on_render_context_created(gpu_render_context & render
 	g_editorGUI.set_render_options_visibility(true);
 	//g_editorGUI.set_light_panel_visibility(true);
 	g_editorGUI.set_skybox_panel_visibility(true);
+
+	add_mouse_listener(&g_editorGUI, FUSE_PRIORITY_DEFAULT_DELTA(1));
+	add_keyboard_listener(&g_editorGUI, FUSE_PRIORITY_DEFAULT_DELTA(1));
 
 #endif
 
@@ -584,57 +590,43 @@ bool renderer_application::on_swap_chain_resized(ID3D12Device * device, IDXGISwa
 
 }
 
-LRESULT CALLBACK renderer_application::on_keyboard(int code, WPARAM wParam, LPARAM lParam)
+bool renderer_application::on_keyboard_event(const keyboard & keyboard, const keyboard_event_info & event)
 {
 
-#define __KEY_DOWN(Key) (wParam == Key && ((KF_UP << 16) & lParam) == 0)
-
-	if (!code)
+	if (event.type == FUSE_KEYBOARD_EVENT_BUTTON_DOWN)
 	{
 
-		if (__KEY_DOWN(VK_F11))
+		switch (event.key)
 		{
+
+		case FUSE_KEYBOARD_VK_F4:
+			g_showGUI = !g_showGUI;
+			return true;
+
+		case FUSE_KEYBOARD_VK_F9:
+			g_editorGUI.set_debugger_visibility(!g_editorGUI.get_debugger_visibility());
+			return true;
+
+		case FUSE_KEYBOARD_VK_F11:
+		{
+
 			bool goFullscreen = !is_fullscreen();
+
 			set_fullscreen(goFullscreen);
 			set_cursor(goFullscreen, goFullscreen);
+
 			g_cameraController.set_auto_center_mouse(goFullscreen);
+
+			return true;
+
 		}
-		else if (__KEY_DOWN(VK_F9))
-		{
-			g_editorGUI.set_debugger_visibility(!g_editorGUI.get_debugger_visibility());
-		}
-		else if (__KEY_DOWN(VK_F4))
-		{
-			g_showGUI = !g_showGUI;
-		}
-		else
-		{
-			(g_showGUI && g_editorGUI.on_keyboard(wParam, lParam)) ||
-				g_cameraController.on_keyboard(wParam, lParam);
+
 		}
 
 	}
 
-	return base_type::on_keyboard(code, wParam, lParam);
+	return false;
 
-}
-
-LRESULT CALLBACK renderer_application::on_mouse(int code, WPARAM wParam, LPARAM lParam)
-{
-
-	if (!code)
-	{
-		(g_showGUI && g_editorGUI.on_mouse(wParam, lParam)) ||
-			g_cameraController.on_mouse(wParam, lParam);
-	}
-
-	return base_type::on_mouse(code, wParam, lParam);
-
-}
-
-LRESULT renderer_application::on_message(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
-{
-	return g_editorGUI.on_message(hWnd, uMsg, wParam, lParam);
 }
 
 void renderer_application::on_update(float dt)
@@ -718,8 +710,8 @@ void renderer_application::upload_per_frame_resources(ID3D12Device * device, gpu
 
 	/* Screen settings */
 
-	cbPerFrame.screen.resolution      = XMUINT2(get_client_width(), get_client_height());
-	cbPerFrame.screen.orthoProjection = XMMatrixTranspose(XMMatrixOrthographicOffCenterLH(0, get_client_width(), get_client_height(), 0, 0, 1));
+	cbPerFrame.screen.resolution      = XMUINT2(get_render_window_width(), get_render_window_height());
+	cbPerFrame.screen.orthoProjection = XMMatrixTranspose(XMMatrixOrthographicOffCenterLH(0, get_render_window_width(), get_render_window_height(), 0, 0, 1));
 
 	/* Render variables */
 
@@ -791,22 +783,22 @@ void renderer_application::on_render(gpu_render_context & renderContext, const r
 
 		g_renderResourceManager.get_texture_2d(
 			device, bufferIndex, DXGI_FORMAT_R16G16B16A16_FLOAT,
-			get_client_width(), get_client_height(), 1, 1, 1, 0,
+			get_render_window_width(), get_render_window_height(), 1, 1, 1, 0,
 			D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET, &CD3DX12_CLEAR_VALUE(DXGI_FORMAT_R16G16B16A16_FLOAT, clearColor)),
 
 		g_renderResourceManager.get_texture_2d(
 			device, bufferIndex, DXGI_FORMAT_R16G16B16A16_FLOAT,
-			get_client_width(), get_client_height(), 1, 1, 1, 0,
+			get_render_window_width(), get_render_window_height(), 1, 1, 1, 0,
 			D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET, &CD3DX12_CLEAR_VALUE(DXGI_FORMAT_R16G16B16A16_FLOAT, clearColor)),
 
 		g_renderResourceManager.get_texture_2d(
 			device, bufferIndex, DXGI_FORMAT_R8G8B8A8_UNORM,
-			get_client_width(), get_client_height(), 1, 1, 1, 0,
+			get_render_window_width(), get_render_window_height(), 1, 1, 1, 0,
 			D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET, &CD3DX12_CLEAR_VALUE(DXGI_FORMAT_R8G8B8A8_UNORM, clearColor)),
 
 		g_renderResourceManager.get_texture_2d(
 			device, bufferIndex, DXGI_FORMAT_R16G16B16A16_FLOAT,
-			get_client_width(), get_client_height(), 1, 1, 1, 0,
+			get_render_window_width(), get_render_window_height(), 1, 1, 1, 0,
 			D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET, &CD3DX12_CLEAR_VALUE(DXGI_FORMAT_R16G16B16A16_FLOAT, clearColor))
 
 	};
@@ -833,7 +825,7 @@ void renderer_application::on_render(gpu_render_context & renderContext, const r
 
 	render_resource_ptr sceneDepthBuffer = g_renderResourceManager.get_texture_2d(
 		device, bufferIndex, DXGI_FORMAT_D24_UNORM_S8_UINT,
-		get_client_width(), get_client_height(), 1, 1, 1, 0,
+		get_render_window_width(), get_render_window_height(), 1, 1, 1, 0,
 		D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL | D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE, &CD3DX12_CLEAR_VALUE(DXGI_FORMAT_D24_UNORM_S8_UINT, 1.f, 0));
 
 	/*render_resource * gbuffer[] = {
@@ -861,7 +853,7 @@ void renderer_application::on_render(gpu_render_context & renderContext, const r
 
 	render_resource_ptr guiRenderTarget = g_renderResourceManager.get_texture_2d(
 		device, bufferIndex, DXGI_FORMAT_R8G8B8A8_UNORM_SRGB,
-		get_client_width(), get_client_height(), 1, 1, 1, 0,
+		get_render_window_width(), get_render_window_height(), 1, 1, 1, 0,
 		D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET, &CD3DX12_CLEAR_VALUE(DXGI_FORMAT_R8G8B8A8_UNORM_SRGB, clearColor));
 
 	guiCommandList.resource_barrier_transition(guiRenderTarget->get(), D3D12_RESOURCE_STATE_RENDER_TARGET);
@@ -901,7 +893,7 @@ void renderer_application::on_render(gpu_render_context & renderContext, const r
 
 	render_resource_ptr hdrRenderTarget = g_renderResourceManager.get_texture_2d(
 		device, bufferIndex, DXGI_FORMAT_R16G16B16A16_FLOAT,
-		get_client_width(), get_client_height(), 1, 1, 1, 0,
+		get_render_window_width(), get_render_window_height(), 1, 1, 1, 0,
 		D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET, &CD3DX12_CLEAR_VALUE(DXGI_FORMAT_R16G16B16A16_FLOAT, clearColor));
 
 	commandList.resource_barrier_transition(hdrRenderTarget->get(), D3D12_RESOURCE_STATE_RENDER_TARGET);
@@ -1068,7 +1060,7 @@ void renderer_application::on_render(gpu_render_context & renderContext, const r
 
 	render_resource_ptr ldrRenderTarget = g_renderResourceManager.get_texture_2d(
 		device, bufferIndex, DXGI_FORMAT_R8G8B8A8_UNORM,
-		get_client_width(), get_client_height(), 1, 1, 1, 0,
+		get_render_window_width(), get_render_window_height(), 1, 1, 1, 0,
 		D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET | D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
 		&CD3DX12_CLEAR_VALUE(DXGI_FORMAT_R8G8B8A8_UNORM, clearColor));
 
@@ -1078,8 +1070,8 @@ void renderer_application::on_render(gpu_render_context & renderContext, const r
 		commandList,
 		*hdrRenderTarget.get(),
 		*ldrRenderTarget.get(),
-		get_client_width(),
-		get_client_height());
+		get_render_window_width(),
+		get_render_window_height());
 
 	color_rgba debugColors[] = {
 		{ 1, 0, 0, 1 },

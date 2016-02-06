@@ -26,7 +26,7 @@ FUSE_BASE_WINDOWING_VAR(bool, m_resized)
 /* Window class and callbacks */
 
 LRESULT CALLBACK base_windowing::window_proc(HWND hWnd,
-                                             UINT   uMsg,
+                                             UINT uMsg,
                                              WPARAM wParam,
                                              LPARAM lParam)
 {
@@ -184,6 +184,6 @@ void base_windowing::signal_error(const char_t * error)
 {
 	if (!m_silent)
 	{
-		MessageBox(get_window(), error, FUSE_LITERAL("Fuse error"), MB_ICONERROR);
+		MessageBox(get_render_window(), error, FUSE_LITERAL("Fuse error"), MB_ICONERROR);
 	}
 }

@@ -73,7 +73,7 @@ namespace fuse
 
 			RECT rect;
 
-			return GetWindowRect(get_window(), &rect) &&
+			return GetWindowRect(get_render_window(), &rect) &&
 				ClipCursor(&rect) &&
 				ShowCursor(!hidden);
 
@@ -162,7 +162,7 @@ namespace fuse
 
 		swapChainDesc.BufferCount                 = m_configuration.swapChainBufferCount;
 		swapChainDesc.BufferUsage                 = m_configuration.swapChainBufferUsage;
-		swapChainDesc.OutputWindow                = get_window();
+		swapChainDesc.OutputWindow                = get_render_window();
 		swapChainDesc.Windowed                    = TRUE;
 		swapChainDesc.SwapEffect                  = m_configuration.swapChainSwapEffect;
 		swapChainDesc.Flags                       = m_configuration.swapChainFlags;

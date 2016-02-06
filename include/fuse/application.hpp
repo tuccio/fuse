@@ -9,6 +9,8 @@
 #include <fuse/render_resource_manager.hpp>
 #include <fuse/descriptor_heap.hpp>
 #include <fuse/gpu_render_context.hpp>
+#include <fuse/keyboard.hpp>
+#include <fuse/mouse.hpp>
 
 #include <d3d12.h>
 #include <dxgi1_4.h>
@@ -57,16 +59,19 @@ namespace fuse
 
 		static void shutdown(void);
 
-		inline static void on_configuration_init(application_config * configuration) { }
+		inline static void on_configuration_init(application_config * configuration) {}
 
 		inline static bool on_render_context_created(gpu_render_context & renderContext) { return true; }
-		inline static void on_render_context_released(gpu_render_context & renderContext) { }
+		inline static void on_render_context_released(gpu_render_context & renderContext) {}
 
 		inline static bool on_swap_chain_resized(ID3D12Device * device, IDXGISwapChain * swapChain, const DXGI_SURFACE_DESC * desc) { return true; }
-		inline static void on_swap_chain_released(ID3D12Device * device, IDXGISwapChain * swapChain) { }
+		inline static void on_swap_chain_released(ID3D12Device * device, IDXGISwapChain * swapChain) {}
 
-		inline static void on_update(float dt) { }
-		inline static void on_render(gpu_render_context & renderContext, const render_resource & backBuffer) { }
+		inline static void on_update(float dt) {}
+		inline static void on_render(gpu_render_context & renderContext, const render_resource & backBuffer) {}
+
+		inline static bool on_keyboard_event(const keyboard & keyboard, const keyboard_event_info & event) { return false; }
+		inline static bool on_mouse_event(const mouse & keyboard, const mouse_event_info & event) { return false;  }
 
 		static float get_fps(void);
 
@@ -119,6 +124,9 @@ namespace fuse
 
 		static float                         m_frameSamples[FUSE_FPS_SAMPLES];
 		static gpu_global_resource_state     m_globalState;
+
+		static HHOOK                         m_keyboardHook;
+		static HHOOK                         m_mouseHook;
 
 		/* Functions called by d3d12_windows_application */
 
@@ -186,7 +194,7 @@ namespace fuse
 				create_descriptor_heaps() &&
 				create_render_context() &&
 				on_render_context_created(m_renderContext) &&
-				create_swap_chain(debug, get_client_width(), get_client_height());
+				create_swap_chain(debug, get_render_window_width(), get_render_window_height());
 
 			if (!success)
 			{
@@ -194,8 +202,7 @@ namespace fuse
 			}
 			else
 			{
-				SetWindowsHook(WH_KEYBOARD, on_keyboard);
-				SetWindowsHook(WH_MOUSE,    on_mouse);
+				install_callbacks();
 			}
 
 			return success;
@@ -204,6 +211,8 @@ namespace fuse
 
 		static inline void shutdown(void)
 		{
+
+			uninstall_callbacks();
 
 			if (get_command_queue())
 			{
@@ -225,6 +234,18 @@ namespace fuse
 			
 		}
 
+		inline static void install_callbacks(void)
+		{
+			add_keyboard_callback(on_keyboard_event);
+			add_mouse_callback(on_mouse_event);
+		}
+
+		inline static void uninstall_callbacks(void)
+		{
+			remove_keyboard_callback(on_keyboard_event);
+			remove_mouse_callback(on_mouse_event);
+		}
+
 		static inline void main_loop(void)
 		{
 
@@ -233,9 +254,12 @@ namespace fuse
 			do
 			{
 
-				while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
+				while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE) &&
+					msg.message != WM_QUIT)
 				{
+
 					TranslateMessage(&msg);
+
 
 					if (!on_message(msg.hwnd, msg.message, msg.wParam, msg.lParam))
 					{
@@ -243,6 +267,8 @@ namespace fuse
 					}
 
 				}
+
+				update_windows();
 
 				UINT64 lastFrame   = get_command_queue().get_frame_index();
 				UINT64 frameToWait = lastFrame + 1 < m_configuration.swapChainBufferCount ? 0 : lastFrame + 1 - m_configuration.swapChainBufferCount;
@@ -273,10 +299,10 @@ namespace fuse
 		{
 
 			bool success = !get_resize_polling() ||
-			               (resize_swap_chain(get_client_width(), get_client_height()) &&
+			               (resize_swap_chain(get_render_window_width(), get_render_window_height()) &&
 			               on_swap_chain_resized(get_device(), get_swap_chain(), get_swap_chain_buffer_desc()));
 			
-			m_bufferIndex     = m_swapChain->GetCurrentBackBufferIndex();
+			m_bufferIndex = m_swapChain->GetCurrentBackBufferIndex();
 
 			return success;
 
@@ -311,6 +337,9 @@ namespace fuse
 	FUSE_APPLICATION_BASE_VAR(dsv_descriptor_heap, m_depthStencilDescriptorHeap)
 
 	FUSE_APPLICATION_BASE_VAR(gpu_render_context, m_renderContext)
+
+	FUSE_APPLICATION_BASE_VAR(HHOOK, m_keyboardHook)
+	FUSE_APPLICATION_BASE_VAR(HHOOK, m_mouseHook)
 
 }
 

@@ -16,7 +16,7 @@ find_package ( Boost     REQUIRED )
 find_package ( DirectX12 REQUIRED )
 find_package ( DevIL     REQUIRED )
 find_package ( Assimp )
-find_package ( wxWidgets COMPONENTS core base )
+find_package ( wxWidgets COMPONENTS core base aui )
 #find_package ( OpenMP )
 
 include_directories ( ${DirectX12_INCLUDE_DIR} )
@@ -26,71 +26,7 @@ include_directories ( ${IL_INCLUDE_DIR} )
 
 set ( CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} /fp:fast )
 
-set ( FUSE_SRC_FILES 
-	include/fuse/singleton.hpp
-	include/fuse/lockable.hpp
-	include/fuse/types.hpp
-	include/fuse/string.hpp
-	include/fuse/logger.hpp logger.cpp
-	include/fuse/resource.hpp resource.cpp
-	include/fuse/resource_types.hpp
-	include/fuse/resource_factory.hpp resource_factory.cpp
-	include/fuse/resource_manager.hpp resource_manager.cpp
-	include/fuse/image.hpp image.cpp
-	include/fuse/image_manager.hpp
-	include/fuse/color.hpp color.cpp
-	include/fuse/material.hpp material.cpp
-	include/fuse/material_manager.hpp
-	include/fuse/descriptor_heap.hpp descriptor_heap.cpp
-	include/fuse/pool_manager.hpp pool_manager.cpp
-	include/fuse/assimp_loader.hpp assimp_loader.cpp
-	include/fuse/mesh.hpp mesh.cpp
-	include/fuse/mesh_manager.hpp
-	include/fuse/model.hpp model.cpp
-	include/fuse/application.hpp include/fuse/application.inl
-	include/fuse/base_windowing.hpp base_windowing.cpp
-	include/fuse/directx_helper.hpp
-	include/fuse/compile_shader.hpp compile_shader.cpp
-	include/fuse/pipeline_state.hpp pipeline_state.cpp
-	include/fuse/gpu_upload_manager.hpp gpu_upload_manager.cpp
-	include/fuse/gpu_mesh.hpp gpu_mesh.cpp
-	include/fuse/gpu_mesh_manager.hpp
-	include/fuse/gpu_render_context.hpp gpu_render_context.cpp
-	include/fuse/camera.hpp camera.cpp
-	include/fuse/transform.hpp transform.cpp
-	include/fuse/properties_macros.hpp
-	include/fuse/math.hpp
-	include/fuse/fps_camera_controller.hpp fps_camera_controller.cpp
-	include/fuse/input.hpp input.cpp
-	include/fuse/allocators.hpp
-	include/fuse/debug_ostream.hpp
-	include/fuse/gpu_command_queue.hpp gpu_command_queue.cpp
-	include/fuse/gpu_ring_buffer.hpp gpu_ring_buffer.cpp
-	include/fuse/bitmap_font.hpp bitmap_font.cpp
-	include/fuse/bitmap_font_manager.hpp
-	include/fuse/text_renderer.hpp text_renderer.cpp
-	include/fuse/texture.hpp texture.cpp
-	include/fuse/render_resource.hpp render_resource.cpp
-	include/fuse/render_resource_manager.hpp render_resource_manager.cpp
-	include/fuse/texture_manager.hpp
-	include/fuse/gpu_graphics_command_list.hpp gpu_graphics_command_list.cpp
-	include/fuse/gpu_global_resource_state.hpp
-	include/fuse/mipmap_generator.hpp mipmap_generator.cpp
-	include/fuse/rocket_interface.hpp rocket_interface.cpp
-	include/fuse/rocket_input.hpp rocket_input.cpp
-	include/fuse/leading_zeros.hpp
-	include/fuse/morton.hpp
-	include/fuse/geometry.hpp
-	include/fuse/geometry/sphere.hpp sphere.cpp
-	include/fuse/geometry/aabb.hpp aabb.cpp
-	include/fuse/geometry/frustum.hpp frustum.cpp
-	include/fuse/geometry/plane.hpp plane.cpp
-	include/fuse/geometry/ray.hpp ray.cpp
-	include/fuse/geometry/bounding_volumes.hpp
-	include/fuse/geometry/intersection.hpp include/fuse/geometry/intersection.inl
-	include/fuse/geometry/transform_affine.hpp
-	include/fuse/geometry/loose_octree.hpp include/fuse/geometry/loose_octree.inl
-)
+file ( GLOB FUSE_SRC_FILES *.cpp include/fuse/*.hpp include/fuse/*.inl )
 
 set ( libRocket_INCLUDE_DIR libRocket/include )
 
@@ -109,13 +45,13 @@ set ( freetype_LIBRARY ${CMAKE_SOURCE_DIR}/freetype/lib/freetype240.lib )
 add_definitions ( -DROCKET_STATIC_LIB )
 add_definitions ( -DNOMINMAX )
 
-if (FUSE_SSE2)
+if ( FUSE_SSE2 )
 	set ( CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} /arch:SSE2 )
-endif (FUSE_SSE2)
+endif ( FUSE_SSE2 )
 
-if (FUSE_SHADER_DEBUG)
+if ( FUSE_SHADER_DEBUG )
 	add_definitions ( "-DFUSE_COMPILE_SHADER_GLOBAL_OPTIONS=(D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION | D3DCOMPILE_PREFER_FLOW_CONTROL | D3DCOMPILE_ENABLE_STRICTNESS)" )
-endif (FUSE_SHADER_DEBUG)
+endif ( FUSE_SHADER_DEBUG )
 
 if ( ASSIMP_FOUND AND FUSE_ASSIMP )
 	add_definitions ( -DFUSE_ASSIMP )
@@ -127,7 +63,6 @@ include_directories ( ${libRocket_INCLUDE_DIR} )
 if ( wxWidgets_FOUND AND FUSE_WXWIDGETS )
 	include ( ${wxWidgets_USE_FILE} )	
 	add_definitions ( -DFUSE_WXWIDGETS )
-	list ( APPEND FUSE_SRC_FILES include/fuse/wxwidgets_windowing.hpp wxwidgets_windowing.cpp )
 endif ( wxWidgets_FOUND AND FUSE_WXWIDGETS )
 
 if ( FUSE_UNICODE OR FUSE_WXWIDGETS )
@@ -137,7 +72,7 @@ endif ( FUSE_UNICODE OR FUSE_WXWIDGETS )
 add_library ( fuse ${FUSE_SRC_FILES} )
 
 if ( wxWidgets_FOUND AND FUSE_WXWIDGETS )
-	target_link_libraries(fuse ${wxWidgets_LIBRARIES})
+	target_link_libraries ( fuse ${wxWidgets_LIBRARIES} )
 endif ( wxWidgets_FOUND AND FUSE_WXWIDGETS )
 
 add_subdirectory ( renderer )
