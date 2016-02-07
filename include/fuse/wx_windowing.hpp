@@ -15,12 +15,11 @@
 #include <fuse/types.hpp>
 
 #include <memory>
-#include <thread>
 
 namespace fuse
 {
 
-	struct wxwidgets_windowing;
+	struct wx_windowing;
 
 	namespace wx
 	{
@@ -66,18 +65,21 @@ namespace fuse
 
 		public:
 
-			wx_window(const wxString & title, const wxPoint & pos, const wxSize & size);			
+			wx_window(const wxString & title, const wxPoint & pos, const wxSize & size);
 			~wx_window(void);
 
 			void create_render_panel(void);
-			wx_render_panel * get_render_panel(void) const { return m_renderPanel.get(); }
+			wx_render_panel * get_render_panel(void) const { return m_renderPanel; }
+			
+			bool load_aui_conf(const char * filename);
+			bool save_aui_conf(const char * filename);
 
 		private:
 
 			inline void on_resize(wxSizeEvent & event);
 			void on_close(wxCloseEvent & event);
 
-			std::unique_ptr<wx_render_panel> m_renderPanel;
+			wx_render_panel * m_renderPanel;
 
 			wxAuiManager m_manager;
 
@@ -87,12 +89,12 @@ namespace fuse
 
 	}
 
-	struct wxwidgets_windowing
+	struct wx_windowing
 	{
 
 	public:
 
-		wxwidgets_windowing(void) = delete;
+		wx_windowing(void) = delete;
 
 		static bool init(HINSTANCE hInstance, bool silent = false);
 		static void shutdown(void);
@@ -114,6 +116,11 @@ namespace fuse
 
 		static void update_windows(void);
 
+		static void maximize(void);
+
+		static void save_ui_configuration(const char * filename);
+		static void load_ui_configuration(const char * filename);
+
 	protected:
 
 		static void add_keyboard_callback(keyboard_callback callback, unsigned int priority = FUSE_PRIORITY_DEFAULT);
@@ -131,6 +138,7 @@ namespace fuse
 		inline static keyboard & get_keyboard(void) { return m_keyboard; }
 		inline static mouse & get_mouse(void) { return m_mouse; }
 
+		inline static wxWindow * get_wx_window(void) { return m_mainWindow; }
 		inline static wxAuiManager * get_wx_aui_manager(void) { return wxAuiManager::GetManager(m_mainWindow); }
 
 	private:
@@ -170,16 +178,16 @@ namespace fuse
 
 			wxSize clientSize = m_renderPanel->GetClientSize();
 
-			wxwidgets_windowing::m_resized      = true;
-			wxwidgets_windowing::m_renderWidth  = clientSize.x;
-			wxwidgets_windowing::m_renderHeight = clientSize.y;
+			wx_windowing::m_resized      = true;
+			wx_windowing::m_renderWidth  = clientSize.x;
+			wx_windowing::m_renderHeight = clientSize.y;
 
 		}
 
 		void wx_render_panel::on_resize(wxSizeEvent & event)
 		{
 			wxSize size = event.GetSize();
-			wxwidgets_windowing::resize(size.x, size.y);
+			wx_windowing::resize(size.x, size.y);
 		}
 
 		void wx_render_panel::on_keyboard_key_down(wxKeyEvent & event)
@@ -189,7 +197,7 @@ namespace fuse
 
 			if (key != FUSE_KEYBOARD_VK_UNKNOWN)
 			{
-				wxwidgets_windowing::get_keyboard().post_keyboard_button_down(key);
+				wx_windowing::get_keyboard().post_keyboard_button_down(key);
 			}
 			
 		}
@@ -201,7 +209,7 @@ namespace fuse
 
 			if (key != FUSE_KEYBOARD_VK_UNKNOWN)
 			{
-				wxwidgets_windowing::get_keyboard().post_keyboard_button_up(key);
+				wx_windowing::get_keyboard().post_keyboard_button_up(key);
 			}
 
 		}
@@ -211,34 +219,34 @@ namespace fuse
 
 			if (event.Moving() || event.Dragging())
 			{
-				wxwidgets_windowing::get_mouse().post_mouse_move(reinterpret_cast<const XMINT2&>(event.GetPosition()));
+				wx_windowing::get_mouse().post_mouse_move(reinterpret_cast<const XMINT2&>(event.GetPosition()));
 			}
 			if (event.LeftDown())
 			{
 				SetFocus();
-				wxwidgets_windowing::get_mouse().post_mouse_button_down(FUSE_MOUSE_VK_MOUSE1);
+				wx_windowing::get_mouse().post_mouse_button_down(FUSE_MOUSE_VK_MOUSE1);
 			}
 			else if (event.LeftUp())
 			{
-				wxwidgets_windowing::get_mouse().post_mouse_button_up(FUSE_MOUSE_VK_MOUSE1);
+				wx_windowing::get_mouse().post_mouse_button_up(FUSE_MOUSE_VK_MOUSE1);
 			}
 			else if (event.RightDown())
 			{
 				SetFocus();
-				wxwidgets_windowing::get_mouse().post_mouse_button_down(FUSE_MOUSE_VK_MOUSE2);
+				wx_windowing::get_mouse().post_mouse_button_down(FUSE_MOUSE_VK_MOUSE2);
 			}
 			else if (event.RightUp())
 			{
-				wxwidgets_windowing::get_mouse().post_mouse_button_up(FUSE_MOUSE_VK_MOUSE2);
+				wx_windowing::get_mouse().post_mouse_button_up(FUSE_MOUSE_VK_MOUSE2);
 			}
 			else if (event.MiddleDown())
 			{
 				SetFocus();
-				wxwidgets_windowing::get_mouse().post_mouse_button_down(FUSE_MOUSE_VK_MOUSE3);
+				wx_windowing::get_mouse().post_mouse_button_down(FUSE_MOUSE_VK_MOUSE3);
 			}
 			else if (event.MiddleUp())
 			{
-				wxwidgets_windowing::get_mouse().post_mouse_button_up(FUSE_MOUSE_VK_MOUSE3);
+				wx_windowing::get_mouse().post_mouse_button_up(FUSE_MOUSE_VK_MOUSE3);
 			}
 
 		}

@@ -96,7 +96,7 @@ light skybox::get_sun_light(void)
 	sun.color     = color_rgb(1, 1, 1);
 	sun.intensity = 5.f;
 	
-	sun.ambient   = color_rgb(0, 0, 0);
+	sun.ambient   = m_ambientColor * m_ambientIntensity;
 
 	sun.direction = compute_sun_direction(m_zenith, m_azimuth);
 	sun.skybox    = this;

@@ -101,7 +101,7 @@ float4 shading_ps(QuadInput input) : SV_Target0
 		//diffuse = g_sdsm;
 	#endif
 	
-	float3 luminance = visibility * diffuse;
+	float3 luminance = visibility * diffuse + g_light.ambient * data.baseColor;
 	
 	return float4(luminance, 1);
 

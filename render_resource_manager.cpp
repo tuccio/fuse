@@ -41,6 +41,8 @@ render_resource_id_t render_resource_manager::find_texture_2d(UINT bufferIndex, 
 		render_resource_wrapper * pIt = (*it);
 
 		if (pIt->usageFlag == false &&
+			description.Width == pIt->description.Width &&
+			description.Height == pIt->description.Height &&
 			(description.Flags & pIt->description.Flags) == description.Flags &&
 			description.SampleDesc.Count == pIt->description.SampleDesc.Count &&
 			description.SampleDesc.Quality == pIt->description.SampleDesc.Quality &&

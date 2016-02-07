@@ -25,7 +25,9 @@ namespace fuse
 			m_turbidity(2.f),
 			m_zenith(0.f),
 			m_azimuth(0.f),
-			m_lastUpdatedBuffer(0) { }
+			m_lastUpdatedBuffer(0),
+			m_ambientColor(0.f, 0.f, 0.f),
+			m_ambientIntensity(0.f) {}
 
 		skybox(const skybox &) = delete;
 		skybox(skybox &&) = default;
@@ -51,6 +53,9 @@ namespace fuse
 		float     m_zenith;
 		float     m_azimuth;
 
+		color_rgb m_ambientColor;
+		float     m_ambientIntensity;
+
 		bool      m_uptodate;
 
 		std::vector<render_resource> m_cubemaps;
@@ -69,7 +74,16 @@ namespace fuse
 		)
 
 		FUSE_PROPERTIES_BY_CONST_REFERENCE_READ_ONLY (
-			(ground_abledo, m_groundAlbedo)
+			(ground_albedo, m_groundAlbedo)
+			
+		)
+
+		FUSE_PROPERTIES_BY_VALUE (
+			(ambient_intensity, m_ambientIntensity)
+		)
+
+		FUSE_PROPERTIES_BY_CONST_REFERENCE (
+			(ambient_color, m_ambientColor)
 		)
 
 		inline void set_turbidity(float turbidity) { m_turbidity = turbidity; m_uptodate = false; }

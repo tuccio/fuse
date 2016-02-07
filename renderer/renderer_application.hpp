@@ -1,13 +1,13 @@
 #pragma once
 
 #include <fuse/application.hpp>
-#include <fuse/wxwidgets_windowing.hpp>
+#include <fuse/wx_windowing.hpp>
 
 namespace fuse
 {
 
 	struct renderer_application :
-		application_base<wxwidgets_windowing>
+		application_base<wx_windowing>
 	{
 
 		static bool on_render_context_created(gpu_render_context & renderContext);
