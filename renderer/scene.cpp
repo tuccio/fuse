@@ -330,3 +330,41 @@ renderable_vector scene::frustum_culling(const frustum & f)
 	m_octree.query(f, [&](renderable * r) { renderables.push_back(r); });
 	return renderables;
 }
+
+void scene::draw_octree(visual_debugger * debugger)
+{
+
+	m_octree.traverse(
+		[=](const aabb & aabb, renderable_octree::objects_list_iterator begin, renderable_octree::objects_list_iterator end)
+	{
+		debugger->add(aabb, color_rgba(1, 0, 0, 1));
+	});
+
+}
+
+aabb scene::get_fitting_bounds(void) const
+{
+	
+	if (m_renderableObjects.empty())
+	{
+		return aabb::from_min_max(XMVectorZero(), XMVectorZero());
+	}
+
+	aabb bounds = aabb::from_min_max(XMVectorSet(FLT_MAX, FLT_MAX, FLT_MAX, 1.f),
+		XMVectorSet(-FLT_MAX, -FLT_MAX, -FLT_MAX, 1.f));
+
+	for (renderable * r : m_renderableObjects)
+	{
+		bounds = bounds + bounding_aabb(r->get_world_space_bounding_sphere());
+	}
+
+	return bounds;
+
+}
+
+void scene::fit_octree(float scale)
+{
+	m_sceneBounds = get_fitting_bounds();
+	m_sceneBounds.set_half_extents(XMVectorScale(m_sceneBounds.get_half_extents(), scale));
+	recalculate_octree();
+}

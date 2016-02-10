@@ -71,7 +71,7 @@ namespace fuse
 		inline static void on_render(gpu_render_context & renderContext, const render_resource & backBuffer) {}
 
 		inline static bool on_keyboard_event(const keyboard & keyboard, const keyboard_event_info & event) { return false; }
-		inline static bool on_mouse_event(const mouse & keyboard, const mouse_event_info & event) { return false;  }
+		inline static bool on_mouse_event(const mouse & keyboard, const mouse_event_info & event) { return false; }
 
 		static float get_fps(void);
 

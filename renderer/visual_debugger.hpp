@@ -25,9 +25,11 @@ namespace fuse
 		void shutdown(void);
 
 		void add_persistent(const char * name, const aabb & boundingBox, const color_rgba & color);
+		void add_persistent(const char * name, const frustum & frustum, const color_rgba & color);
 		void remove_presistent(const char * name);
 
-		void add(const aabb & boundingBox, const color_rgba & color);
+		void add(const aabb & bb, const color_rgba & color);
+		void add(const frustum & f, const color_rgba & color);
 
 		void render(
 			ID3D12Device * device,
@@ -40,7 +42,7 @@ namespace fuse
 
 	private:
 
-		typedef boost::variant<aabb> geometry;
+		typedef boost::variant<aabb, frustum> geometry;
 
 		struct draw_info
 		{
@@ -49,6 +51,7 @@ namespace fuse
 		};
 
 		bool m_drawBoundingVolumes;
+		bool m_drawOctree;
 
 		debug_renderer * m_renderer;
 
@@ -60,6 +63,7 @@ namespace fuse
 
 		FUSE_PROPERTIES_BY_VALUE(
 			(draw_bounding_volumes, m_drawBoundingVolumes)
+			(draw_octree, m_drawOctree)
 		)
 
 	};

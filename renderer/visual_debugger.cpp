@@ -26,12 +26,18 @@ void visual_debugger::render(
 	const render_resource & renderTarget,
 	const render_resource & depthBuffer)
 {
+	draw_persistent_objects();
 	m_renderer->render(device, commandQueue, commandList, ringBuffer, cbPerFrame, renderTarget, depthBuffer);
 }
 
 void visual_debugger::add_persistent(const char * name, const aabb & boundingBox, const color_rgba & color)
 {
 	m_persistentObjects.emplace(name, draw_info{ boundingBox, color });
+}
+
+void visual_debugger::add_persistent(const char * name, const frustum & f, const color_rgba & color)
+{
+	m_persistentObjects.emplace(name, draw_info{ f, color });
 }
 
 void visual_debugger::remove_presistent(const char * name)
@@ -46,9 +52,14 @@ void visual_debugger::remove_presistent(const char * name)
 
 }
 
+void visual_debugger::add(const frustum & f, const color_rgba & color)
+{
+	m_renderer->add(f, color);
+}
+
 void visual_debugger::add(const aabb & boundingBox, const color_rgba & color)
 {
-	m_renderer->add_aabb(boundingBox, color);
+	m_renderer->add(boundingBox, color);
 }
 
 class persistent_object_visitor :
@@ -62,7 +73,12 @@ public:
 
 	void operator()(const aabb & boundingBox) const
 	{
-		m_renderer->add_aabb(boundingBox, m_color);
+		m_renderer->add(boundingBox, m_color);
+	}
+
+	void operator()(const frustum & f) const
+	{
+		m_renderer->add(f, m_color);
 	}
 
 private:

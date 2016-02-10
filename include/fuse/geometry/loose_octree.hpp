@@ -62,6 +62,9 @@ namespace fuse
 
 	public:
 
+		typedef std::list<Object> objects_list;
+		typedef typename objects_list::iterator objects_list_iterator;
+
 		loose_octree(void);
 
 		loose_octree(const XMVECTOR & center,

@@ -13,7 +13,7 @@ void debug_renderer::shutdown(void)
 	m_debugPST.clear();
 }
 
-void debug_renderer::add_aabb(const aabb & boundingBox, const color_rgba & color)
+void debug_renderer::add(const aabb & boundingBox, const color_rgba & color)
 {
 
 	auto corners = boundingBox.get_corners();
@@ -42,6 +42,58 @@ void debug_renderer::add_aabb(const aabb & boundingBox, const color_rgba & color
 
 	add_lines(lines, lines + _countof(lines));
 
+}
+
+void debug_renderer::add(const frustum & f, const color_rgba & color)
+{
+
+	auto corners = f.get_corners();
+
+	debug_line lines[] = {
+
+		// Back face
+		{ debug_vertex(to_float3(corners[FUSE_FRUSTUM_FAR_BOTTOM_LEFT]), to_float4(color)),  debug_vertex(to_float3(corners[FUSE_FRUSTUM_FAR_BOTTOM_RIGHT]), to_float4(color)) },
+		{ debug_vertex(to_float3(corners[FUSE_FRUSTUM_FAR_BOTTOM_RIGHT]), to_float4(color)), debug_vertex(to_float3(corners[FUSE_FRUSTUM_FAR_TOP_RIGHT]), to_float4(color)) },
+		{ debug_vertex(to_float3(corners[FUSE_FRUSTUM_FAR_TOP_RIGHT]), to_float4(color)),    debug_vertex(to_float3(corners[FUSE_FRUSTUM_FAR_TOP_LEFT]), to_float4(color)) },
+		{ debug_vertex(to_float3(corners[FUSE_FRUSTUM_FAR_TOP_LEFT]), to_float4(color)),     debug_vertex(to_float3(corners[FUSE_FRUSTUM_FAR_BOTTOM_LEFT]), to_float4(color)) },
+
+		// Front face
+		{ debug_vertex(to_float3(corners[FUSE_FRUSTUM_NEAR_BOTTOM_LEFT]), to_float4(color)),  debug_vertex(to_float3(corners[FUSE_FRUSTUM_NEAR_BOTTOM_RIGHT]), to_float4(color)) },
+		{ debug_vertex(to_float3(corners[FUSE_FRUSTUM_NEAR_BOTTOM_RIGHT]), to_float4(color)), debug_vertex(to_float3(corners[FUSE_FRUSTUM_NEAR_TOP_RIGHT]), to_float4(color)) },
+		{ debug_vertex(to_float3(corners[FUSE_FRUSTUM_NEAR_TOP_RIGHT]), to_float4(color)),    debug_vertex(to_float3(corners[FUSE_FRUSTUM_NEAR_TOP_LEFT]), to_float4(color)) },
+		{ debug_vertex(to_float3(corners[FUSE_FRUSTUM_NEAR_TOP_LEFT]), to_float4(color)),     debug_vertex(to_float3(corners[FUSE_FRUSTUM_NEAR_BOTTOM_LEFT]), to_float4(color)) },
+
+		// Connect the two
+		{ debug_vertex(to_float3(corners[FUSE_FRUSTUM_NEAR_BOTTOM_LEFT]), to_float4(color)),  debug_vertex(to_float3(corners[FUSE_FRUSTUM_FAR_BOTTOM_LEFT]), to_float4(color)) },
+		{ debug_vertex(to_float3(corners[FUSE_FRUSTUM_NEAR_BOTTOM_RIGHT]), to_float4(color)), debug_vertex(to_float3(corners[FUSE_FRUSTUM_FAR_BOTTOM_RIGHT]), to_float4(color)) },
+		{ debug_vertex(to_float3(corners[FUSE_FRUSTUM_NEAR_TOP_RIGHT]), to_float4(color)),    debug_vertex(to_float3(corners[FUSE_FRUSTUM_FAR_TOP_RIGHT]), to_float4(color)) },
+		{ debug_vertex(to_float3(corners[FUSE_FRUSTUM_NEAR_TOP_LEFT]), to_float4(color)),     debug_vertex(to_float3(corners[FUSE_FRUSTUM_FAR_TOP_LEFT]), to_float4(color)) }
+	};
+
+	add_lines(lines, lines + _countof(lines));
+
+	auto planes = f.get_planes();
+
+	std::vector<debug_line> normals;
+
+	std::transform(planes.begin(), planes.end(), std::back_inserter(normals), [&](const plane & p)
+	{
+		
+		XMVECTOR plane = p.get_plane_vector();
+
+		debug_line line;
+
+		line.v0.position = to_float3(corners[FUSE_FRUSTUM_NEAR_BOTTOM_LEFT]);
+		line.v0.color = to_float4(color);
+		line.v1.position = to_float3(XMVectorAdd(corners[FUSE_FRUSTUM_NEAR_BOTTOM_LEFT], plane));
+		line.v1.color = to_float4(color);
+
+		return line;
+
+	});
+
+	add_lines(normals.begin(), normals.end());
+	
 }
 
 void debug_renderer::render(

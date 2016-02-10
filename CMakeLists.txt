@@ -26,7 +26,7 @@ include_directories ( ${IL_INCLUDE_DIR} )
 
 set ( CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} /fp:fast )
 
-file ( GLOB FUSE_SRC_FILES *.cpp include/fuse/*.hpp include/fuse/*.inl )
+file ( GLOB FUSE_SRC_FILES *.cpp include/fuse/*.hpp include/fuse/*.inl include/fuse/geometry/*.hpp include/fuse/geometry/*.inl )
 
 set ( libRocket_INCLUDE_DIR libRocket/include )
 

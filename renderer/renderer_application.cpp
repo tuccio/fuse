@@ -173,8 +173,7 @@ bool renderer_application::on_render_context_created(gpu_render_context & render
 	g_scene.get_skybox()->set_zenith(1.02539599f);
 	g_scene.get_skybox()->set_azimuth(-1.70169306f);
 
-	g_scene.set_scene_bounds(XMVectorZero(), 300000.f);
-	g_scene.recalculate_octree();
+	g_scene.fit_octree(1.1f);
 	
 	/*auto light = *g_scene.get_lights().first;
 
@@ -606,6 +605,19 @@ bool renderer_application::on_swap_chain_resized(ID3D12Device * device, IDXGISwa
 #endif
 
 	return true;
+
+}
+
+bool renderer_application::on_mouse_event(const mouse & mouse, const mouse_event_info & event)
+{
+
+	if (event.type == FUSE_MOUSE_EVENT_WHEEL)
+	{	
+		g_cameraController.set_speed(to_float3(XMVectorScale(to_vector(g_cameraController.get_speed()), (event.wheel * .2f + 1.f))));
+		return true;
+	}
+
+	return false;
 
 }
 
@@ -1117,16 +1129,21 @@ void renderer_application::on_render(gpu_render_context & renderContext, const r
 
 		}
 
-		g_visualDebugger.render(
-			device,
-			commandQueue,
-			commandList,
-			renderContext.get_ring_buffer(),
-			cbPerFrameAddress,
-			*ldrRenderTarget.get(),
-			*sceneDepthBuffer.get());
-
 	}
+
+	if (g_visualDebugger.get_draw_octree())
+	{
+		g_scene.draw_octree(&g_visualDebugger);
+	}
+
+	g_visualDebugger.render(
+		device,
+		commandQueue,
+		commandList,
+		renderContext.get_ring_buffer(),
+		cbPerFrameAddress,
+		*ldrRenderTarget.get(),
+		*sceneDepthBuffer.get());
 
 	/* Finally copy to backbuffer */
 

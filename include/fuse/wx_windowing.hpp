@@ -221,7 +221,13 @@ namespace fuse
 			{
 				wx_windowing::get_mouse().post_mouse_move(reinterpret_cast<const XMINT2&>(event.GetPosition()));
 			}
-			if (event.LeftDown())
+
+			if (event.GetEventType() == wxEVT_MOUSEWHEEL)
+			{
+				int wheel = event.GetWheelRotation() / event.GetWheelDelta();
+				wx_windowing::get_mouse().post_mouse_wheel(wheel);
+			}
+			else if (event.LeftDown())
 			{
 				SetFocus();
 				wx_windowing::get_mouse().post_mouse_button_down(FUSE_MOUSE_VK_MOUSE1);

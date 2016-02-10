@@ -23,6 +23,9 @@ namespace fuse
 		plane & operator= (const plane &) = default;
 		plane & operator= (plane &&) = default;
 
+		plane flip(void) const;
+		plane normalize(void) const;
+
 	private:
 
 		XMVECTOR m_plane;

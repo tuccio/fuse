@@ -79,3 +79,8 @@ bool renderable::load_occlusion_resources(ID3D12Device * device)
 			IID_PPV_ARGS(&m_queryResult)));
 
 }
+
+sphere renderable::get_world_space_bounding_sphere(void) const
+{
+	return transform_affine(m_boundingSphere, m_world);
+}

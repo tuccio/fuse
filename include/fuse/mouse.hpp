@@ -33,8 +33,7 @@ enum mouse_event_type
 	FUSE_MOUSE_EVENT_MOVE,
 	FUSE_MOUSE_EVENT_BUTTON_DOWN,
 	FUSE_MOUSE_EVENT_BUTTON_UP,
-	FUSE_MOUSE_EVENT_WHEEL_UP,
-	FUSE_MOUSE_EVENT_WHEEL_DOWN
+	FUSE_MOUSE_EVENT_WHEEL,
 };
 
 namespace fuse
@@ -79,6 +78,7 @@ namespace fuse
 		void post_mouse_button_down(mouse_vk key);
 		void post_mouse_button_up(mouse_vk key);
 		void post_mouse_move(const XMINT2 & position);
+		void post_mouse_wheel(int wheel);
 
 		inline const XMINT2 & get_last_click_position(mouse_vk key)
 		{

@@ -51,13 +51,8 @@ namespace fuse
 		bool init(ID3D12Device * device, const debug_renderer_configuration & cfg);
 		void shutdown(void);
 
-		template <typename Iterator>
-		void add_lines(Iterator begin, Iterator end)
-		{
-			std::copy(begin, end, std::back_inserter(m_lines));
-		}
-
-		void add_aabb(const aabb & bb, const color_rgba & color);
+		void add(const aabb & bb, const color_rgba & color);
+		void add(const frustum & f, const color_rgba & color);
 
 		void render(
 			ID3D12Device * device,
@@ -78,6 +73,12 @@ namespace fuse
 		bool create_psos(ID3D12Device * device);
 
 		std::vector<debug_line> m_lines;
+
+		template <typename Iterator>
+		void add_lines(Iterator begin, Iterator end)
+		{
+			std::copy(begin, end, std::back_inserter(m_lines));
+		}
 
 	};
 

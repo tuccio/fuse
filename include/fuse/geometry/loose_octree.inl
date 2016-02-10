@@ -133,7 +133,7 @@ namespace fuse
 		aabb rootAABB = aabb::from_center_half_extents(m_center, m_halfextent * 2);
 
 		Object * object = nullptr;
-		t = mye::math::Infinity();
+		t = std::numeric_limits<float>::infinity();
 
 		ray_pick(FUSE_LOOSEOCTREE_ROOT_INDEX, rootAABB, ray, t, object);
 
@@ -172,16 +172,11 @@ namespace fuse
 	void FUSE_LOOSEOCTREE_TYPE::traverse(Visitor visitor)
 	{
 
-		using namespace mye::math;
-
 		dfs_visit(FUSE_LOOSEOCTREE_ROOT_INDEX,
 			[this, visitor](node_hashmap_iterator it)
 		{
-
 			aabb aabb = get_octant_aabb(it->first);
-
-			visitor(aabb);
-
+			visitor(aabb, it->second.objects.begin(), it->second.objects.end());
 		});
 
 	}
@@ -282,7 +277,7 @@ namespace fuse
 		// Find the most significant one (the sentinel value) and
 		// return the number of bit triplets in the code as the depth value
 
-		uint32_t mso = detail::most_significant_one(location);
+		uint32_t mso = most_significant_one(location);
 		return mso / 3;
 
 	}
@@ -309,7 +304,7 @@ namespace fuse
 
 			XMUINT3 octantCoords = get_octant_coords(location);
 
-			XMVECTOR ijk = XMVectorSet(octantCoords.x, octantCoords.y, octantCoords.z);
+			XMVECTOR ijk = XMVectorSet(octantCoords.x, octantCoords.y, octantCoords.z, 0.f);
 
 			ijk = XMVectorScale(ijk, 2.f);
 			ijk = XMVectorAdd(ijk, XMVectorSplatOne());
@@ -329,7 +324,7 @@ namespace fuse
 		XMUINT3 FUSE_LOOSEOCTREE_TYPE::get_octant_coords(morton_code location) const
 	{
 
-		uint32_t mso = detail::most_significant_one(location);
+		uint32_t mso = most_significant_one(location);
 
 		// Remove the sentinel
 		morton_code code = (1ULL << mso) ^ location;

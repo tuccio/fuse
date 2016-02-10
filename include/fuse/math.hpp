@@ -29,4 +29,7 @@ namespace fuse
 	inline XMVECTOR to_vector(const XMFLOAT4 & v) { return XMLoadFloat4(&v); }
 	inline XMVECTOR to_vector(const XMVECTOR & v) { return v; }
 
+	inline float deg_to_rad(float d) { return d * pi<float>() / 180.f; }
+	inline float rad_to_deg(float r) { return r * 180.f / pi<float>(); }
+
 }

@@ -108,6 +108,11 @@ XMMATRIX camera::get_projection_matrix(void) const
 
 }
 
+frustum camera::get_frustum(void) const
+{
+	return frustum(get_projection_matrix(), get_view_matrix());
+}
+
 void camera::set_position(const XMVECTOR & position)
 {
 	m_position = position;
@@ -152,4 +157,25 @@ float camera::get_fovx(void) const
 void camera::set_fovx(float fovx)
 {
 	m_fovy = 2 * std::atan(std::tan(fovx * .5f) / m_aspectRatio);
+	m_projectionMatrixDirty = true;
+}
+
+float camera::get_fovy_deg(void) const
+{
+	return rad_to_deg(get_fovy());
+}
+
+float camera::get_fovx_deg(void) const
+{
+	return rad_to_deg(get_fovx());
+}
+
+void camera::set_fovy_deg(float fovy)
+{
+	set_fovy(deg_to_rad(fovy));
+}
+
+void camera::set_fovx_deg(float fovx)
+{
+	set_fovx(deg_to_rad(fovx));
 }

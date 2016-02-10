@@ -95,19 +95,18 @@ namespace fuse
 
 				auto planes = b.get_planes();
 
+				XMFLOAT3 min = to_float3(a.get_min());
+				XMFLOAT3 max = to_float3(a.get_max());
+
 				for (int i = 0; i < 6; i++)
 				{
 
 					XMVECTOR planeVector = planes[i].get_plane_vector();
 
 					XMFLOAT3 normal = to_float3(planeVector);
-
-					XMFLOAT3 min = to_float3(a.get_min());
-					XMFLOAT3 max = to_float3(a.get_max());
-
 					XMFLOAT3 n, p;
 
-					if (normal.x >= 0)
+					if (normal.x > 0)
 					{
 						n.x = min.x;
 						p.x = max.x;
@@ -118,7 +117,7 @@ namespace fuse
 						p.x = min.x;
 					}
 
-					if (normal.y >= 0)
+					if (normal.y > 0)
 					{
 						n.y = min.y;
 						p.y = max.y;
@@ -129,7 +128,7 @@ namespace fuse
 						p.y = min.y;
 					}
 
-					if (normal.z >= 0)
+					if (normal.z > 0)
 					{
 						n.z = min.z;
 						p.z = max.z;
@@ -178,7 +177,7 @@ namespace fuse
 					// Sphere-Frustum distance
 					float distance = XMVectorGetX(XMPlaneDotCoord(planeVector, sphereCenter));
 
-					if (distance < -sphereRadius)
+					if (distance > sphereRadius)
 					{
 						return false;
 					}

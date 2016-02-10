@@ -15,6 +15,7 @@ namespace fuse
 
 		static bool on_swap_chain_resized(ID3D12Device * device, IDXGISwapChain * swapChain, const DXGI_SURFACE_DESC * desc);
 
+		static bool on_mouse_event(const mouse & mouse, const mouse_event_info & event);
 		static bool on_keyboard_event(const keyboard & keyboard, const keyboard_event_info & event);
 
 		static void on_render(gpu_render_context & renderContext, const render_resource & backBuffer);

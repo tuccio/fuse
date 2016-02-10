@@ -226,6 +226,7 @@ void gui_panel::shutdown(void)
 	if (m_panel)
 	{
 		m_panel->Close();
+		m_panel->RemoveReference();
 		m_panel = nullptr;
 	}
 }

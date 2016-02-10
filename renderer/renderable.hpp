@@ -26,6 +26,8 @@ namespace fuse
 
 		bool load_occlusion_resources(ID3D12Device * device);
 
+		sphere get_world_space_bounding_sphere(void) const;
+
 	private:
 
 		XMMATRIX     m_world;

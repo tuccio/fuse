@@ -65,10 +65,13 @@ namespace fuse
 		void set_znear(float znear);
 		void set_zfar(float zfar);
 
-		inline frustum get_frustum(void) const
-		{
-			return frustum(XMMatrixMultiply(m_viewMatrix, m_projectionMatrix));
-		}
+		float get_fovy_deg(void) const;
+		float get_fovx_deg(void) const;
+
+		void set_fovy_deg(float fovy);
+		void set_fovx_deg(float fovx);
+
+		frustum get_frustum(void) const;
 
 	private:
 

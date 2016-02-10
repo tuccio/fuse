@@ -8,6 +8,7 @@
 #include "light.hpp"
 #include "renderable.hpp"
 #include "skybox.hpp"
+#include "visual_debugger.hpp"
 
 #include <vector>
 #include <utility>
@@ -53,6 +54,11 @@ namespace fuse
 
 		inline void set_scene_bounds(const XMVECTOR & center, float halfExtents) { m_sceneBounds = aabb::from_center_half_extents(center, XMVectorSet(halfExtents, halfExtents, halfExtents, halfExtents)); }
 		inline aabb get_scene_bounds(void) const { return m_sceneBounds; }
+
+		void draw_octree(visual_debugger * debugger);
+
+		aabb get_fitting_bounds(void) const;
+		void fit_octree(float scale = 1.f);
 
 	private:
 

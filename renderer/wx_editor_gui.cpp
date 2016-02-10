@@ -22,7 +22,6 @@ bool wx_editor_gui::init(wxWindow * window, scene * scene, renderer_configuratio
 	m_visualDebugger        = visualDebugger;
 	m_rendererConfiguration = r;
 
-
 	wxAuiNotebook * renderingNotebook = new wxAuiNotebook(window, wxID_ANY);
 	wxAuiNotebook * sceneNotebook     = new wxAuiNotebook(window, wxID_ANY);
 
@@ -31,6 +30,7 @@ bool wx_editor_gui::init(wxWindow * window, scene * scene, renderer_configuratio
 
 	create_shadow_mapping_page(renderingNotebook);
 	create_skylight_page(sceneNotebook);
+	create_camera_page(sceneNotebook);
 
 	if (visualDebugger)
 	{
@@ -43,8 +43,8 @@ bool wx_editor_gui::init(wxWindow * window, scene * scene, renderer_configuratio
 	m_manager->GetPane(renderingNotebook).name = "wx_editor_gui::rendering_notebook";
 	m_manager->GetPane(sceneNotebook).name     = "wx_editor_gui::scene_notebook";
 
-	renderingNotebook->Thaw();
 	sceneNotebook->Thaw();
+	renderingNotebook->Thaw();
 
 	m_manager->Update();
 
@@ -207,20 +207,27 @@ void wx_editor_gui::create_skylight_page(wxAuiNotebook * notebook)
 	wxWindow   * skylight = new wxWindow(notebook, wxID_ANY);
 	wxBoxSizer * sizer    = new wxBoxSizer(wxVERTICAL);
 
-	sizer->Add(new wxStaticText(skylight, wxID_ANY, _("Zenith")), 0, wxEXPAND | wxALL, padding);
-	sizer->Add(FUSE_WX_SLIDER(skylight, float, m_scene->get_skybox()->get_zenith, m_scene->get_skybox()->set_zenith, 0, half_pi<float>()), 0, wxEXPAND | wxALL, padding);
+	wxStaticBoxSizer * skySizer     = new wxStaticBoxSizer(wxVERTICAL, skylight, _("Sky Appearance"));
+	wxStaticBoxSizer * ambientSizer = new wxStaticBoxSizer(wxVERTICAL, skylight, _("Ambient Light"));
 
-	sizer->Add(new wxStaticText(skylight, wxID_ANY, _("Azimuth")), 0, wxEXPAND | wxALL, padding);
-	sizer->Add(FUSE_WX_SLIDER(skylight, float, m_scene->get_skybox()->get_azimuth, m_scene->get_skybox()->set_azimuth, -pi<float>(), pi<float>()), 0, wxEXPAND | wxALL, padding);
+	skySizer->Add(new wxStaticText(skySizer->GetStaticBox(), wxID_ANY, _("Zenith")), 0, wxEXPAND | wxALL, padding);
+	skySizer->Add(FUSE_WX_SLIDER(skySizer->GetStaticBox(), float, m_scene->get_skybox()->get_zenith, m_scene->get_skybox()->set_zenith, 0, half_pi<float>()), 0, wxEXPAND | wxALL, padding);
 
-	sizer->Add(new wxStaticText(skylight, wxID_ANY, _("Turbidity")), 0, wxEXPAND | wxALL, padding);
-	sizer->Add(FUSE_WX_SPIN(skylight, float, m_scene->get_skybox()->get_turbidity, m_scene->get_skybox()->set_turbidity, 1, 10, 0.1f), 0, wxEXPAND | wxALL, padding);
+	skySizer->Add(new wxStaticText(skySizer->GetStaticBox(), wxID_ANY, _("Azimuth")), 0, wxEXPAND | wxALL, padding);
+	skySizer->Add(FUSE_WX_SLIDER(skySizer->GetStaticBox(), float, m_scene->get_skybox()->get_azimuth, m_scene->get_skybox()->set_azimuth, -pi<float>(), pi<float>()), 0, wxEXPAND | wxALL, padding);
 
-	sizer->Add(new wxStaticText(skylight, wxID_ANY, _("Ambient Color")), 0, wxEXPAND | wxALL, padding);
-	sizer->Add(new wx_color_picker([&](const color_rgb & color) { m_scene->get_skybox()->set_ambient_color(color); }, skylight, wxID_ANY, m_scene->get_skybox()->get_ambient_color()), 0, wxEXPAND | wxALL, padding);
+	skySizer->Add(new wxStaticText(skySizer->GetStaticBox(), wxID_ANY, _("Turbidity")), 0, wxEXPAND | wxALL, padding);
+	skySizer->Add(FUSE_WX_SPIN(skySizer->GetStaticBox(), float, m_scene->get_skybox()->get_turbidity, m_scene->get_skybox()->set_turbidity, 1, 10, 0.1f), 0, wxEXPAND | wxALL, padding);
 
-	sizer->Add(new wxStaticText(skylight, wxID_ANY, _("Ambient Intensity")), 0, wxEXPAND | wxALL, padding);
-	sizer->Add(FUSE_WX_SPIN(skylight, float, m_scene->get_skybox()->get_ambient_intensity, m_scene->get_skybox()->set_ambient_intensity, 0, 100, 0.1f), 0, wxEXPAND | wxALL, padding);
+	sizer->Add(skySizer, 0, wxEXPAND | wxALL, padding);
+
+	ambientSizer->Add(new wxStaticText(ambientSizer->GetStaticBox(), wxID_ANY, _("Color")), 0, wxEXPAND | wxALL, padding);
+	ambientSizer->Add(new wx_color_picker([&](const color_rgb & color) { m_scene->get_skybox()->set_ambient_color(color); }, ambientSizer->GetStaticBox(), wxID_ANY, m_scene->get_skybox()->get_ambient_color()), 0, wxEXPAND | wxALL, padding);
+
+	ambientSizer->Add(new wxStaticText(ambientSizer->GetStaticBox(), wxID_ANY, _("Intensity")), 0, wxEXPAND | wxALL, padding);
+	ambientSizer->Add(FUSE_WX_SPIN(ambientSizer->GetStaticBox(), float, m_scene->get_skybox()->get_ambient_intensity, m_scene->get_skybox()->set_ambient_intensity, 0, 100, 0.1f), 0, wxEXPAND | wxALL, padding);
+
+	sizer->Add(ambientSizer, 0, wxEXPAND | wxALL, padding);
 
 	skylight->SetSizerAndFit(sizer);
 
@@ -243,8 +250,15 @@ void wx_editor_gui::create_debug_page(wxAuiNotebook * notebook)
 		drawSizer->Add(new wx_checkbox([&](bool value) { m_visualDebugger->set_draw_bounding_volumes(value); },
 			drawSizer->GetStaticBox(), wxID_ANY, _("Bounding Volumes"), m_visualDebugger->get_draw_bounding_volumes()), 0, wxEXPAND | wxALL, padding);
 
-		drawSizer->Add(new wx_button([&]() { /* TODO */ },
-			drawSizer->GetStaticBox(), wxID_ANY, _("Camera Frustum")), 0, wxEXPAND | wxALL, padding);
+		drawSizer->Add(new wx_checkbox([&](bool value) { m_visualDebugger->set_draw_octree(value); },
+			drawSizer->GetStaticBox(), wxID_ANY, _("Octree"), m_visualDebugger->get_draw_octree()), 0, wxEXPAND | wxALL, padding);
+
+		drawSizer->Add(new wx_checkbox(
+			[&](bool value) {
+				if (value) m_visualDebugger->add_persistent("camera", m_scene->get_active_camera()->get_frustum(), color_rgba(0, 1, 0, 1));
+				else m_visualDebugger->remove_presistent("camera");
+			},
+			drawSizer->GetStaticBox(), wxID_ANY, _("Current Camera Frustum"), m_visualDebugger->get_draw_bounding_volumes()), 0, wxEXPAND | wxALL, padding);
 
 		sizer->Add(drawSizer, 0, wxEXPAND | wxALL, padding);
 
@@ -253,6 +267,29 @@ void wx_editor_gui::create_debug_page(wxAuiNotebook * notebook)
 	debug->SetSizerAndFit(sizer);
 
 	notebook->AddPage(debug, _("Debug"));
+
+}
+
+void wx_editor_gui::create_camera_page(wxAuiNotebook * notebook)
+{
+
+	const int padding = 5;
+
+	wxWindow   * camera = new wxWindow(notebook, wxID_ANY);
+	wxBoxSizer * sizer  = new wxBoxSizer(wxVERTICAL);
+
+	sizer->Add(new wxStaticText(camera, wxID_ANY, _("Field of View")), 0, wxEXPAND | wxALL, padding);
+	sizer->Add(FUSE_WX_SPIN(camera, float, m_scene->get_active_camera()->get_fovx_deg, m_scene->get_active_camera()->set_fovx_deg, 15.f, 120.f, 5.f), 0, wxEXPAND | wxALL, padding);
+
+	sizer->Add(new wxStaticText(camera, wxID_ANY, _("Near Clip Distance")), 0, wxEXPAND | wxALL, padding);
+	sizer->Add(FUSE_WX_SPIN(camera, float, m_scene->get_active_camera()->get_znear, m_scene->get_active_camera()->set_znear, .00001f, 100000.f, .1f), 0, wxEXPAND | wxALL, padding);
+
+	sizer->Add(new wxStaticText(camera, wxID_ANY, _("Far Clip Distance")), 0, wxEXPAND | wxALL, padding);
+	sizer->Add(FUSE_WX_SPIN(camera, float, m_scene->get_active_camera()->get_zfar, m_scene->get_active_camera()->set_zfar, .00001f, 100000.f, .1f), 0, wxEXPAND | wxALL, padding);
+
+	camera->SetSizerAndFit(sizer);
+
+	notebook->AddPage(camera, _("Camera"));
 
 }
 

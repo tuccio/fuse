@@ -30,6 +30,7 @@ namespace fuse
 		wxWindow     * m_window;
 		wxAuiManager * m_manager;
 
+
 		scene * m_scene;
 		renderer_configuration * m_rendererConfiguration;
 		visual_debugger * m_visualDebugger;
@@ -37,6 +38,7 @@ namespace fuse
 		void create_shadow_mapping_page(wxAuiNotebook * notebook);
 		void create_skylight_page(wxAuiNotebook * notebook);
 		void create_debug_page(wxAuiNotebook * notebook);
+		void create_camera_page(wxAuiNotebook * notebook);
 
 	};
 
