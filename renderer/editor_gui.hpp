@@ -117,13 +117,13 @@ namespace fuse
 
 		public:
 
-			bool init(Rocket::Core::Context * context, skybox * skybox);
+			bool init(Rocket::Core::Context * context, skydome * skydome);
 
 			void ProcessEvent(Rocket::Core::Event & event) override;
 
 		private:
 
-			skybox * m_skybox;
+			skydome * m_skydome;
 			bool     m_filling;
 
 			void fill_form(void);

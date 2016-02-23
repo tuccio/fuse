@@ -11,17 +11,22 @@
 
 #include "light.hpp"
 
+enum skydome_flags {
+	FUSE_SKYDOME_FLAG_NONE = 0,
+	FUSE_SKYDOME_FLAG_FORCE_UPDATE = 1
+};
+
 namespace fuse
 {
 
-	class skybox_renderer;
+	class skydome_renderer;
 	
-	class skybox
+	class skydome
 	{
 
 	public:
 
-		skybox(void) :
+		skydome(void) :
 			m_turbidity(2.f),
 			m_zenith(0.f),
 			m_azimuth(0.f),
@@ -29,23 +34,25 @@ namespace fuse
 			m_ambientColor(0.f, 0.f, 0.f),
 			m_ambientIntensity(0.f) {}
 
-		skybox(const skybox &) = delete;
-		skybox(skybox &&) = default;
+		skydome(const skydome &) = delete;
+		skydome(skydome &&) = default;
 
-		~skybox(void) { shutdown(); }
+		~skydome(void) { shutdown(); }
 
-		skybox & operator= (skybox &&) = default;
+		skydome & operator= (skydome &&) = default;
 
 		bool init(ID3D12Device * device, uint32_t resolution = 128u, uint32_t buffers = 1);
 		void shutdown(void);
 
-		render_resource & get_cubemap(void);
+		render_resource & get_current_skydome(void);
+		render_resource & get_current_skydome_2(void);
 
 		light get_sun_light(void);
 
 	private:
 
 		uint32_t  m_resolution;
+		XMUINT2   m_skydomeResolution;
 
 		float     m_turbidity;
 		color_rgb m_groundAlbedo;
@@ -61,7 +68,9 @@ namespace fuse
 		std::vector<render_resource> m_cubemaps;
 		uint32_t m_lastUpdatedBuffer;
 
-		friend class skybox_renderer;
+		std::vector<render_resource> m_skydomes;
+
+		friend class skydome_renderer;
 
 	public:
 
@@ -70,12 +79,12 @@ namespace fuse
 			(zenith, m_zenith)
 			(azimuth, m_azimuth)
 			(resolution, m_resolution)
+			(skydome_resolution, m_skydomeResolution)
 			(uptodate, m_uptodate)
 		)
 
 		FUSE_PROPERTIES_BY_CONST_REFERENCE_READ_ONLY (
 			(ground_albedo, m_groundAlbedo)
-			
 		)
 
 		FUSE_PROPERTIES_BY_VALUE (
@@ -92,7 +101,7 @@ namespace fuse
 		inline void set_ground_albedo(const color_rgb & groundAlbedo) { m_groundAlbedo = groundAlbedo; m_uptodate = false; }
 	};
 
-	class skybox_renderer
+	class skydome_renderer
 	{
 
 	public:
@@ -105,14 +114,35 @@ namespace fuse
 			gpu_command_queue & commandQueue,
 			gpu_graphics_command_list & commandList,
 			gpu_ring_buffer & ringBuffer,
-			skybox & skybox);
+			skydome & skydome,
+			uint32_t flags = FUSE_SKYDOME_FLAG_NONE);
 
 	private:
 
 		com_ptr<ID3D12PipelineState> m_pso;
 		com_ptr<ID3D12RootSignature> m_rs;
 
+		com_ptr<ID3D12PipelineState> m_nishitaSkydomePSO;
+		com_ptr<ID3D12RootSignature> m_nishitaSkydomeRS;
+
 		bool create_pso(ID3D12Device * device);
+		bool create_nishita_pso(ID3D12Device * device);
+
+		bool render_sky_nishita(
+			ID3D12Device * device,
+			gpu_command_queue & commandQueue,
+			gpu_graphics_command_list & commandList,
+			gpu_ring_buffer & ringBuffer,
+			skydome & skydome,
+			uint32_t bufferIndex);
+
+		bool render_sky_nishita_2(
+			ID3D12Device * device,
+			gpu_command_queue & commandQueue,
+			gpu_graphics_command_list & commandList,
+			gpu_ring_buffer & ringBuffer,
+			skydome & skydome,
+			uint32_t bufferIndex);
 
 	};
 

@@ -8,7 +8,7 @@ using namespace fuse;
 bool shadow_mapper::init(ID3D12Device * device, const shadow_mapper_configuration & cfg)
 {
 	m_configuration = cfg;
-	return create_rs(device) && create_psos(device);
+	return create_rs(device) && create_debug_pso(device);
 }
 
 void shadow_mapper::shutdown(void)
@@ -107,7 +107,7 @@ void shadow_mapper::render(
 
 }
 
-bool shadow_mapper::create_psos(ID3D12Device * device)
+bool shadow_mapper::create_debug_pso(ID3D12Device * device)
 {
 
 	switch (m_configuration.algorithm)

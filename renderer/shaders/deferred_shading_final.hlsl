@@ -5,6 +5,8 @@
 #include "evsm2.hlsli"
 #include "evsm4.hlsli"
 
+#include "skydome.hlsli"
+
 USE_CB_PER_FRAME(b0)
 
 cbuffer cbPerLight : register(b1)
@@ -30,12 +32,13 @@ Texture2D g_gbuffer3  : register(t3);
 
 Texture2D g_shadowMap : register(t4);
 
-#if (LIGHT_TYPE == LIGHT_TYPE_SKYBOX)
-TextureCube g_skybox : register(t5);
+#if (LIGHT_TYPE == LIGHT_TYPE_SKYDOME)
+Texture2D g_skydome : register(t5);
 #endif
 
-SamplerState g_pointSampler  : register(s0);
-SamplerState g_linearSampler : register(s1);
+SamplerState g_pointSampler       : register(s0);
+SamplerState g_linearSampler      : register(s1);
+SamplerState g_anisotropicSampler : register(s2);
 
 SamplerState g_shadowMapSampler : register(s2);
 
@@ -69,17 +72,17 @@ float4 shading_ps(QuadInput input) : SV_Target0
 		
 		#if (SHADOW_MAPPING_ALGORITHM == SHADOW_MAPPING_VSM)
 		{
-			float2 moments = g_shadowMap.SampleLevel(g_shadowMapSampler, shadowMapUV, 0).xy;
+			float2 moments = g_shadowMap.SampleLevel(g_anisotropicSampler, shadowMapUV, 0).xy;
 			visibility = vsm_visibility(moments, lightSpaceDepth, R.vsmMinVariance, R.vsmMinBleeding);
 		}
 		#elif (SHADOW_MAPPING_ALGORITHM == SHADOW_MAPPING_EVSM2)
 		{
-			float2 moments = g_shadowMap.SampleLevel(g_shadowMapSampler, shadowMapUV, 0).xy;
+			float2 moments = g_shadowMap.SampleLevel(g_anisotropicSampler, shadowMapUV, 0).xy;
 			visibility = evsm2_visibility(moments, lightSpaceDepth, R.evsm2Exponent, R.evsm2MinVariance, R.evsm2MinBleeding);
 		}
 		#elif (SHADOW_MAPPING_ALGORITHM == SHADOW_MAPPING_EVSM4)
 		{
-			float4 moments = g_shadowMap.SampleLevel(g_shadowMapSampler, shadowMapUV, 0);
+			float4 moments = g_shadowMap.SampleLevel(g_anisotropicSampler, shadowMapUV, 0);
 			visibility = evsm4_visibility(moments, lightSpaceDepth, R.evsm4PosExponent, R.evsm4NegExponent, R.evsm4MinVariance, R.evsm4MinBleeding);
 		}
 		#endif
@@ -91,13 +94,13 @@ float4 shading_ps(QuadInput input) : SV_Target0
 	
 	float3 diffuse;
 	
-	#if (LIGHT_TYPE == LIGHT_TYPE_DIRECTIONAL) || (LIGHT_TYPE == LIGHT_TYPE_SKYBOX)
+	#if (LIGHT_TYPE == LIGHT_TYPE_DIRECTIONAL) || (LIGHT_TYPE == LIGHT_TYPE_SKYDOME)
 	{
 		diffuse = NoL * data.baseColor * g_light.luminance;
 	}
 	#endif
 	
-	#if (LIGHT_TYPE == LIGHT_TYPE_SKYBOX)
+	#if (LIGHT_TYPE == LIGHT_TYPE_SKYDOME)
 		//diffuse = g_sdsm;
 	#endif
 	
@@ -109,13 +112,15 @@ float4 shading_ps(QuadInput input) : SV_Target0
 
 #ifdef QUAD_VIEW_RAY
 
-float4 skybox_ps(QuadInput input) : SV_Target0
+float4 skydome_ps(QuadInput input) : SV_Target0
 {
 	
 	float4 farH = mul(float4(input.viewRay.xyz, 1), g_camera.invViewProjection);
 	float3 eyeRayWS = normalize(farH.xyz / farH.w - g_camera.position);
 	
-	return g_skybox.SampleLevel(g_linearSampler, eyeRayWS, 0);
+	float2 texcoord = skydome_mapping_direction_to_uv(eyeRayWS);
+	
+	return g_skydome.SampleLevel(g_linearSampler, texcoord, 0);
 	
 }
 

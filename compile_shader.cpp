@@ -46,8 +46,9 @@ namespace fuse
 			}
 			else
 			{
-				const char_t * msg = static_cast<const char_t *>(errors->GetBufferPointer());
-				FUSE_LOG_OPT(FUSE_LITERAL("fuse::compile_shader"), msg);
+				stringstream_t ss;
+				ss << "While compiling \"" << entryPoint << "\" from \"" << filename << "\":" << std::endl << static_cast<const char *>(errors->GetBufferPointer());
+				FUSE_LOG_OPT(FUSE_LITERAL("fuse::compile_shader"), ss);
 			}
 
 		}

@@ -17,7 +17,7 @@ bool sdsm::init(ID3D12Device * device, uint32_t width, uint32_t height)
 	m_width  = width;
 	m_height = height;
 
-	return create_psos(device);
+	return create_debug_pso(device);
 
 }
 
@@ -38,7 +38,7 @@ void sdsm::create_log_partitions(ID3D12Device * device, gpu_command_queue & comm
 
 }
 
-bool sdsm::create_psos(ID3D12Device * device)
+bool sdsm::create_debug_pso(ID3D12Device * device)
 {
 
 	com_ptr<ID3DBlob> minmaxCS;

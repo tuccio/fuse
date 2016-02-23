@@ -42,7 +42,7 @@ namespace fuse
 		resource::id_type   m_lastID;
 		string_t            m_type;
 
-		std::unordered_map<string_t, resource::id_type>                 m_namedResources;
+		std::unordered_map<string_t, resource::id_type>                  m_namedResources;
 		std::unordered_map<resource::id_type, std::shared_ptr<resource>> m_resources;
 
 		/* Non interlocked implementations */

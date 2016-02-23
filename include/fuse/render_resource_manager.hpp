@@ -66,8 +66,8 @@ namespace fuse
 	typedef detail::render_resource_handle render_resource_ptr;
 
 	class render_resource_manager :
-		singleton<render_resource_manager>,
-		lockable
+		public singleton<render_resource_manager>,
+		public lockable
 	{
 
 	public:

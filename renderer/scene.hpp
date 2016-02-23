@@ -7,7 +7,7 @@
 
 #include "light.hpp"
 #include "renderable.hpp"
-#include "skybox.hpp"
+#include "skydome.hpp"
 #include "visual_debugger.hpp"
 
 #include <vector>
@@ -46,7 +46,7 @@ namespace fuse
 		std::pair<camera_iterator, camera_iterator>         get_cameras(void);
 		std::pair<light_iterator, light_iterator>           get_lights(void);
 
-		inline skybox * get_skybox(void) { return &m_skybox; }
+		inline skydome * get_skydome(void) { return &m_skydome; }
 
 		void recalculate_octree(void);
 
@@ -68,7 +68,7 @@ namespace fuse
 		camera_vector     m_cameras;
 		light_vector      m_lights;
 
-		skybox            m_skybox;
+		skydome           m_skydome;
 
 		camera * m_activeCamera;
 

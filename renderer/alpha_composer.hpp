@@ -39,7 +39,7 @@ namespace fuse
 
 		alpha_composer_configuration m_configuration;
 
-		bool create_psos(ID3D12Device * device);
+		bool create_debug_pso(ID3D12Device * device);
 
 	};
 

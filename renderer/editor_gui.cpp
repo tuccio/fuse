@@ -33,7 +33,7 @@ bool editor_gui::init(scene * scene, renderer_configuration * r)
 	return m_objectPanel.init(m_context) &&
 	       m_renderOptions.init(m_context, r) &&
 	       m_lightPanel.init(m_context, scene) &&
-	       m_skyboxPanel.init(m_context, scene->get_skybox());
+	       m_skyboxPanel.init(m_context, scene->get_skydome());
 }
 
 void editor_gui::shutdown(void)
@@ -415,7 +415,7 @@ void color_panel::ProcessEvent(Rocket::Core::Event & event)
 
 /* skybox_panel */
 
-bool skybox_panel::init(Rocket::Core::Context * context, skybox * skybox)
+bool skybox_panel::init(Rocket::Core::Context * context, skydome * skydome)
 {
 
 	m_panel = context->LoadDocument("ui/skybox.rml");
@@ -428,7 +428,7 @@ bool skybox_panel::init(Rocket::Core::Context * context, skybox * skybox)
 
 		m_panel->GetElementById("title")->SetInnerRML(m_panel->GetTitle());
 
-		m_skybox = skybox;
+		m_skydome = skydome;
 		fill_form();
 
 		return true;
@@ -447,9 +447,9 @@ void skybox_panel::fill_form(void)
 
 	m_filling = true;
 
-	float zenith    = m_skybox->get_zenith();
-	float azimuth   = m_skybox->get_azimuth();
-	float turbidity = m_skybox->get_turbidity();
+	float zenith    = m_skydome->get_zenith();
+	float azimuth   = m_skydome->get_azimuth();
+	float turbidity = m_skydome->get_turbidity();
 
 	{
 
@@ -507,7 +507,7 @@ void skybox_panel::ProcessEvent(Rocket::Core::Event & event)
 
 			if (TypeConverter<String, float>::Convert(zenithStr, zenith))
 			{
-				m_skybox->set_zenith(zenith);
+				m_skydome->set_zenith(zenith);
 			}
 
 		}
@@ -520,7 +520,7 @@ void skybox_panel::ProcessEvent(Rocket::Core::Event & event)
 
 			if (TypeConverter<String, float>::Convert(azimuthStr, azimuth))
 			{
-				m_skybox->set_azimuth(azimuth);
+				m_skydome->set_azimuth(azimuth);
 			}
 
 		}
@@ -533,7 +533,7 @@ void skybox_panel::ProcessEvent(Rocket::Core::Event & event)
 
 			if (TypeConverter<String, float>::Convert(azimuthStr, turbidity))
 			{
-				m_skybox->set_turbidity(turbidity);
+				m_skydome->set_turbidity(turbidity);
 			}
 
 		}

@@ -39,8 +39,8 @@ static const char * get_light_define(light_type type)
 		return "LIGHT_TYPE_DIRECTIONAL";
 	case FUSE_LIGHT_TYPE_POINTLIGHT:
 		return "LIGHT_TYPE_POINTLIGHT";
-	case FUSE_LIGHT_TYPE_SKYBOX:
-		return "LIGHT_SKYBOX";
+	case FUSE_LIGHT_TYPE_SKYDOME:
+		return "LIGHT_SKYDOME";
 	case FUSE_LIGHT_TYPE_SPOTLIGHT:
 		return "LIGHT_TYPE_SPOTLIGHT";
 	default:
@@ -56,7 +56,7 @@ bool deferred_renderer::init(ID3D12Device * device, const deferred_renderer_conf
 	m_configuration = cfg;
 
 	return set_shadow_mapping_algorithm(m_configuration.shadowMappingAlgorithm) &&
-		create_psos(device);
+		create_debug_pso(device);
 
 }
 
@@ -297,7 +297,7 @@ void deferred_renderer::render_light(
 			commandList.resource_barrier_transition(shadowMapInfo->shadowMap->get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 			commandList->SetGraphicsRootDescriptorTable(3, shadowMapInfo->shadowMap->get_srv_gpu_descriptor_handle());
 
-			if (light->type == FUSE_LIGHT_TYPE_SKYBOX)
+			if (light->type == FUSE_LIGHT_TYPE_SKYDOME)
 			{
 				commandList->SetGraphicsRootConstantBufferView(5, shadowMapInfo->sdsmCBAddress);
 			}
@@ -313,25 +313,25 @@ void deferred_renderer::render_light(
 
 }
 
-void deferred_renderer::render_skybox(
+void deferred_renderer::render_skydome(
 	ID3D12Device * device,
 	gpu_command_queue & commandQueue,
 	gpu_graphics_command_list & commandList,
 	D3D12_GPU_VIRTUAL_ADDRESS cbPerFrame,
 	const render_resource & renderTarget,
 	const render_resource & depthBuffer,
-	skybox & sky)
+	skydome & sky)
 {
 
-	commandList->SetPipelineState(m_skyboxPSO.get());
+	commandList->SetPipelineState(m_skydomePSO.get());
 
 	commandList.resource_barrier_transition(depthBuffer.get(), D3D12_RESOURCE_STATE_DEPTH_WRITE);
 
-	commandList->SetGraphicsRootSignature(m_skyboxRS.get());
+	commandList->SetGraphicsRootSignature(m_skydomeRS.get());
 
-	commandList.resource_barrier_transition(sky.get_cubemap().get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+	commandList.resource_barrier_transition(sky.get_current_skydome().get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
-	commandList->SetGraphicsRootDescriptorTable(1, sky.get_cubemap().get_srv_gpu_descriptor_handle());
+	commandList->SetGraphicsRootDescriptorTable(1, sky.get_current_skydome_2().get_srv_gpu_descriptor_handle());
 
 	commandList->SetGraphicsRootConstantBufferView(0, cbPerFrame);
 	commandList->OMSetStencilRef(0);
@@ -342,11 +342,11 @@ void deferred_renderer::render_skybox(
 
 }
 
-bool deferred_renderer::create_psos(ID3D12Device * device)
+bool deferred_renderer::create_debug_pso(ID3D12Device * device)
 {
 	return create_gbuffer_pso(device) &&
 	       create_shading_pst(device) &&
-	       create_skybox_pso(device);
+	       create_skydome_pso(device);
 }
 
 bool deferred_renderer::create_gbuffer_pso(ID3D12Device * device)
@@ -376,7 +376,7 @@ bool deferred_renderer::create_gbuffer_pso(ID3D12Device * device)
 		gbufferPSODesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
 
 		// For each pixel in the gbuffer, we set to 1 the stencil value
-		// to render the skybox at the end using a stencil test.
+		// to render the skydome at the end using a stencil test.
 
 		gbufferPSODesc.DepthStencilState.StencilEnable           = TRUE;
 		gbufferPSODesc.DepthStencilState.StencilWriteMask        = 0x1;
@@ -458,17 +458,17 @@ bool deferred_renderer::create_shading_pst(ID3D12Device * device)
 
 	CD3DX12_ROOT_PARAMETER rootParameters[6];
 
-	CD3DX12_DESCRIPTOR_RANGE gbufferSRV, shadowMapSRV, skyboxSRV;
+	CD3DX12_DESCRIPTOR_RANGE gbufferSRV, shadowMapSRV, skydomeSRV;
 
 	gbufferSRV.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 4, 0);
-	skyboxSRV.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 5);
+	skydomeSRV.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 5);
 	shadowMapSRV.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 4);
 
 	rootParameters[0].InitAsConstantBufferView(0, 0, D3D12_SHADER_VISIBILITY_PIXEL);
 	rootParameters[1].InitAsConstantBufferView(1, 0, D3D12_SHADER_VISIBILITY_PIXEL);
 	rootParameters[2].InitAsDescriptorTable(1, &gbufferSRV, D3D12_SHADER_VISIBILITY_PIXEL);
 	rootParameters[3].InitAsDescriptorTable(1, &shadowMapSRV, D3D12_SHADER_VISIBILITY_PIXEL);
-	rootParameters[4].InitAsDescriptorTable(1, &skyboxSRV, D3D12_SHADER_VISIBILITY_PIXEL);
+	rootParameters[4].InitAsDescriptorTable(1, &skydomeSRV, D3D12_SHADER_VISIBILITY_PIXEL);
 	rootParameters[5].InitAsConstantBufferView(3, 0, D3D12_SHADER_VISIBILITY_PIXEL);
 
 	CD3DX12_STATIC_SAMPLER_DESC staticSamplers[] = {
@@ -504,7 +504,7 @@ bool deferred_renderer::create_shading_pst(ID3D12Device * device)
 
 		m_shadingPST = pipeline_state_template(
 		{
-			{ "LIGHT_TYPE", { "LIGHT_TYPE_SKYBOX", "LIGHT_TYPE_DIRECTIONAL" } },
+			{ "LIGHT_TYPE", { "LIGHT_TYPE_SKYDOME", "LIGHT_TYPE_DIRECTIONAL" } },
 			{ "SHADOW_MAPPING_ALGORITHM", { "SHADOW_MAPPING_NONE", "SHADOW_MAPPING_VSM", "SHADOW_MAPPING_EVSM2", "SHADOW_MAPPING_EVSM4" } }
 		},
 			shadingPSODesc,
@@ -522,10 +522,10 @@ bool deferred_renderer::create_shading_pst(ID3D12Device * device)
 
 }
 
-bool deferred_renderer::create_skybox_pso(ID3D12Device * device)
+bool deferred_renderer::create_skydome_pso(ID3D12Device * device)
 {
 
-	com_ptr<ID3DBlob> quadVS, skyboxPS;
+	com_ptr<ID3DBlob> quadVS, skydomePS;
 	std::vector<D3D12_INPUT_ELEMENT_DESC> inputLayoutVector;
 
 	com_ptr<ID3DBlob> serializedSignature;
@@ -534,12 +534,12 @@ bool deferred_renderer::create_skybox_pso(ID3D12Device * device)
 
 	CD3DX12_ROOT_PARAMETER rootParameters[2];
 
-	CD3DX12_DESCRIPTOR_RANGE skyboxSRV;
+	CD3DX12_DESCRIPTOR_RANGE skydomeSRV;
 
-	skyboxSRV.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 5);
+	skydomeSRV.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 5);
 
 	rootParameters[0].InitAsConstantBufferView(0, 0, D3D12_SHADER_VISIBILITY_PIXEL);
-	rootParameters[1].InitAsDescriptorTable(1, &skyboxSRV, D3D12_SHADER_VISIBILITY_PIXEL);
+	rootParameters[1].InitAsDescriptorTable(1, &skydomeSRV, D3D12_SHADER_VISIBILITY_PIXEL);
 
 	CD3DX12_STATIC_SAMPLER_DESC staticSamplers[] = {
 		CD3DX12_STATIC_SAMPLER_DESC(1, D3D12_FILTER_MIN_MAG_MIP_LINEAR)
@@ -549,17 +549,17 @@ bool deferred_renderer::create_skybox_pso(ID3D12Device * device)
 
 	UINT compileFlags = 0;
 
-	D3D_SHADER_MACRO skyboxDefines[] = {
+	D3D_SHADER_MACRO skydomeDefines[] = {
 		{ "QUAD_VIEW_RAY", "" },
-		{ "LIGHT_TYPE", "LIGHT_TYPE_SKYBOX" },
+		{ "LIGHT_TYPE", "LIGHT_TYPE_SKYDOME" },
 		{ NULL, NULL }
 	};
 
-	if (compile_shader(FUSE_LITERAL("shaders/quad_vs.hlsl"), skyboxDefines, "quad_vs", "vs_5_0", compileFlags, &quadVS) &&
-		compile_shader(FUSE_LITERAL("shaders/deferred_shading_final.hlsl"), skyboxDefines, "skybox_ps", "ps_5_0", compileFlags, &skyboxPS) &&
+	if (compile_shader(FUSE_LITERAL("shaders/quad_vs.hlsl"), skydomeDefines, "quad_vs", "vs_5_0", compileFlags, &quadVS) &&
+		compile_shader(FUSE_LITERAL("shaders/deferred_shading_final.hlsl"), skydomeDefines, "skydome_ps", "ps_5_0", compileFlags, &skydomePS) &&
 		reflect_input_layout(quadVS.get(), std::back_inserter(inputLayoutVector), &shaderReflection) &&
 		!FUSE_HR_FAILED_BLOB(D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &serializedSignature, &errorsBlob), errorsBlob) &&
-		!FUSE_HR_FAILED(device->CreateRootSignature(0, FUSE_BLOB_ARGS(serializedSignature), IID_PPV_ARGS(&m_skyboxRS))))
+		!FUSE_HR_FAILED(device->CreateRootSignature(0, FUSE_BLOB_ARGS(serializedSignature), IID_PPV_ARGS(&m_skydomeRS))))
 	{
 
 		D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
@@ -578,14 +578,14 @@ bool deferred_renderer::create_skybox_pso(ID3D12Device * device)
 		psoDesc.RTVFormats[0]         = m_configuration.shadingFormat;
 		psoDesc.DSVFormat             = m_configuration.dsvFormat;
 		psoDesc.VS                    = { FUSE_BLOB_ARGS(quadVS) };
-		psoDesc.PS                    = { FUSE_BLOB_ARGS(skyboxPS) };
+		psoDesc.PS                    = { FUSE_BLOB_ARGS(skydomePS) };
 		psoDesc.InputLayout           = make_input_layout_desc(inputLayoutVector);
-		psoDesc.pRootSignature        = m_skyboxRS.get();
+		psoDesc.pRootSignature        = m_skydomeRS.get();
 		psoDesc.SampleMask            = UINT_MAX;
 		psoDesc.SampleDesc            = { 1, 0 };
 		psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 
-		return !FUSE_HR_FAILED(device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_skyboxPSO)));
+		return !FUSE_HR_FAILED(device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_skydomePSO)));
 
 	}
 

@@ -4,6 +4,8 @@
 #include <fuse/geometry.hpp>
 #include <fuse/properties_macros.hpp>
 
+#include <fuse/gpu_command_queue.hpp>
+
 #include <boost/variant.hpp>
 
 #include <unordered_map>
@@ -14,22 +16,19 @@
 namespace fuse
 {
 
-	class visual_debugger
+	class visual_debugger :
+		public debug_renderer
 	{
 
 	public:
 
 		visual_debugger(void);
 
-		bool init(debug_renderer * renderer);
-		void shutdown(void);
+		bool init(ID3D12Device * device, const debug_renderer_configuration & cfg);
 
 		void add_persistent(const char * name, const aabb & boundingBox, const color_rgba & color);
 		void add_persistent(const char * name, const frustum & frustum, const color_rgba & color);
-		void remove_presistent(const char * name);
-
-		void add(const aabb & bb, const color_rgba & color);
-		void add(const frustum & f, const color_rgba & color);
+		void remove_persistent(const char * name);
 
 		void render(
 			ID3D12Device * device,
@@ -52,6 +51,9 @@ namespace fuse
 
 		bool m_drawBoundingVolumes;
 		bool m_drawOctree;
+		bool m_drawSkydome;
+
+		float m_texturesScale;
 
 		debug_renderer * m_renderer;
 
@@ -64,6 +66,8 @@ namespace fuse
 		FUSE_PROPERTIES_BY_VALUE(
 			(draw_bounding_volumes, m_drawBoundingVolumes)
 			(draw_octree, m_drawOctree)
+			(draw_skydome, m_drawSkydome)
+			(textures_scale, m_texturesScale)
 		)
 
 	};

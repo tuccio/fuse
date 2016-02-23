@@ -1,6 +1,8 @@
 #ifndef __SKYBOX__
 #define __SKYBOX__
 
+#include "constants.hlsli"
+
 /* Clear sky Perez luminance function */
 
 float skydome_perez_function(
@@ -55,6 +57,43 @@ float skydome_cie_luminance(
 	return zenithLuminance *
 		skydome_cie_function(cosTheta, gamma, cosGamma) /
 		skydome_cie_function(1, thetaSun, cosThetaSun);
+}
+
+float2 skydome_mapping_direction_to_uv(in float3 direction)
+{
+
+	float theta = acos(direction.y);
+	float phi   = atan2(direction.z, direction.x);
+	
+	float2 uv;
+	
+	uv.x = phi / (2 * PI) + .5f;
+	uv.y = theta / (.5f * PI);
+	
+	return uv;
+	
+}
+
+float3 skydome_mapping_uv_to_direction(in float2 uv)
+{
+
+	float theta = uv.y * .5f * PI;
+	float phi   = (uv.x - .5f) * 2 * PI;
+	
+	float sinTheta, cosTheta;
+	float sinPhi, cosPhi;
+	
+	sincos(theta, sinTheta, cosTheta);
+	sincos(phi, sinPhi, cosPhi);
+	
+	float3 direction;
+	
+	direction.y = cosTheta;
+	direction.x = sinTheta * cosPhi;
+	direction.z = sinTheta * sinPhi;
+	
+	return direction;
+
 }
 
 #endif

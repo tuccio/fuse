@@ -19,7 +19,7 @@
 #include "scene.hpp"
 #include "shadow_mapping.hpp"
 #include "renderable.hpp"
-#include "skybox.hpp"
+#include "skydome.hpp"
 
 namespace fuse
 {
@@ -69,14 +69,14 @@ namespace fuse
 			const light * light,
 			const shadow_map_info * shadowMapInfo = nullptr);
 
-		void render_skybox(
+		void render_skydome(
 			ID3D12Device * device,
 			gpu_command_queue & commandQueue,
 			gpu_graphics_command_list & commandList,
 			D3D12_GPU_VIRTUAL_ADDRESS cbPerFrame,
 			const render_resource & renderTarget,
 			const render_resource & depthBuffer,
-			skybox & skybox);
+			skydome & skydome);
 
 	private:
 
@@ -90,16 +90,16 @@ namespace fuse
 		com_ptr<ID3D12RootSignature> m_gbufferRS;
 		com_ptr<ID3D12RootSignature> m_shadingRS;
 
-		com_ptr<ID3D12PipelineState> m_skyboxPSO;
-		com_ptr<ID3D12RootSignature> m_skyboxRS;
+		com_ptr<ID3D12PipelineState> m_skydomePSO;
+		com_ptr<ID3D12RootSignature> m_skydomeRS;
 
 		deferred_renderer_configuration m_configuration;
 		const char * m_shadowMapAlgorithmDefine;
 
-		bool create_psos(ID3D12Device * device);
+		bool create_debug_pso(ID3D12Device * device);
 		bool create_gbuffer_pso(ID3D12Device * device);
 		bool create_shading_pst(ID3D12Device * device);
-		bool create_skybox_pso(ID3D12Device * device);
+		bool create_skydome_pso(ID3D12Device * device);
 
 	};
 

@@ -5,7 +5,7 @@
 
 enum light_type
 {
-	FUSE_LIGHT_TYPE_SKYBOX,
+	FUSE_LIGHT_TYPE_SKYDOME,
 	FUSE_LIGHT_TYPE_DIRECTIONAL,
 	FUSE_LIGHT_TYPE_SPOTLIGHT,
 	FUSE_LIGHT_TYPE_POINTLIGHT
@@ -14,7 +14,7 @@ enum light_type
 namespace fuse
 {
 
-	class skybox;
+	class skydome;
 
 	struct light
 	{
@@ -32,7 +32,7 @@ namespace fuse
 		union
 		{
 			float spotAngle;
-			skybox * skybox;
+			skydome * skydome;
 		};
 
 

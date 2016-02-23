@@ -1,20 +1,19 @@
 #include "visual_debugger.hpp"
 
+#include <fuse/render_resource_manager.hpp>
+
 using namespace fuse;
 
 visual_debugger::visual_debugger(void) :
 	m_renderer(nullptr) {}
 
-bool visual_debugger::init(debug_renderer * renderer)
+bool visual_debugger::init(ID3D12Device * device, const debug_renderer_configuration & cfg)
 {
-	m_renderer = renderer;
 	m_drawBoundingVolumes = false;
-	return true;
-}
-
-void visual_debugger::shutdown(void)
-{
-	m_renderer = nullptr;
+	m_drawOctree          = false;
+	m_drawSkydome         = false;
+	m_texturesScale       = .25f;
+	return debug_renderer::init(device, cfg);
 }
 
 void visual_debugger::render(
@@ -27,7 +26,7 @@ void visual_debugger::render(
 	const render_resource & depthBuffer)
 {
 	draw_persistent_objects();
-	m_renderer->render(device, commandQueue, commandList, ringBuffer, cbPerFrame, renderTarget, depthBuffer);
+	debug_renderer::render(device, commandQueue, commandList, ringBuffer, cbPerFrame, renderTarget, depthBuffer);
 }
 
 void visual_debugger::add_persistent(const char * name, const aabb & boundingBox, const color_rgba & color)
@@ -40,7 +39,7 @@ void visual_debugger::add_persistent(const char * name, const frustum & f, const
 	m_persistentObjects.emplace(name, draw_info{ f, color });
 }
 
-void visual_debugger::remove_presistent(const char * name)
+void visual_debugger::remove_persistent(const char * name)
 {
 
 	auto it = m_persistentObjects.find(name);
@@ -50,16 +49,6 @@ void visual_debugger::remove_presistent(const char * name)
 		m_persistentObjects.erase(it);
 	}
 
-}
-
-void visual_debugger::add(const frustum & f, const color_rgba & color)
-{
-	m_renderer->add(f, color);
-}
-
-void visual_debugger::add(const aabb & boundingBox, const color_rgba & color)
-{
-	m_renderer->add(boundingBox, color);
 }
 
 class persistent_object_visitor :
@@ -94,7 +83,7 @@ void visual_debugger::draw_persistent_objects(void)
 
 	for (auto & p : m_persistentObjects)
 	{
-		boost::apply_visitor(persistent_object_visitor{ m_renderer, p.second.color }, p.second.geometry);
+		boost::apply_visitor(persistent_object_visitor{ this, p.second.color }, p.second.geometry);
 	}
 
 }

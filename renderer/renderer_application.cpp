@@ -95,7 +95,6 @@ bitmap_font_ptr    g_font;
 
 scene              g_scene;
 
-debug_renderer     g_debugRenderer;
 deferred_renderer  g_deferredRenderer;
 text_renderer      g_textRenderer;
 tonemapper         g_tonemapper;
@@ -109,20 +108,22 @@ visual_debugger g_visualDebugger;
 blur           g_shadowMapBlur;
 alpha_composer g_alphaComposer;
 
-skybox_renderer g_skyboxRenderer;
+skydome_renderer g_skydomeRenderer;
 
 D3D12_VIEWPORT g_fullscreenViewport;
 D3D12_RECT     g_fullscreenScissorRect;
 
 DXGI_FORMAT g_shadowMapRTV;
 
-#ifdef FUSE_USE_EDITOR_GUI
+bool g_initialized;
 
-wx_editor_gui g_wxEditorGUI;
-
+#ifdef FUSE_USE_LIBROCKET
+bool g_showGUI = true;
 editor_gui g_editorGUI;
-bool       g_showGUI = true;
+#endif
 
+#ifdef FUSE_USE_EDITOR_GUI
+wx_editor_gui g_wxEditorGUI;
 #endif
 
 bool renderer_application::on_render_context_created(gpu_render_context & renderContext)
@@ -130,9 +131,9 @@ bool renderer_application::on_render_context_created(gpu_render_context & render
 
 	maximize();
 
-	ID3D12Device * device       = renderContext.get_device();
-	auto         & commandQueue = renderContext.get_command_queue();
-	auto         & commandList  = renderContext.get_command_list();
+	ID3D12Device              * device       = renderContext.get_device();
+	gpu_command_queue         & commandQueue = renderContext.get_command_queue();
+	gpu_graphics_command_list & commandList  = renderContext.get_command_list();
 
 	// The command list will be used for uploading assets and buffers on the gpu
 	commandList.reset_command_list(nullptr);
@@ -166,12 +167,12 @@ bool renderer_application::on_render_context_created(gpu_render_context & render
 		!g_scene.import_static_objects(g_sceneLoader.get()) ||
 		!g_scene.import_cameras(g_sceneLoader.get()) ||
 		//!g_scene.import_lights(g_sceneLoader.get()) ||
-		!g_scene.get_skybox()->init(device, SKYBOX_RESOLUTION, NUM_BUFFERS) ||
-		!g_skyboxRenderer.init(device)
+		!g_scene.get_skydome()->init(device, SKYBOX_RESOLUTION, NUM_BUFFERS) ||
+		!g_skydomeRenderer.init(device)
 	)
 
-	g_scene.get_skybox()->set_zenith(1.02539599f);
-	g_scene.get_skybox()->set_azimuth(-1.70169306f);
+	g_scene.get_skydome()->set_zenith(1.02539599f);
+	g_scene.get_skydome()->set_azimuth(-1.70169306f);
 
 	g_scene.fit_octree(1.1f);
 	
@@ -254,21 +255,17 @@ bool renderer_application::on_render_context_created(gpu_render_context & render
 
 	for (auto & commandList : g_guiCommandList) FAIL_IF(FUSE_HR_FAILED(commandList->Close()));
 
-#ifdef FUSE_USE_EDITOR_GUI
+#ifdef FUSE_USE_LIBROCKET
+
+	FAIL_IF(
+		!g_rocketInterface.init(device, rocketCFG)
+	)
 
 	Rocket::Core::SetRenderInterface(&g_rocketInterface);
 	Rocket::Core::SetSystemInterface(&g_rocketInterface);
 
 	Rocket::Core::Initialise();
 	Rocket::Controls::Initialise();
-
-	Rocket::Core::FontDatabase::LoadFontFace("ui/QuattrocentoSans-Regular.ttf");
-	Rocket::Core::FontDatabase::LoadFontFace("ui/QuattrocentoSans-Bold.ttf");
-
-	Rocket::Core::FontDatabase::LoadFontFace("ui/demo/Delicious-Roman.otf");
-	Rocket::Core::FontDatabase::LoadFontFace("ui/demo/Delicious-Bold.otf");
-	Rocket::Core::FontDatabase::LoadFontFace("ui/demo/Delicious-Italic.otf");
-	Rocket::Core::FontDatabase::LoadFontFace("ui/demo/Delicious-BoldItalic.otf");
 
 	rocket_interface_configuration rocketCFG;
 
@@ -278,13 +275,15 @@ bool renderer_application::on_render_context_created(gpu_render_context & render
 	rocketCFG.blendDesc.RenderTarget[0].DestBlend    = D3D12_BLEND_INV_SRC_ALPHA;
 	rocketCFG.blendDesc.RenderTarget[0].BlendOp      = D3D12_BLEND_OP_ADD;
 	rocketCFG.blendDesc.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_MAX;
+	rocketCFG.rtvFormat                              = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
 
-	rocketCFG.rtvFormat = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+	Rocket::Core::FontDatabase::LoadFontFace("ui/QuattrocentoSans-Regular.ttf");
+	Rocket::Core::FontDatabase::LoadFontFace("ui/QuattrocentoSans-Bold.ttf");
 
-	FAIL_IF (
-	    !g_rocketInterface.init(device, rocketCFG) ||
-		!g_editorGUI.init(&g_scene, &g_rendererConfiguration)
-	)
+	Rocket::Core::FontDatabase::LoadFontFace("ui/demo/Delicious-Roman.otf");
+	Rocket::Core::FontDatabase::LoadFontFace("ui/demo/Delicious-Bold.otf");
+	Rocket::Core::FontDatabase::LoadFontFace("ui/demo/Delicious-Italic.otf");
+	Rocket::Core::FontDatabase::LoadFontFace("ui/demo/Delicious-BoldItalic.otf");
 
 	g_editorGUI.set_render_options_visibility(true);
 	//g_editorGUI.set_light_panel_visibility(true);
@@ -293,7 +292,11 @@ bool renderer_application::on_render_context_created(gpu_render_context & render
 	add_mouse_listener(&g_editorGUI, FUSE_PRIORITY_DEFAULT_DELTA(1));
 	add_keyboard_listener(&g_editorGUI, FUSE_PRIORITY_DEFAULT_DELTA(1));
 
-	g_wxEditorGUI.init(get_wx_window(), &g_scene, &g_rendererConfiguration, &g_visualDebugger);
+#endif
+
+#ifdef FUSE_USE_EDITOR_GUI
+
+	FAIL_IF(!g_wxEditorGUI.init(get_wx_window(), &g_scene, &g_rendererConfiguration, &g_visualDebugger));
 
 	load_ui_configuration(FUSE_UI_CONFIGURATION);
 
@@ -316,8 +319,7 @@ bool renderer_application::on_render_context_created(gpu_render_context & render
 	composerCFG.rtvFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
 
 	if (g_deferredRenderer.init(device, rendererCFG) &&
-	    g_debugRenderer.init(device, debugRendererCFG) &&
-		g_visualDebugger.init(&g_debugRenderer) &&
+		g_visualDebugger.init(device, debugRendererCFG) &&
 	    g_tonemapper.init(device) &&
 	    g_textRenderer.init(device) &&
 	    g_alphaComposer.init(device, composerCFG) &&
@@ -337,11 +339,11 @@ bool renderer_application::on_render_context_created(gpu_render_context & render
 		commandQueue->Signal(initFence.get(), 1u);
 		initFence->SetEventOnCompletion(1u, hEvent);
 
-		bool result = WAIT_OBJECT_0 == WaitForSingleObject(hEvent, INFINITE);
+		g_initialized = WAIT_OBJECT_0 == WaitForSingleObject(hEvent, INFINITE);
 
 		CloseHandle(hEvent);
 
-		return result;
+		return g_initialized;
 
 	}
 
@@ -360,13 +362,20 @@ void renderer_application::on_render_context_released(gpu_render_context & rende
 
 	g_resourceFactory.clear();
 
-#if FUSE_USE_EDITOR_GUI
-
-	save_ui_configuration(FUSE_UI_CONFIGURATION);
+#ifdef FUSE_USE_LIBROCKET
 
 	g_editorGUI.shutdown();
 	Rocket::Core::Shutdown();
 	g_rocketInterface.shutdown();
+
+#endif
+
+#ifdef FUSE_USE_EDITOR_GUI
+
+	if (g_initialized)
+	{
+		save_ui_configuration(FUSE_UI_CONFIGURATION);
+	}
 
 	g_wxEditorGUI.shutdown();
 
@@ -599,9 +608,12 @@ bool renderer_application::on_swap_chain_resized(ID3D12Device * device, IDXGISwa
 
 	//}
 
+#ifdef FUSE_USE_LIBROCKET
+	g_editorGUI.on_resize(desc->Width, desc->Height);
+#endif
+
 #ifdef FUSE_USE_EDITOR_GUI
 	g_rocketInterface.on_resize(desc->Width, desc->Height);
-	g_editorGUI.on_resize(desc->Width, desc->Height);
 #endif
 
 	return true;
@@ -631,11 +643,15 @@ bool renderer_application::on_keyboard_event(const keyboard & keyboard, const ke
 		{
 
 		case FUSE_KEYBOARD_VK_F4:
+#ifdef FUSE_USE_LIBROCKET
 			g_showGUI = !g_showGUI;
+#endif
 			return true;
 
 		case FUSE_KEYBOARD_VK_F9:
+#ifdef FUSE_USE_LIBROCKET
 			g_editorGUI.set_debugger_visibility(!g_editorGUI.get_debugger_visibility());
+#endif
 			return true;
 
 		case FUSE_KEYBOARD_VK_F11:
@@ -665,7 +681,7 @@ void renderer_application::on_update(float dt)
 
 	g_cameraController.on_update(dt);
 
-#if FUSE_USE_EDITOR_GUI
+#ifdef FUSE_USE_LIBROCKET
 
 	if (g_showGUI)
 	{
@@ -920,6 +936,8 @@ void renderer_application::on_render(gpu_render_context & renderContext, const r
 		renderableObjects.first,
 		renderableObjects.second);
 
+	//g_visualDebugger.add(device, commandList, bufferIndex, *gbufferResources[0].get(), XMUINT2(16, 16), g_visualDebugger.get_textures_scale());
+
 	g_sdsm.create_log_partitions(device, commandQueue, commandList, *sceneDepthBuffer.get(), g_sdsmConstantBuffer[bufferIndex]);
 
 	/* Prepare for shading */
@@ -1012,11 +1030,16 @@ void renderer_application::on_render(gpu_render_context & renderContext, const r
 		shadowMapInfo.sdsm          = true;
 		shadowMapInfo.sdsmCBAddress = g_sdsmConstantBuffer[bufferIndex]->GetGPUVirtualAddress();
 
-		skybox * skybox = g_scene.get_skybox();
+		skydome * skydome = g_scene.get_skydome();
 
-		g_skyboxRenderer.render(device, commandQueue, commandList, renderContext.get_ring_buffer(), *skybox);
+		g_skydomeRenderer.render(device, commandQueue, commandList, renderContext.get_ring_buffer(), *skydome);
 
-		light sunLight = skybox->get_sun_light();
+		if (g_visualDebugger.get_draw_skydome())
+		{
+			g_visualDebugger.add(device, commandList, bufferIndex, skydome->get_current_skydome_2(), XMUINT2(16, 16), g_visualDebugger.get_textures_scale(), true);
+		}
+
+		light sunLight = skydome->get_sun_light();
 
 		shadowMapInfo.shadowMap = shadowMapResources[0].get();
 
@@ -1077,15 +1100,14 @@ void renderer_application::on_render(gpu_render_context & renderContext, const r
 		
 		/* Skybox rendering */
 
-		g_deferredRenderer.render_skybox(
+		g_deferredRenderer.render_skydome(
 			device,
 			commandQueue,
 			commandList,
 			cbPerFrameAddress,
 			*hdrRenderTarget.get(),
-			//g_depthBuffer[bufferIndex],
 			*sceneDepthBuffer.get(),
-			*skybox);
+			*skydome);
 
 	}	
 
@@ -1206,7 +1228,7 @@ void renderer_application::draw_gui(ID3D12Device * device, gpu_command_queue & c
 		XMFLOAT2(16, 16),
 		XMFLOAT4(1, 1, 0, 1));
 
-#ifdef FUSE_USE_EDITOR_GUI
+#ifdef FUSE_USE_LIBROCKET
 
 	if (g_showGUI)
 	{

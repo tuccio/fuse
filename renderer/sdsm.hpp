@@ -30,7 +30,7 @@ namespace fuse
 
 		render_resource m_pingPongBuffer;
 
-		bool create_psos(ID3D12Device * device);
+		bool create_debug_pso(ID3D12Device * device);
 		bool create_resources(ID3D12Device * device);
 
 

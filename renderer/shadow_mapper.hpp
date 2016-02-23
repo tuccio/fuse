@@ -51,7 +51,7 @@ namespace fuse
 		D3D12_VIEWPORT m_viewport;
 		D3D12_RECT     m_scissorRect;
 
-		bool create_psos(ID3D12Device * device);
+		bool create_debug_pso(ID3D12Device * device);
 		bool create_rs(ID3D12Device * device);
 		bool create_regular_pso(ID3D12Device * device);
 		bool create_vsm_pso(ID3D12Device * device);

@@ -5,6 +5,7 @@
 #include <fuse/gpu_command_queue.hpp>
 #include <fuse/gpu_ring_buffer.hpp>
 #include <fuse/render_resource.hpp>
+#include <fuse/render_resource_manager.hpp>
 #include <fuse/color.hpp>
 
 #include <vector>
@@ -39,6 +40,15 @@ namespace fuse
 		debug_vertex v1;
 	};
 
+	struct debug_texture
+	{
+		XMUINT2 position;
+		float   scaledWidth;
+		float   scaledHeight;
+		bool    hdr;
+		render_resource_ptr texture;
+	};
+
 	class debug_renderer
 	{
 
@@ -54,6 +64,8 @@ namespace fuse
 		void add(const aabb & bb, const color_rgba & color);
 		void add(const frustum & f, const color_rgba & color);
 
+		void add(ID3D12Device * device, gpu_graphics_command_list & commandList, UINT bufferIndex, const render_resource & r, XMUINT2 position, float scale, bool hdr);
+
 		void render(
 			ID3D12Device * device,
 			gpu_command_queue & commandQueue,
@@ -68,11 +80,34 @@ namespace fuse
 		pipeline_state_template      m_debugPST;
 		com_ptr<ID3D12RootSignature> m_debugRS;
 
+		pipeline_state_template      m_debugTexturePST;
+		com_ptr<ID3D12RootSignature> m_debugTextureRS;
+
 		debug_renderer_configuration m_configuration;
 
-		bool create_psos(ID3D12Device * device);
+		std::vector<debug_line>    m_lines;
+		std::vector<debug_texture> m_textures;
 
-		std::vector<debug_line> m_lines;
+		bool create_debug_pso(ID3D12Device * device);
+		bool create_debug_texture_pso(ID3D12Device * device);
+
+		void render_lines(
+			ID3D12Device * device,
+			gpu_command_queue & commandQueue,
+			gpu_graphics_command_list & commandList,
+			gpu_ring_buffer & ringBuffer,
+			D3D12_GPU_VIRTUAL_ADDRESS cbPerFrame,
+			const render_resource & renderTarget,
+			const render_resource & depthBuffer);
+
+		void render_textures(
+			ID3D12Device * device,
+			gpu_command_queue & commandQueue,
+			gpu_graphics_command_list & commandList,
+			gpu_ring_buffer & ringBuffer,
+			D3D12_GPU_VIRTUAL_ADDRESS cbPerFrame,
+			const render_resource & renderTarget,
+			const render_resource & depthBuffer);
 
 		template <typename Iterator>
 		void add_lines(Iterator begin, Iterator end)

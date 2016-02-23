@@ -49,7 +49,7 @@ namespace fuse
 
 	};
 
-	
+	/* Heaps */
 
 	class cbv_uav_srv_descriptor_heap :
 		public singleton<cbv_uav_srv_descriptor_heap>,
@@ -99,6 +99,6 @@ namespace fuse
 
 		void free(UINT token);
 
-	};
+	};	
 
 }

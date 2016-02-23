@@ -40,8 +40,8 @@ bool wx_editor_gui::init(wxWindow * window, scene * scene, renderer_configuratio
 	m_manager->AddPane(renderingNotebook, wxLEFT, _(""));
 	m_manager->AddPane(sceneNotebook, wxRIGHT, _(""));
 
-	m_manager->GetPane(renderingNotebook).name = "wx_editor_gui::rendering_notebook";
-	m_manager->GetPane(sceneNotebook).name     = "wx_editor_gui::scene_notebook";
+	m_manager->GetPane(renderingNotebook).MinSize(wxSize(200, 250)).Name("wx_editor_gui::rendering_notebook");
+	m_manager->GetPane(sceneNotebook).MinSize(wxSize(200, 250)).Name("wx_editor_gui::scene_notebook");
 
 	sceneNotebook->Thaw();
 	renderingNotebook->Thaw();
@@ -211,21 +211,21 @@ void wx_editor_gui::create_skylight_page(wxAuiNotebook * notebook)
 	wxStaticBoxSizer * ambientSizer = new wxStaticBoxSizer(wxVERTICAL, skylight, _("Ambient Light"));
 
 	skySizer->Add(new wxStaticText(skySizer->GetStaticBox(), wxID_ANY, _("Zenith")), 0, wxEXPAND | wxALL, padding);
-	skySizer->Add(FUSE_WX_SLIDER(skySizer->GetStaticBox(), float, m_scene->get_skybox()->get_zenith, m_scene->get_skybox()->set_zenith, 0, half_pi<float>()), 0, wxEXPAND | wxALL, padding);
+	skySizer->Add(FUSE_WX_SLIDER(skySizer->GetStaticBox(), float, m_scene->get_skydome()->get_zenith, m_scene->get_skydome()->set_zenith, 0, half_pi<float>()), 0, wxEXPAND | wxALL, padding);
 
 	skySizer->Add(new wxStaticText(skySizer->GetStaticBox(), wxID_ANY, _("Azimuth")), 0, wxEXPAND | wxALL, padding);
-	skySizer->Add(FUSE_WX_SLIDER(skySizer->GetStaticBox(), float, m_scene->get_skybox()->get_azimuth, m_scene->get_skybox()->set_azimuth, -pi<float>(), pi<float>()), 0, wxEXPAND | wxALL, padding);
+	skySizer->Add(FUSE_WX_SLIDER(skySizer->GetStaticBox(), float, m_scene->get_skydome()->get_azimuth, m_scene->get_skydome()->set_azimuth, -pi<float>(), pi<float>()), 0, wxEXPAND | wxALL, padding);
 
 	skySizer->Add(new wxStaticText(skySizer->GetStaticBox(), wxID_ANY, _("Turbidity")), 0, wxEXPAND | wxALL, padding);
-	skySizer->Add(FUSE_WX_SPIN(skySizer->GetStaticBox(), float, m_scene->get_skybox()->get_turbidity, m_scene->get_skybox()->set_turbidity, 1, 10, 0.1f), 0, wxEXPAND | wxALL, padding);
+	skySizer->Add(FUSE_WX_SLIDER(skySizer->GetStaticBox(), float, m_scene->get_skydome()->get_turbidity, m_scene->get_skydome()->set_turbidity, 1, 10), 0, wxEXPAND | wxALL, padding);
 
 	sizer->Add(skySizer, 0, wxEXPAND | wxALL, padding);
 
 	ambientSizer->Add(new wxStaticText(ambientSizer->GetStaticBox(), wxID_ANY, _("Color")), 0, wxEXPAND | wxALL, padding);
-	ambientSizer->Add(new wx_color_picker([&](const color_rgb & color) { m_scene->get_skybox()->set_ambient_color(color); }, ambientSizer->GetStaticBox(), wxID_ANY, m_scene->get_skybox()->get_ambient_color()), 0, wxEXPAND | wxALL, padding);
+	ambientSizer->Add(new wx_color_picker([&](const color_rgb & color) { m_scene->get_skydome()->set_ambient_color(color); }, ambientSizer->GetStaticBox(), wxID_ANY, m_scene->get_skydome()->get_ambient_color()), 0, wxEXPAND | wxALL, padding);
 
 	ambientSizer->Add(new wxStaticText(ambientSizer->GetStaticBox(), wxID_ANY, _("Intensity")), 0, wxEXPAND | wxALL, padding);
-	ambientSizer->Add(FUSE_WX_SPIN(ambientSizer->GetStaticBox(), float, m_scene->get_skybox()->get_ambient_intensity, m_scene->get_skybox()->set_ambient_intensity, 0, 100, 0.1f), 0, wxEXPAND | wxALL, padding);
+	ambientSizer->Add(FUSE_WX_SPIN(ambientSizer->GetStaticBox(), float, m_scene->get_skydome()->get_ambient_intensity, m_scene->get_skydome()->set_ambient_intensity, 0, 100, 0.1f), 0, wxEXPAND | wxALL, padding);
 
 	sizer->Add(ambientSizer, 0, wxEXPAND | wxALL, padding);
 
@@ -256,9 +256,12 @@ void wx_editor_gui::create_debug_page(wxAuiNotebook * notebook)
 		drawSizer->Add(new wx_checkbox(
 			[&](bool value) {
 				if (value) m_visualDebugger->add_persistent("camera", m_scene->get_active_camera()->get_frustum(), color_rgba(0, 1, 0, 1));
-				else m_visualDebugger->remove_presistent("camera");
+				else m_visualDebugger->remove_persistent("camera");
 			},
 			drawSizer->GetStaticBox(), wxID_ANY, _("Current Camera Frustum"), m_visualDebugger->get_draw_bounding_volumes()), 0, wxEXPAND | wxALL, padding);
+
+		drawSizer->Add(new wx_checkbox([&](bool value) { m_visualDebugger->set_draw_skydome(value); },
+			drawSizer->GetStaticBox(), wxID_ANY, _("Skydome"), m_visualDebugger->get_draw_skydome()), 0, wxEXPAND | wxALL, padding);
 
 		sizer->Add(drawSizer, 0, wxEXPAND | wxALL, padding);
 

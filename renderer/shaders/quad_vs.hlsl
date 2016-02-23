@@ -46,7 +46,7 @@ QuadInput quad_vs(VSInput input)
 #endif
 
 #ifdef QUAD_VIEW_RAY
-	output.viewRay = float3(output.positionCS.xy, 1);
+	output.viewRay = normalize(float3(output.positionCS.xy, 1));
 #endif
 
 	return output;

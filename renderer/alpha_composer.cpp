@@ -9,7 +9,7 @@ using namespace fuse;
 bool alpha_composer::init(ID3D12Device * device, const alpha_composer_configuration & cfg)
 {
 	m_configuration = cfg;
-	return create_psos(device);
+	return create_debug_pso(device);
 }
 
 void alpha_composer::shutdown(void)
@@ -47,7 +47,7 @@ void alpha_composer::render(
 
 }
 
-bool alpha_composer::create_psos(ID3D12Device * device)
+bool alpha_composer::create_debug_pso(ID3D12Device * device)
 {
 
 	com_ptr<ID3DBlob> quadVS, composerPS;
