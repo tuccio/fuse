@@ -41,11 +41,10 @@ namespace fuse
 
 		skydome & operator= (skydome &&) = default;
 
-		bool init(ID3D12Device * device, uint32_t resolution = 128u, uint32_t buffers = 1);
+		bool init(ID3D12Device * device, uint32_t width, uint32_t height, uint32_t buffers = 1);
 		void shutdown(void);
 
 		render_resource & get_current_skydome(void);
-		render_resource & get_current_skydome_2(void);
 
 		light get_sun_light(void);
 
@@ -64,9 +63,7 @@ namespace fuse
 		float     m_ambientIntensity;
 
 		bool      m_uptodate;
-
-		std::vector<render_resource> m_cubemaps;
-		uint32_t m_lastUpdatedBuffer;
+		uint32_t  m_lastUpdatedBuffer;
 
 		std::vector<render_resource> m_skydomes;
 
@@ -129,14 +126,6 @@ namespace fuse
 		bool create_nishita_pso(ID3D12Device * device);
 
 		bool render_sky_nishita(
-			ID3D12Device * device,
-			gpu_command_queue & commandQueue,
-			gpu_graphics_command_list & commandList,
-			gpu_ring_buffer & ringBuffer,
-			skydome & skydome,
-			uint32_t bufferIndex);
-
-		bool render_sky_nishita_2(
 			ID3D12Device * device,
 			gpu_command_queue & commandQueue,
 			gpu_graphics_command_list & commandList,

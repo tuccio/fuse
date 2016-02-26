@@ -7,49 +7,10 @@ using namespace fuse;
 
 #define SKYDOME_FORMAT DXGI_FORMAT_R16G16B16A16_FLOAT
 
-bool skydome::init(ID3D12Device * device, uint32_t resolution, uint32_t buffers)
+bool skydome::init(ID3D12Device * device, uint32_t width, uint32_t height, uint32_t buffers)
 {
 
 	m_uptodate = false;
-
-	m_cubemaps.resize(buffers);
-
-	for (auto & cubemap : m_cubemaps)
-	{
-
-		if (cubemap.create(
-			device,
-			&CD3DX12_RESOURCE_DESC::Tex2D(
-				SKYDOME_FORMAT,
-				resolution, resolution,
-				6, 0, 1, 0,
-				D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET),
-			D3D12_RESOURCE_STATE_RENDER_TARGET,
-			&CD3DX12_CLEAR_VALUE(SKYDOME_FORMAT, &std::array<float, 4>()[0])))
-		{
-
-			D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-
-			srvDesc.Format                  = SKYDOME_FORMAT;
-			srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-			srvDesc.ViewDimension           = D3D12_SRV_DIMENSION_TEXTURECUBE;
-			srvDesc.TextureCube.MipLevels   = -1;
-
-			cubemap.create_render_target_view(device);
-			cubemap.create_shader_resource_view(device, &srvDesc);
-
-			cubemap->SetName(L"fuse_skydome_cubemap");
-
-		}
-		else
-		{
-			shutdown();
-			return false;
-		}
-
-	}
-
-	m_resolution = resolution;
 
 	/* uv */
 
@@ -68,7 +29,7 @@ bool skydome::init(ID3D12Device * device, uint32_t resolution, uint32_t buffers)
 				1, 0, 1, 0,
 				D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET),
 			D3D12_RESOURCE_STATE_RENDER_TARGET,
-			&CD3DX12_CLEAR_VALUE(SKYDOME_FORMAT, &std::array<float, 4>()[0])))
+			&CD3DX12_CLEAR_VALUE(SKYDOME_FORMAT, color_rgba::zero)))
 		{
 
 			skydome.create_render_target_view(device);
@@ -91,15 +52,10 @@ bool skydome::init(ID3D12Device * device, uint32_t resolution, uint32_t buffers)
 
 void skydome::shutdown(void)
 {
-	m_cubemaps.clear();
+	m_skydomes.clear();
 }
 
 render_resource & skydome::get_current_skydome(void)
-{
-	return m_cubemaps[m_lastUpdatedBuffer];
-}
-
-render_resource & skydome::get_current_skydome_2(void)
 {
 	return m_skydomes[m_lastUpdatedBuffer];
 }
@@ -189,14 +145,14 @@ void skydome_renderer::render(
 	if (!sky.m_uptodate || flags & FUSE_SKYDOME_FLAG_FORCE_UPDATE)
 	{
 
-		uint32_t bufferIndex = (sky.m_lastUpdatedBuffer + 1) % sky.m_cubemaps.size();
+		uint32_t bufferIndex = (sky.m_lastUpdatedBuffer + 1) % sky.m_skydomes.size();
 		
 		if (render_sky_nishita(device, commandQueue, commandList, ringBuffer, sky, bufferIndex))
 		{
 			sky.m_lastUpdatedBuffer = bufferIndex;
 		}
 		
-		render_sky_nishita_2(device, commandQueue, commandList, ringBuffer, sky, bufferIndex);
+		render_sky_nishita(device, commandQueue, commandList, ringBuffer, sky, bufferIndex);
 
 	}
 
@@ -372,56 +328,6 @@ bool skydome_renderer::render_sky_nishita(
 	uint32_t bufferIndex)
 {
 
-	render_resource & cubemap = sky.m_cubemaps[bufferIndex];
-
-	D3D12_GPU_VIRTUAL_ADDRESS address;
-
-	if (void * cbData = ringBuffer.allocate_constant_buffer(device, commandQueue, sizeof(cbSkydome), &address))
-	{
-
-		auto rtv = cubemap.get_rtv_cpu_descriptor_handle();
-
-		cbSkydome skydata;
-
-		skydome_nishita_setup(skydata, sky.get_zenith(), sky.get_azimuth(), sky.get_turbidity());
-
-		memcpy(cbData, &skydata, sizeof(cbSkydome));
-
-		commandList->SetPipelineState(m_pso.get());
-
-		commandList.resource_barrier_transition(cubemap.get(), D3D12_RESOURCE_STATE_RENDER_TARGET);
-
-		float black[4] = { 0 };
-		commandList->ClearRenderTargetView(rtv, black, 0, nullptr);
-
-		commandList->SetGraphicsRootSignature(m_rs.get());
-		commandList->SetGraphicsRootConstantBufferView(0, address);
-
-		commandList->OMSetRenderTargets(1, &rtv, false, nullptr);
-
-		commandList->RSSetViewports(1, &make_fullscreen_viewport(sky.get_resolution(), sky.get_resolution()));
-		commandList->RSSetScissorRects(1, &make_fullscreen_scissor_rect(sky.get_resolution(), sky.get_resolution()));
-
-		commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
-		commandList->DrawInstanced(4, 6, 0, 0);
-
-		return true;
-
-	}
-
-	return false;
-
-}
-
-bool skydome_renderer::render_sky_nishita_2(
-	ID3D12Device * device,
-	gpu_command_queue & commandQueue,
-	gpu_graphics_command_list & commandList,
-	gpu_ring_buffer & ringBuffer,
-	skydome & sky,
-	uint32_t bufferIndex)
-{
-
 	render_resource & skydomeRT = sky.m_skydomes[bufferIndex];
 
 	D3D12_GPU_VIRTUAL_ADDRESS address;
@@ -441,8 +347,7 @@ bool skydome_renderer::render_sky_nishita_2(
 
 		commandList.resource_barrier_transition(skydomeRT.get(), D3D12_RESOURCE_STATE_RENDER_TARGET);
 
-		float black[4] = { 0 };
-		commandList->ClearRenderTargetView(rtv, black, 0, nullptr);
+		commandList->ClearRenderTargetView(rtv, color_rgba::zero, 0, nullptr);
 
 		commandList->SetGraphicsRootSignature(m_nishitaSkydomeRS.get());
 		commandList->SetGraphicsRootConstantBufferView(0, address);

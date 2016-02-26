@@ -10,7 +10,10 @@ render_resource::render_resource(void) :
 	m_srvToken(FUSE_POOL_INVALID),
 	m_dsvToken(FUSE_POOL_INVALID) { }
 
-render_resource::~render_resource(void) { }
+render_resource::~render_resource(void)
+{
+	clear();
+}
 
 bool render_resource::create(ID3D12Device * device, const D3D12_RESOURCE_DESC * desc, D3D12_RESOURCE_STATES initialState, const D3D12_CLEAR_VALUE * clearValue)
 {

@@ -1,6 +1,5 @@
 #pragma once
 
-
 #include <fuse/render_resource.hpp>
 #include <fuse/singleton.hpp>
 #include <fuse/lockable.hpp>
@@ -8,6 +7,8 @@
 #include <map>
 #include <memory>
 #include <vector>
+
+#define FUSE_RENDER_RESOURCE_INVALID_ID ((UINT) (-1))
 
 namespace fuse
 {
@@ -21,10 +22,10 @@ namespace fuse
 
 		struct render_resource_wrapper
 		{
-			D3D12_RESOURCE_DESC description;
-			UINT bufferIndex;
+			D3D12_RESOURCE_DESC  description;
+			UINT                 bufferIndex;
 			render_resource_id_t id;
-			bool usageFlag;
+			bool                 usageFlag;		
 		};
 
 		class render_resource_handle
@@ -32,13 +33,19 @@ namespace fuse
 
 		public:
 
-			render_resource_handle(void) : m_resource(nullptr), m_id((UINT)-1) {}
+			render_resource_handle(void) : m_resource(nullptr), m_id(FUSE_RENDER_RESOURCE_INVALID_ID) {}
 			render_resource_handle(const render_resource_handle &) = delete;
-			render_resource_handle(render_resource_handle && r) : m_resource(nullptr), m_id((UINT)-1) { swap(r); }
+			render_resource_handle(render_resource_handle && r) : m_resource(nullptr), m_id(FUSE_RENDER_RESOURCE_INVALID_ID) { swap(r); }
 
 			~render_resource_handle(void);
 
-			render_resource_handle & operator= (render_resource_handle && r) { swap(r); return *this; }
+			render_resource_handle & operator= (const render_resource_handle & r) = delete;
+
+			render_resource_handle & operator= (render_resource_handle && r)
+			{
+				swap(r);
+				return *this;
+			}
 
 			void reset(void);
 
@@ -52,7 +59,7 @@ namespace fuse
 
 
 			render_resource_handle(render_resource * r, render_resource_id_t id) :
-				m_resource(r), m_id(id) { }
+				m_resource(r), m_id(id) {}
 
 			render_resource_id_t m_id;
 			const render_resource * m_resource;
@@ -92,7 +99,7 @@ namespace fuse
 
 	private:
 
-		std::vector<detail::render_resource_wrapper*> m_descriptionMap;
+		std::multimap<uint64_t, detail::render_resource_wrapper*> m_descriptionMap;
 
 		std::vector<std::pair<render_resource*, detail::render_resource_wrapper*>> m_resources;
 

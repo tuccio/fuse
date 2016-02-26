@@ -175,8 +175,10 @@ bool text_renderer::create_pso(ID3D12Device * device)
 
 		psoDesc.BlendState                             = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
 		psoDesc.BlendState.RenderTarget[0].BlendEnable = TRUE;
-		psoDesc.BlendState.RenderTarget[0].SrcBlend    = D3D12_BLEND_SRC_ALPHA;
-		psoDesc.BlendState.RenderTarget[0].DestBlend   = D3D12_BLEND_INV_SRC_ALPHA;
+		//psoDesc.BlendState.RenderTarget[0].SrcBlend    = D3D12_BLEND_SRC_ALPHA;
+		//psoDesc.BlendState.RenderTarget[0].DestBlend   = D3D12_BLEND_INV_SRC_ALPHA;
+		psoDesc.BlendState.RenderTarget[0].SrcBlend    = D3D12_BLEND_ONE;
+		psoDesc.BlendState.RenderTarget[0].DestBlend   = D3D12_BLEND_ZERO;
 		psoDesc.RasterizerState                        = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
 		psoDesc.DepthStencilState                      = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
 		psoDesc.DepthStencilState.DepthEnable          = FALSE;

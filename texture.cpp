@@ -1,3 +1,4 @@
+#include <fuse/color.hpp>
 #include <fuse/texture.hpp>
 #include <fuse/resource_factory.hpp>
 #include <fuse/gpu_global_resource_state.hpp>
@@ -30,10 +31,8 @@ bool texture::create(
 		dataDesc.pData    = image->get_data();
 		dataDesc.RowPitch = image->get_size();
 
-		float black[4] = { 0 };
-
 		D3D12_CLEAR_VALUE * clearValue = nullptr;
-		CD3DX12_CLEAR_VALUE rtvClearValue(format, black);
+		CD3DX12_CLEAR_VALUE rtvClearValue(format, color_rgba::zero);
 
 		if (generateMipmaps)
 		{

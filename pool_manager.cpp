@@ -67,6 +67,7 @@ void pool_manager::free(pool_size_t offset, pool_size_t elements)
 
 void pool_manager::clear(void)
 {
+	m_objectsCount = 0;
 	m_freeChunks.clear();
 }
 

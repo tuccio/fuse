@@ -5,7 +5,7 @@
 namespace fuse
 {
 
-	union color_rgb
+	struct color_rgb
 	{
 
 		color_rgb(void) = default;
@@ -16,12 +16,15 @@ namespace fuse
 
 		color_rgb & operator= (const color_rgb &) = default;
 
-		struct
+		union
 		{
-			float r, g, b;
-		};
+			struct
+			{
+				float r, g, b;
+			};
 
-		float v[3];
+			float v[3];
+		};
 
 		inline color_rgb operator* (float s) const { return color_rgb(r * s, g * s, b * s); }
 		inline color_rgb operator/ (float s) const { return color_rgb(r / s, g / s, b / s); }
@@ -30,9 +33,23 @@ namespace fuse
 		inline color_rgb operator+ (const color_rgb & color) const { return color_rgb(r + color.r, g + color.g, b + color.b); }
 		inline color_rgb operator- (const color_rgb & color) const { return color_rgb(r - color.r, g - color.g, b - color.b); }
 
+		inline operator float* () { return v; }
+		inline operator const float* () const { return v; }
+
+		/* Constants */
+
+		static const color_rgb black;
+		static const color_rgb white;
+		static const color_rgb red;
+		static const color_rgb green;
+		static const color_rgb blue;
+		static const color_rgb yellow;
+		static const color_rgb purple;
+		static const color_rgb cyan;
+
 	};
 
-	union color_rgba
+	struct color_rgba
 	{
 
 		color_rgba(void) = default;
@@ -46,12 +63,17 @@ namespace fuse
 
 		color_rgba & operator= (const color_rgba &) = default;
 
-		struct
+		union
 		{
-			float r, g, b, a;
-		};
 
-		float v[4];
+			struct
+			{
+				float r, g, b, a;
+			};
+
+			float v[4];
+
+		};
 
 		inline color_rgba operator* (float s) const { return color_rgba(r * s, g * s, b * s, a * s); }
 		inline color_rgba operator/ (float s) const { return color_rgba(r / s, g / s, b / s, a / s); }
@@ -59,6 +81,21 @@ namespace fuse
 		inline color_rgba operator* (const color_rgba & color) const { return color_rgba(r * color.r, g * color.g, b * color.b, a * color.a); }
 		inline color_rgba operator+ (const color_rgba & color) const { return color_rgba(r + color.r, g + color.g, b + color.b, a + color.a); }
 		inline color_rgba operator- (const color_rgba & color) const { return color_rgba(r - color.r, g - color.g, b - color.b, a - color.a); }
+
+		inline operator float* () { return v; }
+		inline operator const float* () const { return v; }
+
+		/* Constants */
+
+		static const color_rgba zero;
+		static const color_rgba black;
+		static const color_rgba white;
+		static const color_rgba red;
+		static const color_rgba green;
+		static const color_rgba blue;
+		static const color_rgba yellow;
+		static const color_rgba purple;
+		static const color_rgba cyan;
 
 	};
 

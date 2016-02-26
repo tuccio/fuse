@@ -22,7 +22,7 @@ namespace fuse
 
 	public:
 
-		bool init(wxWindow * window, scene * scene, renderer_configuration * r, visual_debugger * debugger);
+		bool init(wxWindow * window, scene * scene, render_configuration * r, visual_debugger * debugger);
 		void shutdown(void);
 
 	private:
@@ -32,7 +32,7 @@ namespace fuse
 
 
 		scene * m_scene;
-		renderer_configuration * m_rendererConfiguration;
+		render_configuration * m_rendererConfiguration;
 		visual_debugger * m_visualDebugger;
 
 		void create_shadow_mapping_page(wxAuiNotebook * notebook);

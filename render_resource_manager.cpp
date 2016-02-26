@@ -7,23 +7,15 @@
 using namespace fuse;
 using namespace fuse::detail;
 
-#define FUSE_RENDER_RESOURCE_INVALID_ID ((UINT) (-1))
-
-namespace std
+static inline uint64_t compute_ordering_key(const render_resource_wrapper & rrw)
 {
-
-	template <>
-	struct less<render_resource_wrapper *>
-	{
-		bool operator() (const render_resource_wrapper * lhs, const render_resource_wrapper * rhs)
-		{
-			return lhs->bufferIndex < rhs->bufferIndex &&
-				(UINT)lhs->description.Format < (UINT)rhs->description.Format &&
-				lhs->description.Width < rhs->description.Width &&
-				lhs->description.Height < rhs->description.Height;
-		}
-	};
-
+	// [ ..., bufferIndex (5 bits), DXGI_FORMAT (8 bits), Width (13 bits), Height (13 bits) ]
+	uint64_t key;
+	key = (rrw.description.Height & 0x1FFFULL);
+	key |= (rrw.description.Width & 0x1FFFULL) << 13;
+	key |= (rrw.description.Format & 0xFFULL) << 26;
+	key |= (rrw.bufferIndex & 0x1FULL) << 34;
+	return key;
 }
 
 render_resource_id_t render_resource_manager::find_texture_2d(UINT bufferIndex, const D3D12_RESOURCE_DESC & description)
@@ -33,16 +25,22 @@ render_resource_id_t render_resource_manager::find_texture_2d(UINT bufferIndex, 
 
 	render_resource_wrapper resourceWrapper = { description, bufferIndex, 0, false };
 
-	auto eqr = std::equal_range(m_descriptionMap.begin(), m_descriptionMap.end(), &resourceWrapper, std::less<render_resource_wrapper *>());
+	auto eqr = m_descriptionMap.equal_range(compute_ordering_key(resourceWrapper));
 
 	for (auto it = eqr.first; it != eqr.second; it++)
 	{
 
-		render_resource_wrapper * pIt = (*it);
+		render_resource_wrapper * pIt = it->second;
+
+		assert(pIt->description.Width == description.Width &&
+			pIt->description.Height == description.Height &&
+			pIt->description.Format == description.Format &&
+			pIt->bufferIndex == bufferIndex &&
+			"The retrieved resource doesn't match with the one requested (this most likely indicates a bug in the key ordering).");
 
 		if (pIt->usageFlag == false &&
-			description.Width == pIt->description.Width &&
-			description.Height == pIt->description.Height &&
+			//description.Width == pIt->description.Width &&
+			//description.Height == pIt->description.Height &&
 			(description.Flags & pIt->description.Flags) == description.Flags &&
 			description.SampleDesc.Count == pIt->description.SampleDesc.Count &&
 			description.SampleDesc.Quality == pIt->description.SampleDesc.Quality &&
@@ -65,7 +63,7 @@ render_resource_id_t render_resource_manager::create_texture_2d(ID3D12Device * d
 
 	render_resource_wrapper resourceWrapper = { description, bufferIndex, id, false };
 
-	auto it = std::upper_bound(m_descriptionMap.begin(), m_descriptionMap.end(), &resourceWrapper, std::less<render_resource_wrapper *>());
+	auto it = m_descriptionMap.upper_bound(compute_ordering_key(resourceWrapper));
 
 	render_resource * resource = new render_resource;
 
@@ -77,8 +75,10 @@ render_resource_id_t render_resource_manager::create_texture_2d(ID3D12Device * d
 
 	render_resource_wrapper * pResourceWrapper = new render_resource_wrapper(resourceWrapper);
 
+	compute_ordering_key(*pResourceWrapper);
+
 	m_resources.emplace_back(resource, pResourceWrapper);
-	it = m_descriptionMap.insert(it, pResourceWrapper);
+	m_descriptionMap.emplace(compute_ordering_key(*pResourceWrapper), pResourceWrapper);
 
 	return id;
 
@@ -144,7 +144,10 @@ render_resource_ptr render_resource_manager::get_texture_2d(
 
 void render_resource_manager::release_texture_2d(render_resource_id_t id)
 {
-	m_resources[id].second->usageFlag = false;	
+	if (id < m_resources.size())
+	{
+		m_resources[id].second->usageFlag = false;
+	}
 }
 
 void render_resource_manager::clear(void)
@@ -175,6 +178,7 @@ void render_resource_manager::clear(void)
 	for (auto & r : m_resources)
 	{
 		delete r.first;
+		delete r.second;
 	}
 
 	m_resources.clear();
@@ -193,7 +197,6 @@ void render_resource_handle::reset(void)
 	{
 		render_resource_manager::get_singleton_pointer()->release_texture_2d(m_id);
 		m_resource = nullptr;
-		m_id = (UINT)-1;
+		m_id       = FUSE_RENDER_RESOURCE_INVALID_ID;
 	}
-	
 }

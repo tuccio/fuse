@@ -19,13 +19,13 @@ namespace fuse
 
 		public:
 
-			scoped_templ_descriptor(void) :
+			scoped_templ_descriptor(void)
 			{
 				m_token = DescriptorHeapType::get_singleton_pointer()->allocate();
 				m_count = 1;
 			}
 
-			scoped_templ_descriptor(uint32_t count) :
+			scoped_templ_descriptor(uint32_t count)
 			{
 				m_token = DescriptorHeapType::get_singleton_pointer()->allocate(count);
 				m_count = count;
@@ -34,22 +34,31 @@ namespace fuse
 			scoped_templ_descriptor(descriptor_token_t token, uint32_t count) :
 				m_token(token), m_count(count) {}
 
-			scoped_templ_descriptor(scoped_templ_descriptor &&) = delete;
+			scoped_templ_descriptor(scoped_templ_descriptor && rhs) :
+				m_token(rhs.m_token), m_count(rhs.m_count) {}
+
 			scoped_templ_descriptor(const scoped_templ_descriptor &) = delete;
+
+			scoped_templ_descriptor & operator=(scoped_templ_descriptor &&) = default;
 
 			D3D12_CPU_DESCRIPTOR_HANDLE get_cpu_descriptor_handle(void) const
 			{
 				return DescriptorHeapType::get_singleton_pointer()->get_cpu_descriptor_handle(m_token);
 			}
 
-			D3D12_GPU_DESCRIPTOR_HANDLE get_cpu_descriptor_handle(void) const
+			D3D12_GPU_DESCRIPTOR_HANDLE get_gpu_descriptor_handle(void) const
 			{
 				return DescriptorHeapType::get_singleton_pointer()->get_gpu_descriptor_handle(m_token);
 			}
 
 			~scoped_templ_descriptor(void)
 			{
-				gpu_render_context::get_singleton_pointer()->get_command_queue().safe_release(m_token, m_count);
+				gpu_render_context::get_singleton_pointer()->get_command_queue().safe_release(DescriptorHeapType::get_singleton_pointer(), m_token, m_count);
+			}
+
+			inline static UINT get_descriptor_size(void)
+			{
+				return DescriptorHeapType::get_singleton_pointer()->get_descriptor_size();
 			}
 
 		private:

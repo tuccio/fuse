@@ -12,7 +12,7 @@
 
 using namespace fuse;
 
-bool wx_editor_gui::init(wxWindow * window, scene * scene, renderer_configuration * r, visual_debugger * visualDebugger)
+bool wx_editor_gui::init(wxWindow * window, scene * scene, render_configuration * r, visual_debugger * visualDebugger)
 {
 
 	m_window  = window;

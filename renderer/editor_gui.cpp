@@ -23,7 +23,7 @@ editor_gui::~editor_gui(void)
 	shutdown();
 }
 
-bool editor_gui::init(scene * scene, renderer_configuration * r)
+bool editor_gui::init(scene * scene, render_configuration * r)
 {
 
 	m_context = Rocket::Core::CreateContext("editor_gui", Rocket::Core::Vector2i(256, 256));
@@ -825,7 +825,7 @@ void light_panel::next_light(void)
 
 /* render_options */
 
-bool render_options::init(Rocket::Core::Context * context, renderer_configuration * r)
+bool render_options::init(Rocket::Core::Context * context, render_configuration * r)
 {
 
 	m_configuration = r;

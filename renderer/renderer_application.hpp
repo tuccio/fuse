@@ -26,8 +26,6 @@ namespace fuse
 	private:
 
 		static void upload_per_frame_resources(ID3D12Device * device, gpu_command_queue & commandQueue, gpu_graphics_command_list & commandList, gpu_ring_buffer & ringBuffer, ID3D12Resource * cbPerFrameBuffer);
-		static bool create_shadow_map_resources(ID3D12Device * device, bool createBuffers = true);
-
 		static void update_renderer_configuration(ID3D12Device * device, gpu_command_queue & commandQueue);
 
 		static void draw_gui(ID3D12Device * device, gpu_command_queue & commandQueue, gpu_graphics_command_list & commandList, gpu_ring_buffer & ringBuffer, const render_resource & renderTarget);

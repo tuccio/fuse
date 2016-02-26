@@ -331,7 +331,7 @@ void deferred_renderer::render_skydome(
 
 	commandList.resource_barrier_transition(sky.get_current_skydome().get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
-	commandList->SetGraphicsRootDescriptorTable(1, sky.get_current_skydome_2().get_srv_gpu_descriptor_handle());
+	commandList->SetGraphicsRootDescriptorTable(1, sky.get_current_skydome().get_srv_gpu_descriptor_handle());
 
 	commandList->SetGraphicsRootConstantBufferView(0, cbPerFrame);
 	commandList->OMSetStencilRef(0);

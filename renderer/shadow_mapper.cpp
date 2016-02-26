@@ -48,13 +48,11 @@ void shadow_mapper::render(
 	else
 	{
 
-		float black[4] = { 0 };
-
 		commandList.resource_barrier_transition(renderTarget.get(), D3D12_RESOURCE_STATE_RENDER_TARGET);
 
 		auto rtv = renderTarget.get_rtv_cpu_descriptor_handle();
 
-		commandList->ClearRenderTargetView(rtv, black, 0, nullptr);
+		commandList->ClearRenderTargetView(rtv, color_rgba::zero, 0, nullptr);
 		commandList->OMSetRenderTargets(1, &rtv, false, &dsv);
 
 	}

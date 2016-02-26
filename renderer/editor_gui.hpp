@@ -71,13 +71,13 @@ namespace fuse
 
 		public:
 
-			bool init(Rocket::Core::Context * context, renderer_configuration * r);
+			bool init(Rocket::Core::Context * context, render_configuration * r);
 
 			void ProcessEvent(Rocket::Core::Event & event) override;
 
 		private:
 
-			renderer_configuration * m_configuration;
+			render_configuration * m_configuration;
 			bool m_filling;
 
 			void fill_form(void);
@@ -173,7 +173,7 @@ namespace fuse
 
 		~editor_gui(void);
 		
-		bool init(scene * scene, renderer_configuration * r);
+		bool init(scene * scene, render_configuration * r);
 		void shutdown(void);
 
 		void on_resize(UINT width, UINT height);

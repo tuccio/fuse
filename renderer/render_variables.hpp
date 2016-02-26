@@ -4,13 +4,15 @@
 
 #include <set>
 
-#define FUSE_RENDERER_VARIABLE(MemberType, Variable, Property, DefaultValue) \
-	private: MemberType m_rvar ## Property = DefaultValue; public: \
+#define FUSE_RENDERER_VARIABLE(MemberType, Variable, Property, ...) \
+	private: MemberType m_rvar ## Property = MemberType(__VA_ARGS__); public: \
 	inline void set_ ## Property (const MemberType & value) { m_rvar ## Property = value; m_updatedVars.insert(Variable); }\
 	inline MemberType get_ ## Property (void) const { return m_rvar ## Property; }
 
 enum render_variables
 {
+
+	FUSE_RVAR_RENDER_RESOLUTION,
 
 	FUSE_RVAR_SHADOW_MAP_RESOLUTION,
 
@@ -39,18 +41,20 @@ enum render_variables
 namespace fuse
 {
 
-	class renderer_configuration
+	class render_configuration
 	{
 
 	public:
 
-		renderer_configuration(void) = default;
-		renderer_configuration(const renderer_configuration &) = delete;
-		renderer_configuration(renderer_configuration &&) = delete;
+		render_configuration(void) = default;
+		render_configuration(const render_configuration &) = delete;
+		render_configuration(render_configuration &&) = delete;
 
 		std::set<render_variables> get_updates(void);
 
 	private:
+
+		FUSE_RENDERER_VARIABLE(XMUINT2, FUSE_RVAR_RENDER_RESOLUTION, render_resolution, 1280, 720)
 
 		FUSE_RENDERER_VARIABLE(uint32_t, FUSE_RVAR_SHADOW_MAP_RESOLUTION, shadow_map_resolution, 1024)
 
