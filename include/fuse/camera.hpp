@@ -50,8 +50,13 @@ namespace fuse
 			return -right();
 		}
 
-		XMMATRIX get_view_matrix(void) const;
-		XMMATRIX get_projection_matrix(void) const;
+		const XMMATRIX & get_world_matrix(void) const;
+		const XMMATRIX & get_view_matrix(void) const;
+		const XMMATRIX & get_projection_matrix(void) const;
+
+		void set_world_matrix(const XMMATRIX & matrix);
+		void set_view_matrix(const XMMATRIX & matrix);
+		void set_projection_matrix(const XMMATRIX & matrix);
 
 		float get_fovx(void) const;
 
@@ -78,6 +83,7 @@ namespace fuse
 		XMVECTOR m_position;
 		XMVECTOR m_orientation;
 
+		mutable XMMATRIX m_worldMatrix;
 		mutable XMMATRIX m_viewMatrix;
 		mutable XMMATRIX m_projectionMatrix;
 
@@ -87,9 +93,11 @@ namespace fuse
 		float    m_znear;
 		float    m_zfar;
 
+		mutable bool m_worldMatrixDirty;
 		mutable bool m_viewMatrixDirty;
 		mutable bool m_projectionMatrixDirty;
 
+		void update_world_matrix(void) const;
 		void update_view_matrix(void) const;
 		void update_projection_matrix(void) const;
 

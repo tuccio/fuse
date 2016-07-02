@@ -69,15 +69,15 @@ namespace fuse
 		XMVECTOR svec  = s.get_sphere_vector();
 		XMVECTOR msvec = - svec;
 
-		XMVECTOR zero = XMVectorZero();
+		XMVECTOR matrix_zero = XMVectorZero();
 
 		std::array<XMVECTOR, 6> points = {
-			XMVectorAdd(svec, XMVectorPermute<XM_PERMUTE_1W, XM_PERMUTE_0Y, XM_PERMUTE_0Z, XM_PERMUTE_0W>(zero, svec)),
-			XMVectorAdd(svec, XMVectorPermute<XM_PERMUTE_0X, XM_PERMUTE_1W, XM_PERMUTE_0Z, XM_PERMUTE_0W>(zero, svec)),
-			XMVectorAdd(svec, XMVectorPermute<XM_PERMUTE_0X, XM_PERMUTE_0Y, XM_PERMUTE_1W, XM_PERMUTE_0W>(zero, svec)),
-			XMVectorAdd(svec, XMVectorPermute<XM_PERMUTE_1W, XM_PERMUTE_0Y, XM_PERMUTE_0Z, XM_PERMUTE_0W>(zero, msvec)),
-			XMVectorAdd(svec, XMVectorPermute<XM_PERMUTE_0X, XM_PERMUTE_1W, XM_PERMUTE_0Z, XM_PERMUTE_0W>(zero, msvec)),
-			XMVectorAdd(svec, XMVectorPermute<XM_PERMUTE_0X, XM_PERMUTE_0Y, XM_PERMUTE_1W, XM_PERMUTE_0W>(zero, msvec))
+			XMVectorAdd(svec, XMVectorPermute<XM_PERMUTE_1W, XM_PERMUTE_0Y, XM_PERMUTE_0Z, XM_PERMUTE_0W>(matrix_zero, svec)),
+			XMVectorAdd(svec, XMVectorPermute<XM_PERMUTE_0X, XM_PERMUTE_1W, XM_PERMUTE_0Z, XM_PERMUTE_0W>(matrix_zero, svec)),
+			XMVectorAdd(svec, XMVectorPermute<XM_PERMUTE_0X, XM_PERMUTE_0Y, XM_PERMUTE_1W, XM_PERMUTE_0W>(matrix_zero, svec)),
+			XMVectorAdd(svec, XMVectorPermute<XM_PERMUTE_1W, XM_PERMUTE_0Y, XM_PERMUTE_0Z, XM_PERMUTE_0W>(matrix_zero, msvec)),
+			XMVectorAdd(svec, XMVectorPermute<XM_PERMUTE_0X, XM_PERMUTE_1W, XM_PERMUTE_0Z, XM_PERMUTE_0W>(matrix_zero, msvec)),
+			XMVectorAdd(svec, XMVectorPermute<XM_PERMUTE_0X, XM_PERMUTE_0Y, XM_PERMUTE_1W, XM_PERMUTE_0W>(matrix_zero, msvec))
 		};
 
 		return bounding_aabb(points.begin(), points.end());

@@ -11,6 +11,7 @@ using namespace fuse;
 #define OCTREE_MAX_DEPTH 9
 
 FUSE_DEFINE_ALIGNED_ALLOCATOR_NEW(renderable, 16)
+FUSE_DEFINE_ALIGNED_ALLOCATOR_NEW(scene, 16)
 
 static const XMFLOAT3 & to_xmfloat3(const aiVector3D & color)
 {

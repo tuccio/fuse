@@ -4,6 +4,7 @@
 #include <fuse/allocators.hpp>
 #include <fuse/camera.hpp>
 #include <fuse/geometry/loose_octree.hpp>
+#include <fuse/scene_graph.hpp>
 
 #include "light.hpp"
 #include "renderable.hpp"
@@ -31,6 +32,8 @@ namespace fuse
 	{
 
 	public:
+
+		FUSE_DECLARE_ALIGNED_ALLOCATOR_NEW(16)
 
 		scene(void) = default;
 		scene(const scene &) = delete;
@@ -73,6 +76,8 @@ namespace fuse
 		camera * m_activeCamera;
 
 		renderable_octree m_octree;
+
+		//scene_graph m_scene;
 
 	public:
 

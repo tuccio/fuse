@@ -16,6 +16,13 @@ camera::camera(void) :
 	m_viewMatrixDirty(true),
 	m_projectionMatrixDirty(true) { }
 
+void camera::update_world_matrix(void) const
+{
+	XMMATRIX rotation = XMMatrixRotationQuaternion(m_orientation);
+	m_worldMatrix = XMMatrixRotationQuaternion(m_orientation) * XMMatrixTranslationFromVector(m_position);
+	m_worldMatrixDirty = false;
+}
+
 void camera::update_view_matrix(void) const
 {
 
@@ -73,6 +80,7 @@ void camera::look_at(const XMFLOAT3 & eye, const XMFLOAT3 & up, const XMFLOAT3 &
 	m_orientation = XMQuaternionConjugate(XMQuaternionRotationMatrix(inverseRotation));
 
 	m_viewMatrixDirty = true;
+	m_worldMatrixDirty = true;
 
 }
 
@@ -84,7 +92,19 @@ void camera::set_projection(float fovy, float znear, float zfar)
 	m_projectionMatrixDirty = true;
 }
 
-XMMATRIX camera::get_view_matrix(void) const
+const XMMATRIX & camera::get_world_matrix(void) const
+{
+
+	if (m_worldMatrixDirty)
+	{
+		update_world_matrix();
+	}
+
+	return m_worldMatrix;
+
+}
+
+const XMMATRIX & camera::get_view_matrix(void) const
 {
 
 	if (m_viewMatrixDirty)
@@ -96,7 +116,7 @@ XMMATRIX camera::get_view_matrix(void) const
 
 }
 
-XMMATRIX camera::get_projection_matrix(void) const
+const XMMATRIX & camera::get_projection_matrix(void) const
 {
 
 	if (m_projectionMatrixDirty)
@@ -108,6 +128,29 @@ XMMATRIX camera::get_projection_matrix(void) const
 
 }
 
+void camera::set_world_matrix(const XMMATRIX & matrix)
+{
+	XMVECTOR scale;
+	bool success = XMMatrixDecompose(&scale, &m_orientation, &m_position, matrix);
+	assert(success && "Impossible to decompose the matrix");
+	m_worldMatrix = matrix;
+	m_worldMatrixDirty = false;
+	m_viewMatrixDirty  = true;
+}
+
+void camera::set_view_matrix(const XMMATRIX & matrix)
+{
+	XMMATRIX world = XMMatrixInverse(nullptr, matrix);
+	set_world_matrix(world);
+	m_viewMatrix = matrix;
+	m_viewMatrixDirty = false;
+}
+
+void camera::set_projection_matrix(const XMMATRIX & matrix)
+{
+	throw; // TODO
+}
+
 frustum camera::get_frustum(void) const
 {
 	return frustum(get_projection_matrix(), get_view_matrix());
@@ -116,36 +159,42 @@ frustum camera::get_frustum(void) const
 void camera::set_position(const XMVECTOR & position)
 {
 	m_position = position;
+	m_worldMatrixDirty = true;
 	m_viewMatrixDirty = true;
 }
 
 void camera::set_orientation(const XMVECTOR & orientation)
 {
 	m_orientation = orientation;
+	m_worldMatrixDirty = true;
 	m_viewMatrixDirty = true;
 }
 
 void camera::set_aspect_ratio(float aspectRatio)
 {
 	m_aspectRatio = aspectRatio;
+	m_worldMatrixDirty = true;
 	m_projectionMatrixDirty = true;
 }
 
 void camera::set_fovy(float fovy)
 {
 	m_fovy = fovy;
+	m_worldMatrixDirty = true;
 	m_projectionMatrixDirty = true;
 }
 
 void camera::set_znear(float znear)
 {
 	m_znear = znear;
+	m_worldMatrixDirty = true;
 	m_projectionMatrixDirty = true;
 }
 
 void camera::set_zfar(float zfar)
 {
 	m_zfar = zfar;
+	m_worldMatrixDirty = true;
 	m_projectionMatrixDirty = true;
 }
 
@@ -157,6 +206,7 @@ float camera::get_fovx(void) const
 void camera::set_fovx(float fovx)
 {
 	m_fovy = 2 * std::atan(std::tan(fovx * .5f) / m_aspectRatio);
+	m_worldMatrixDirty = true;
 	m_projectionMatrixDirty = true;
 }
 

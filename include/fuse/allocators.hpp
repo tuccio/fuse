@@ -101,18 +101,20 @@ namespace fuse
 
 }
 
+#define FUSE_ALLOCATOR_STATIC_MEMBER m_staticFuseAllocator
+
 #define FUSE_DECLARE_ALLOCATOR_NEW(Allocator) \
 private:\
-	static Allocator m_fuseAllocator;\
+	static Allocator FUSE_ALLOCATOR_STATIC_MEMBER;\
 public:\
-	inline void * operator new(size_t size) { return m_fuseAllocator.allocate_generic(size); }\
-	inline void * operator new(size_t size, const std::nothrow_t &) { return m_fuseAllocator.allocate_no_throw_generic(size); }\
+	inline void * operator new(size_t size) { return FUSE_ALLOCATOR_STATIC_MEMBER.allocate_generic(size); }\
+	inline void * operator new(size_t size, const std::nothrow_t &) { return FUSE_ALLOCATOR_STATIC_MEMBER.allocate_no_throw_generic(size); }\
 	inline void * operator new(size_t size, void * p){ return p; }\
-	inline void operator delete(void * p) { m_fuseAllocator.deallocate_generic(p, 1); }\
+	inline void operator delete(void * p) { FUSE_ALLOCATOR_STATIC_MEMBER.deallocate_generic(p, 1); }\
 	inline void operator delete(void * p, void * p2) { }
 
-#define FUSE_DEFINE_ALLOCATOR_NEW(Class, Allocator) Allocator Class::m_fuseAllocator;
+#define FUSE_DEFINE_ALLOCATOR_NEW(Class, Allocator) Allocator Class::FUSE_ALLOCATOR_STATIC_MEMBER;
 
 #define FUSE_ALIGNED_ALLOCATOR(Type, Alignment) fuse::aligned_allocator<Type, Alignment>
-#define FUSE_DECLARE_ALIGNED_ALLOCATOR_NEW(Alignment) FUSE_DECLARE_ALLOCATOR_NEW(FUSE_ALIGNED_ALLOCATOR(uint8_t, 16))
-#define FUSE_DEFINE_ALIGNED_ALLOCATOR_NEW(Class, Alignment) FUSE_DEFINE_ALLOCATOR_NEW(Class, FUSE_ALIGNED_ALLOCATOR(uint8_t, 16))
+#define FUSE_DECLARE_ALIGNED_ALLOCATOR_NEW(Alignment) FUSE_DECLARE_ALLOCATOR_NEW(FUSE_ALIGNED_ALLOCATOR(uint8_t, Alignment))
+#define FUSE_DEFINE_ALIGNED_ALLOCATOR_NEW(Class, Alignment) FUSE_DEFINE_ALLOCATOR_NEW(Class, FUSE_ALIGNED_ALLOCATOR(uint8_t, Alignment))
