@@ -1,6 +1,6 @@
 #include <fuse/pipeline_state.hpp>
 #include <fuse/compile_shader.hpp>
-#include <fuse/string.hpp>
+#include <fuse/core.hpp>
 
 #include <algorithm>
 #include <sstream>

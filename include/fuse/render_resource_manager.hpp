@@ -1,8 +1,7 @@
 #pragma once
 
 #include <fuse/render_resource.hpp>
-#include <fuse/singleton.hpp>
-#include <fuse/lockable.hpp>
+#include <fuse/core.hpp>
 
 #include <map>
 #include <memory>

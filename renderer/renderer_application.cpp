@@ -1,6 +1,6 @@
 #include "renderer_application.hpp"
 
-#include <fuse/logger.hpp>
+#include <fuse/core.hpp>
 
 #include <fuse/compile_shader.hpp>
 #include <fuse/pipeline_state.hpp>
@@ -493,8 +493,8 @@ void renderer_application::upload_per_frame_resources(ID3D12Device * device, gpu
 
 	camera * camera = g_scene.get_active_camera();
 
-	auto view              = camera->get_view_matrix();
-	auto projection        = camera->get_projection_matrix();
+	auto view              = XMMatrixTranspose(XMLoadFloat4x4((const XMFLOAT4X4*)&camera->get_view_matrix()));
+	auto projection        = XMMatrixTranspose(XMLoadFloat4x4((const XMFLOAT4X4*)&camera->get_projection_matrix()));
 	auto viewProjection    = XMMatrixMultiply(view, projection);
 	auto invViewProjection = XMMatrixInverse(&XMMatrixDeterminant(viewProjection), viewProjection);
 
@@ -502,7 +502,7 @@ void renderer_application::upload_per_frame_resources(ID3D12Device * device, gpu
 
 	/* Camera */
 
-	cbPerFrame.camera.position          = to_float3(camera->get_position());
+	cbPerFrame.camera.position          = reinterpret_cast<const XMFLOAT3&>(camera->get_position());
 	cbPerFrame.camera.fovy              = camera->get_fovy();
 	cbPerFrame.camera.aspectRatio       = camera->get_aspect_ratio();
 	cbPerFrame.camera.znear             = camera->get_znear();

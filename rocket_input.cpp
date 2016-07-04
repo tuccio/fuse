@@ -1,5 +1,6 @@
 #include <fuse/rocket_input.hpp>
-#include <fuse/logger.hpp>
+#include <fuse/core.hpp>
+
 #include <cctype>
 
 #define KEY_DOWN_LPARAM(Flags) (((KF_UP << 16) & Flags) == 0)

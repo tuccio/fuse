@@ -1,7 +1,7 @@
 #pragma once
 
 #include <fuse/directx_helper.hpp>
-#include <fuse/singleton.hpp>
+#include <fuse/core.hpp>
 #include <fuse/gpu_command_queue.hpp>
 #include <fuse/compile_shader.hpp>
 

@@ -158,6 +158,110 @@ bool test_eigen_dot(
 	return test_eigen_equals(r, e, tolerance);
 }
 
+bool test_eigen_det3(
+	const float3x3 & a,
+	float & r,
+	float & e,
+	float tolerance)
+{
+	Eigen::Matrix<float, 3, 3> e1;
+	test_eigen_load(a, e1);
+	r = determinant(a);
+	e = e1.determinant();
+	return test_eigen_equals(r, e, tolerance);
+}
+
+bool test_eigen_det4(
+	const float4x4 & a,
+	float & r,
+	float & e,
+	float tolerance)
+{
+	Eigen::Matrix<float, 4, 4> e1;
+	test_eigen_load(a, e1);
+	r = determinant(a);
+	e = e1.determinant();
+	return test_eigen_equals(r, e, tolerance);
+}
+
+bool test_eigen_inv3(
+	const float3x3 & a,
+	float3x3 & r,
+	Eigen::Matrix<float, 3, 3> & e,
+	float tolerance)
+{
+	Eigen::Matrix<float, 3, 3> e1;
+	test_eigen_load(a, e1);
+	r = inverse(a);
+	e = e1.inverse();
+	return test_eigen_equals(r, e, tolerance);
+}
+
+bool test_eigen_inv4(
+	const float4x4 & a,
+	float4x4 & r,
+	Eigen::Matrix<float, 4, 4> & e,
+	float tolerance)
+{
+	Eigen::Matrix<float, 4, 4> e1;
+	test_eigen_load(a, e1);
+	r = inverse(a);
+	e = e1.inverse();
+	return test_eigen_equals(r, e, tolerance);
+}
+
+bool test_eigen_len3_simd(
+	const vec128_f32 & a,
+	float & r,
+	float & e,
+	float tolerance)
+{
+	Eigen::Matrix<float, 1, 3> e1;
+	test_eigen_load(a.v3f, e1);
+	r = vec128_get_x(vec128_len3(a));
+	e = e1.norm();
+	return test_eigen_equals(r, e, tolerance);
+}
+
+bool test_eigen_len4_simd(
+	const vec128_f32 & a,
+	float & r,
+	float & e,
+	float tolerance)
+{
+	Eigen::Matrix<float, 1, 4> e1;
+	test_eigen_load(a.v4f, e1);
+	r = vec128_get_x(vec128_len4(a));
+	e = e1.norm();
+	return test_eigen_equals(r, e, tolerance);
+}
+
+bool test_eigen_normalize3_simd(
+	const vec128_f32 & a,
+	vec128_f32 & r,
+	Eigen::Matrix<float, 1, 3> & e,
+	float tolerance)
+{
+	Eigen::Matrix<float, 1, 3> e1;
+	test_eigen_load(a.v3f, e1);
+	r = vec128_normalize3(a);
+	e = e1.normalized();
+	return test_eigen_equals(r.v3f, e, tolerance);
+}
+
+bool test_eigen_normalize4_simd(
+	const vec128_f32 & a,
+	vec128_f32 & r,
+	Eigen::Matrix<float, 1, 4> & e,
+	float tolerance)
+{
+	Eigen::Matrix<float, 1, 4> e1;
+	test_eigen_load(a.v4f, e1);
+	r = vec128_normalize4(a);
+	e = e1.normalized();
+	return test_eigen_equals(r.v4f, e, tolerance);
+}
+
 bool test_eigen_quaternion_mul(
 	const quaternion & a,
 	const quaternion & b,
@@ -228,7 +332,7 @@ bool test_eigen_inv4_simd(
 {
 	Eigen::Matrix<float, 4, 4> e1;
 	test_eigen_load(a.m, e1);
-	r = mat128_inv4(a, nullptr);
+	r = mat128_inv4(a);
 	e = e1.inverse();
 	return test_eigen_equals(r.m, e, tolerance);
 }
@@ -678,6 +782,138 @@ bool test_batch_eigen_cross_simd(int iterations, float tolerance)
 
 }
 
+bool test_batch_eigen_det3(int iterations, float tolerance)
+{
+
+	std::random_device device;
+	std::mt19937 generator(device());
+	std::uniform_real_distribution<float> dist(TEST_MIN_FLOAT, TEST_MAX_FLOAT);
+
+	for (int i = 0; i < iterations; i++)
+	{
+
+		float3x3 a;
+
+		test_load_random_matrix(a, dist, generator);
+
+		float r, e;
+
+		if (!test_eigen_det3(a, r, e, tolerance))
+		{
+			TEST_FAIL_LOG(std::cout, i, "Arguments:", a, "Result:", r, "Eigen result:", e);
+			TEST_FAIL_LOG(g_log, i, "Arguments:", a, "Result:", r, "Eigen result:", e);
+			return false;
+		}
+
+	}
+
+	TEST_SUCCESS_LOG(g_log);
+	TEST_SUCCESS_LOG(std::cout);
+
+	return true;
+
+}
+
+bool test_batch_eigen_det4(int iterations, float tolerance)
+{
+
+	std::random_device device;
+	std::mt19937 generator(device());
+	std::uniform_real_distribution<float> dist(TEST_MIN_FLOAT, TEST_MAX_FLOAT);
+
+	for (int i = 0; i < iterations; i++)
+	{
+
+		float4x4 a;
+
+		test_load_random_matrix(a, dist, generator);
+
+		float r, e;
+
+		if (!test_eigen_det4(a, r, e, tolerance))
+		{
+			TEST_FAIL_LOG(std::cout, i, "Arguments:", a, "Result:", r, "Eigen result:", e);
+			TEST_FAIL_LOG(g_log, i, "Arguments:", a, "Result:", r, "Eigen result:", e);
+			return false;
+		}
+
+	}
+
+	TEST_SUCCESS_LOG(g_log);
+	TEST_SUCCESS_LOG(std::cout);
+
+	return true;
+
+}
+
+bool test_batch_eigen_inv3(int iterations, float tolerance)
+{
+
+	std::random_device device;
+	std::mt19937 generator(device());
+	std::uniform_real_distribution<float> dist(TEST_MIN_FLOAT, TEST_MAX_FLOAT);
+
+	for (int i = 0; i < iterations; i++)
+	{
+
+		float3x3 a;
+
+		test_load_random_matrix(a, dist, generator);
+
+		float3x3 r;
+		Eigen::Matrix<float, 3, 3> e;
+
+		if (!test_eigen_inv3(a, r, e, tolerance))
+		{
+			float4x4 I = a * r;
+			TEST_FAIL_LOG(std::cout, i, "Arguments:", a, "Result:", r, "Eigen result:", e, "Identity:", I);
+			TEST_FAIL_LOG(g_log, i, "Arguments:", a, "Result:", r, "Eigen result:", e, "Identity:", I);
+			return false;
+		}
+
+	}
+
+	TEST_SUCCESS_LOG(g_log);
+	TEST_SUCCESS_LOG(std::cout);
+
+	return true;
+
+}
+
+bool test_batch_eigen_inv4(int iterations, float tolerance)
+{
+
+	std::random_device device;
+	std::mt19937 generator(device());
+	std::uniform_real_distribution<float> dist(TEST_MIN_FLOAT, TEST_MAX_FLOAT);
+
+	for (int i = 0; i < iterations; i++)
+	{
+
+		float4x4 a;
+
+		test_load_random_matrix(a, dist, generator);
+
+		float4x4 r;
+		Eigen::Matrix<float, 4, 4> e;
+
+		if (!test_eigen_inv4(a, r, e, tolerance))
+		{
+			float4x4 I = a * r;
+			TEST_FAIL_LOG(std::cout, i, "Arguments:", a, "Result:", r, "Eigen result:", e, "Identity:", I);
+			TEST_FAIL_LOG(g_log, i, "Arguments:", a, "Result:", r, "Eigen result:", e, "Identity:", I);
+			return false;
+		}
+
+	}
+
+	TEST_SUCCESS_LOG(g_log);
+	TEST_SUCCESS_LOG(std::cout);
+
+	return true;
+
+}
+
 bool test_batch_eigen_mul4_simd(int iterations, float tolerance)
 {
 
@@ -765,6 +1001,138 @@ bool test_batch_eigen_det4_simd(int iterations, float tolerance)
 		float e;
 
 		if (!test_eigen_det4_simd(a, r, e, tolerance))
+		{
+			TEST_FAIL_LOG(std::cout, i, "Arguments:", a, "Result:", r, "Eigen result:", e);
+			TEST_FAIL_LOG(g_log, i, "Arguments:", a, "Result:", r, "Eigen result:", e);
+			return false;
+		}
+
+	}
+
+	TEST_SUCCESS_LOG(g_log);
+	TEST_SUCCESS_LOG(std::cout);
+
+	return true;
+
+}
+
+bool test_batch_eigen_len3_simd(int iterations, float tolerance)
+{
+
+	std::random_device device;
+	std::mt19937 generator(device());
+	std::uniform_real_distribution<float> dist(TEST_MIN_FLOAT, TEST_MAX_FLOAT);
+
+	for (int i = 0; i < iterations; i++)
+	{
+
+		float3 a;
+
+		test_load_random_matrix(a, dist, generator);
+
+		float r;
+		float e;
+
+		if (!test_eigen_len3_simd(a, r, e, tolerance))
+		{
+			TEST_FAIL_LOG(std::cout, i, "Arguments:", a, "Result:", r, "Eigen result:", e);
+			TEST_FAIL_LOG(g_log, i, "Arguments:", a, "Result:", r, "Eigen result:", e);
+			return false;
+		}
+
+	}
+
+	TEST_SUCCESS_LOG(g_log);
+	TEST_SUCCESS_LOG(std::cout);
+
+	return true;
+
+}
+
+bool test_batch_eigen_len4_simd(int iterations, float tolerance)
+{
+
+	std::random_device device;
+	std::mt19937 generator(device());
+	std::uniform_real_distribution<float> dist(TEST_MIN_FLOAT, TEST_MAX_FLOAT);
+
+	for (int i = 0; i < iterations; i++)
+	{
+
+		float4 a;
+
+		test_load_random_matrix(a, dist, generator);
+
+		float r;
+		float e;
+
+		if (!test_eigen_len4_simd(a, r, e, tolerance))
+		{
+			TEST_FAIL_LOG(std::cout, i, "Arguments:", a, "Result:", r, "Eigen result:", e);
+			TEST_FAIL_LOG(g_log, i, "Arguments:", a, "Result:", r, "Eigen result:", e);
+			return false;
+		}
+
+	}
+
+	TEST_SUCCESS_LOG(g_log);
+	TEST_SUCCESS_LOG(std::cout);
+
+	return true;
+
+}
+
+bool test_batch_eigen_normalize3_simd(int iterations, float tolerance)
+{
+
+	std::random_device device;
+	std::mt19937 generator(device());
+	std::uniform_real_distribution<float> dist(TEST_MIN_FLOAT, TEST_MAX_FLOAT);
+
+	for (int i = 0; i < iterations; i++)
+	{
+
+		float4 a;
+
+		test_load_random_matrix(a, dist, generator);
+
+		vec128_f32 r;
+		Eigen::Matrix<float, 1, 3> e;
+
+		if (!test_eigen_normalize3_simd(a, r, e, tolerance))
+		{
+			TEST_FAIL_LOG(std::cout, i, "Arguments:", a, "Result:", r, "Eigen result:", e);
+			TEST_FAIL_LOG(g_log, i, "Arguments:", a, "Result:", r, "Eigen result:", e);
+			return false;
+		}
+
+	}
+
+	TEST_SUCCESS_LOG(g_log);
+	TEST_SUCCESS_LOG(std::cout);
+
+	return true;
+
+}
+
+bool test_batch_eigen_normalize4_simd(int iterations, float tolerance)
+{
+
+	std::random_device device;
+	std::mt19937 generator(device());
+	std::uniform_real_distribution<float> dist(TEST_MIN_FLOAT, TEST_MAX_FLOAT);
+
+	for (int i = 0; i < iterations; i++)
+	{
+
+		float4 a;
+
+		test_load_random_matrix(a, dist, generator);
+
+		vec128_f32 r;
+		Eigen::Matrix<float, 1, 4> e;
+
+		if (!test_eigen_normalize4_simd(a, r, e, tolerance))
 		{
 			TEST_FAIL_LOG(std::cout, i, "Arguments:", a, "Result:", r, "Eigen result:", e);
 			TEST_FAIL_LOG(g_log, i, "Arguments:", a, "Result:", r, "Eigen result:", e);
@@ -872,11 +1240,23 @@ int main(int argc, char * argv[])
 
 	test_batch_eigen_cross_simd(Iterations, Tolerance);
 
+	test_batch_eigen_det3(Iterations, Tolerance2);
+	test_batch_eigen_det4(Iterations, Tolerance2);
+
+	test_batch_eigen_inv3(Iterations, Tolerance2);
+	test_batch_eigen_inv4(Iterations, Tolerance2);
+
 	test_batch_eigen_mul4_simd(Iterations, Tolerance);
 	test_batch_eigen_inv4_simd(Iterations, Tolerance2);
 	test_batch_eigen_det4_simd(Iterations, Tolerance2);
 
-	/*vec128_f32 a(1, 2, 3, 4);
+	test_batch_eigen_len3_simd(Iterations, Tolerance2);
+	test_batch_eigen_len4_simd(Iterations, Tolerance2);
+
+	test_batch_eigen_normalize3_simd(Iterations, Tolerance2);
+	test_batch_eigen_normalize4_simd(Iterations, Tolerance2);
+
+	vec128_f32 a(1, 2, 3, 4);
 	vec128_f32 b(4, 5, 6, 7);
 
 	vec128_f32 c = vec128_shuffle<FUSE_Y0, FUSE_X0, FUSE_Z1, FUSE_Y1>(b, a);
@@ -884,13 +1264,14 @@ int main(int argc, char * argv[])
 	vec128_f32 e = vec128_splat<FUSE_Z>(b);
 
 	vec128_f32 f = c + d;
+	vec128_f32 g = vec128_permute<FUSE_X0, FUSE_W1, FUSE_Y0, FUSE_Y1>(a, b);
 
-	TEST_FAIL_LOG(g_log, 0, a.v4f, b.v4f, c.v4f, d.v4f, e.v4f, f.v4f);
+	TEST_FAIL_LOG(g_log, 0, a.v4f, b.v4f, c.v4f, d.v4f, e.v4f, f.v4f, g.v4f);
 
 	mat128_f32 m0(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16);
-	mat128_f32 m1 = mat128_trans4(m0);
+	mat128_f32 m1 = mat128_transpose(m0);
 
-	TEST_FAIL_LOG(g_log, 1, m0, m1);*/
+	TEST_FAIL_LOG(g_log, 1, m0, m1);
 
 	/*float3 a(1, 2, 3);
 	float3 b(-36, 5, -4);

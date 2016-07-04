@@ -1,7 +1,7 @@
 #pragma once
 
+#include <fuse/core.hpp>
 #include <fuse/assimp_loader.hpp>
-#include <fuse/allocators.hpp>
 #include <fuse/camera.hpp>
 #include <fuse/geometry/loose_octree.hpp>
 #include <fuse/scene_graph.hpp>

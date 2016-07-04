@@ -6,7 +6,7 @@
 
 #include <Windows.h>
 
-#include <fuse/logger.hpp>
+#include <fuse/core.hpp>
 
 #include <cassert>
 #include <ostream>

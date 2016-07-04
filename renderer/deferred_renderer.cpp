@@ -96,8 +96,9 @@ void deferred_renderer::render_gbuffer(
 
 	/* Maybe sort the object first */
 
-	auto view              = camera->get_view_matrix();
-	auto projection        = camera->get_projection_matrix();
+	/* Temp */
+	auto view              = XMMatrixTranspose(XMLoadFloat4x4((const XMFLOAT4X4*)&camera->get_view_matrix()));
+	auto projection        = XMMatrixTranspose(XMLoadFloat4x4((const XMFLOAT4X4*)&camera->get_projection_matrix()));
 	auto viewProjection    = XMMatrixMultiply(view, projection);
 	auto invViewProjection = XMMatrixInverse(&XMMatrixDeterminant(viewProjection), viewProjection);
 
@@ -139,6 +140,8 @@ void deferred_renderer::render_gbuffer(
 	defaultMaterial.set_default();
 
 	uint32_t objectIndex = 0;
+
+	/* Temp */
 
 	for (auto it = begin; it != end; it++)
 	{

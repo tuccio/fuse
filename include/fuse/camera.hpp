@@ -1,69 +1,68 @@
 #pragma once
 
-#include <fuse/allocators.hpp>
+#include <fuse/core.hpp>
 #include <fuse/math.hpp>
 #include <fuse/properties_macros.hpp>
 #include <fuse/geometry.hpp>
 
+#include <fuse/math/math.hpp>
+
 namespace fuse
 {
 
-	class alignas(16) camera
+	class camera
 	{
 
 	public:
 
 		camera(void);
 
-		void look_at(const XMFLOAT3 & eye, const XMFLOAT3 & up, const XMFLOAT3 & target);
+		void look_at(const float3 & eye, const float3 & up, const float3 & target);
 
-		inline XMVECTOR forward(void) const
+		inline float3 forward(void) const
 		{
-			static XMVECTOR k = XMLoadFloat3(&XMFLOAT3(0, 0, 1));
-			return XMVector3Rotate(k, m_orientation);
+			return transform(float3(0, 0, 1), m_orientation);
 		}
 
-		inline XMVECTOR up(void) const
+		inline float3 up(void) const
 		{
-			static XMVECTOR j = XMLoadFloat3(&XMFLOAT3(0, 1, 0));
-			return XMVector3Rotate(j, m_orientation);
+			return transform(float3(0, 1, 0), m_orientation);
 		}
 
-		inline XMVECTOR right(void) const
+		inline float3 right(void) const
 		{
-			static XMVECTOR i = XMLoadFloat3(&XMFLOAT3(1, 0, 0));
-			return XMVector3Rotate(i, m_orientation);
+			return transform(float3(1, 0, 0), m_orientation);
 		}
 
-		inline XMVECTOR backward(void) const
+		inline float3 backward(void) const
 		{
 			return -forward();
 		}
 
-		inline XMVECTOR down(void) const
+		inline float3 down(void) const
 		{
 			return -up();
 		}
 
-		inline XMVECTOR left(void) const
+		inline float3 left(void) const
 		{
 			return -right();
 		}
 
-		const XMMATRIX & get_world_matrix(void) const;
-		const XMMATRIX & get_view_matrix(void) const;
-		const XMMATRIX & get_projection_matrix(void) const;
+		const float4x4 & get_world_matrix(void) const;
+		const float4x4 & get_view_matrix(void) const;
+		const float4x4 & get_projection_matrix(void) const;
 
-		void set_world_matrix(const XMMATRIX & matrix);
-		void set_view_matrix(const XMMATRIX & matrix);
-		void set_projection_matrix(const XMMATRIX & matrix);
+		void set_world_matrix(const float4x4 & matrix);
+		void set_view_matrix(const float4x4 & matrix);
+		void set_projection_matrix(const float4x4 & matrix);
 
 		float get_fovx(void) const;
 
 		void set_projection(float fovy, float znear, float zfar);
 
-		void set_position(const XMVECTOR & position);
-		void set_orientation(const XMVECTOR & orientation);
+		void set_position(const float3 & position);
+		void set_orientation(const quaternion & orientation);
 		void set_aspect_ratio(float aspectRatio);
 		void set_fovy(float fovy);
 		void set_fovx(float fovx);
@@ -80,18 +79,18 @@ namespace fuse
 
 	private:
 
-		XMVECTOR m_position;
-		XMVECTOR m_orientation;
+		float3     m_position;
+		quaternion m_orientation;
 
-		mutable XMMATRIX m_worldMatrix;
-		mutable XMMATRIX m_viewMatrix;
-		mutable XMMATRIX m_projectionMatrix;
+		mutable float4x4 m_worldMatrix;
+		mutable float4x4 m_viewMatrix;
+		mutable float4x4 m_projectionMatrix;
 
-		float    m_aspectRatio;
-		float    m_fovy;
+		float m_aspectRatio;
+		float m_fovy;
 
-		float    m_znear;
-		float    m_zfar;
+		float m_znear;
+		float m_zfar;
 
 		mutable bool m_worldMatrixDirty;
 		mutable bool m_viewMatrixDirty;
@@ -113,10 +112,8 @@ namespace fuse
 			(fovy,         m_fovy)
 			(znear,        m_znear)
 			(zfar,         m_zfar)
+
 		)
-
-		FUSE_DECLARE_ALIGNED_ALLOCATOR_NEW(16)
-
 	};
 
 }

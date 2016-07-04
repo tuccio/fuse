@@ -10,9 +10,8 @@
 
 #include <wx/aui/aui.h>
 
-#include <fuse/logger.hpp>
+#include <fuse/core.hpp>
 #include <fuse/input.hpp>
-#include <fuse/types.hpp>
 
 #include <memory>
 

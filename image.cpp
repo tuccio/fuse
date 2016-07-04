@@ -1,5 +1,5 @@
 #include <fuse/image.hpp>
-#include <fuse/logger.hpp>
+#include <fuse/core.hpp>
 
 #include <IL/il.h>
 #include <IL/ilu.h>

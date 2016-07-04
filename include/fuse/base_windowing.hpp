@@ -1,6 +1,6 @@
 #pragma once
 
-#include <fuse/types.hpp>
+#include <fuse/core.hpp>
 #include <Windows.h>
 
 namespace fuse

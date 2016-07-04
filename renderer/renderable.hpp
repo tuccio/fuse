@@ -1,6 +1,6 @@
 #pragma once
 
-#include <fuse/allocators.hpp>
+#include <fuse/core.hpp>
 #include <fuse/math.hpp>
 #include <fuse/gpu_mesh.hpp>
 #include <fuse/material.hpp>

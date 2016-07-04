@@ -26,29 +26,10 @@ include_directories ( ${IL_INCLUDE_DIR} )
 
 set ( CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} /fp:fast )
 
-file ( GLOB FUSE_CORE_SOURCE_FILES *.cpp )
-file ( GLOB FUSE_CORE_INCLUDE_FILES include/fuse/*.hpp include/fuse/*.inl )
+file ( GLOB FUSE_SOURCE_FILES *.cpp )
+file ( GLOB FUSE_INCLUDE_FILES include/fuse/*.hpp include/fuse/*.inl )
 
-file ( GLOB FUSE_MATH_SOURCE_FILES math/*.cpp )
-file ( GLOB FUSE_MATH_INCLUDE_FILES include/fuse/math/*.hpp include/fuse/math/*.inl )
-
-file ( GLOB FUSE_GEOMETRY_SOURCE_FILES geometry/*.cpp )
-file ( GLOB FUSE_GEOMETRY_INCLUDE_FILES include/fuse/geometry/*.hpp include/fuse/geometry/*.inl )
-
-source_group ( "core\\include" FILES ${FUSE_CORE_INCLUDE_FILES} )
-source_group ( "core\\source" FILES ${FUSE_CORE_SOURCE_FILES} )
-
-source_group ( "math\\include" FILES ${FUSE_MATH_INCLUDE_FILES} )
-source_group ( "math\\source" FILES ${FUSE_MATH_SOURCE_FILES} )
-
-source_group ( "geometry\\include" FILES ${FUSE_GEOMETRY_INCLUDE_FILES} )
-source_group ( "geometry\\source" FILES ${FUSE_GEOMETRY_SOURCE_FILES} )
-
-set ( FUSE_SRC_FILES
-	${FUSE_CORE_SOURCE_FILES} ${FUSE_CORE_INCLUDE_FILES}
-	${FUSE_MATH_SOURCE_FILES} ${FUSE_MATH_INCLUDE_FILES}
-	${FUSE_GEOMETRY_SOURCE_FILES} ${FUSE_GEOMETRY_INCLUDE_FILES}
-	)
+set ( FUSE_SRC_FILES ${FUSE_SOURCE_FILES} ${FUSE_INCLUDE_FILES} )
 
 set ( libRocket_INCLUDE_DIR libRocket/include )
 
@@ -91,11 +72,16 @@ if ( FUSE_UNICODE OR FUSE_WXWIDGETS )
 	add_definitions ( -DFUSE_UNICODE -DUNICODE -D_UNICODE )
 endif ( FUSE_UNICODE OR FUSE_WXWIDGETS )
 
+include_directories ( math/include )
+include_directories ( core/include )
+
 add_library ( fuse ${FUSE_SRC_FILES} )
 
 if ( wxWidgets_FOUND AND FUSE_WXWIDGETS )
 	target_link_libraries ( fuse ${wxWidgets_LIBRARIES} )
 endif ( wxWidgets_FOUND AND FUSE_WXWIDGETS )
 
+add_subdirectory ( core )
+add_subdirectory ( math )
 add_subdirectory ( renderer )
 add_subdirectory ( math_test )

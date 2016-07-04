@@ -6,7 +6,7 @@
 #include <d3dcompiler.h>
 
 #include <fuse/directx_helper.hpp>
-#include <fuse/string.hpp>
+#include <fuse/core.hpp>
 
 #include <iterator>
 #include <vector>

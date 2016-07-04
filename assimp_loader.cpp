@@ -1,7 +1,7 @@
 #ifdef FUSE_ASSIMP
 
 #include <fuse/assimp_loader.hpp>
-#include <fuse/logger.hpp>
+#include <fuse/core.hpp>
 
 #include <fuse/resource_factory.hpp>
 #include <fuse/resource_manager.hpp>

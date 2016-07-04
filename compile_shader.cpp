@@ -1,7 +1,6 @@
 #include <fuse/compile_shader.hpp>
 #include <fuse/directx_helper.hpp>
-#include <fuse/logger.hpp>
-#include <fuse/string.hpp>
+#include <fuse/core.hpp>
 
 #include <d3dcompiler.h>
 

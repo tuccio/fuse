@@ -1,6 +1,6 @@
 #pragma once
 
-#include <fuse/types.hpp>
+#include <fuse/core.hpp>
 
 #define FUSE_RESOURCE_TYPE_IMAGE       FUSE_LITERAL("image")
 #define FUSE_RESOURCE_TYPE_MESH        FUSE_LITERAL("mesh")

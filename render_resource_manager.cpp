@@ -1,5 +1,5 @@
 #include <fuse/render_resource_manager.hpp>
-#include <fuse/logger.hpp>
+#include <fuse/core.hpp>
 
 #include <algorithm>
 #include <sstream>

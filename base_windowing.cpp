@@ -1,5 +1,5 @@
+#include <fuse/core.hpp>
 #include <fuse/base_windowing.hpp>
-#include <fuse/logger.hpp>
 #include <fuse/directx_helper.hpp>
 
 #define FUSE_WINDOW_CLASS FUSE_LITERAL("fuse_window_class")

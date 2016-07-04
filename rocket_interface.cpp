@@ -4,7 +4,7 @@
 
 #include <fuse/compile_shader.hpp>
 #include <fuse/pipeline_state.hpp>
-#include <fuse/logger.hpp>
+#include <fuse/core.hpp>
 
 #include <fuse/descriptor_heap.hpp>
 

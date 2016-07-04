@@ -1,6 +1,6 @@
 #pragma once
 
-#include <fuse/allocators.hpp>
+#include <fuse/core.hpp>
 #include <fuse/camera.hpp>
 #include <fuse/properties_macros.hpp>
 #include <fuse/keyboard.hpp>

@@ -3,8 +3,7 @@
 #include <string>
 #include <unordered_map>
 
-#include <fuse/logger.hpp>
-#include <fuse/singleton.hpp>
+#include <fuse/core.hpp>
 
 #include <fuse/resource_manager.hpp>
 #include <fuse/resource_types.hpp>

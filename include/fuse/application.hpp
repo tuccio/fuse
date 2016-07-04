@@ -1,6 +1,6 @@
 #pragma once
 
-#include <fuse/singleton.hpp>
+#include <fuse/core.hpp>
 #include <fuse/base_windowing.hpp>
 #include <fuse/gpu_command_queue.hpp>
 #include <fuse/directx_helper.hpp>
@@ -25,7 +25,6 @@ namespace fuse
 
 	struct application_config
 	{
-		
 		UINT syncInterval;
 		UINT presentFlags;
 
@@ -43,7 +42,6 @@ namespace fuse
 		UINT maxRTV;
 
 		UINT uploadHeapSize;
-
 	};
 
 	template <typename WindowingSystem = base_windowing>

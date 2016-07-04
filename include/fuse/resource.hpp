@@ -1,8 +1,6 @@
 #pragma once
 
-#include <fuse/lockable.hpp>
-#include <fuse/types.hpp>
-#include <fuse/string.hpp>
+#include <fuse/core.hpp>
 
 #include <cassert>
 #include <climits>

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <fuse/singleton.hpp>
+#include <fuse/core.hpp>
 #include <fuse/directx_helper.hpp>
 
 #include <fuse/properties_macros.hpp>

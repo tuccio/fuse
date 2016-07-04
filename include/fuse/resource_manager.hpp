@@ -4,8 +4,8 @@
 #include <string>
 #include <unordered_map>
 
+#include <fuse/core.hpp>
 #include <fuse/resource.hpp>
-#include <fuse/lockable.hpp>
 
 namespace fuse
 {

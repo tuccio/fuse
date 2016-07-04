@@ -8,7 +8,8 @@ file ( GLOB FUSE_RENDERER_SRC_FILES *.cpp *.hpp *.inl )
 
 add_executable ( renderer WIN32 ${FUSE_RENDERER_SRC_FILES} )
 
-target_link_libraries ( renderer fuse ${DirectX12_LIBRARY} )
+target_link_libraries ( renderer fusecore fusemath fuse )
+target_link_libraries ( renderer ${DirectX12_LIBRARY} )
 target_link_libraries ( renderer ${IL_LIBRARIES} ${ILU_LIBRARIES} ${ILUT_LIBRARIES} )
 target_link_libraries ( renderer ${ASSIMP_LIBRARY} )
 

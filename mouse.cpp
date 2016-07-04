@@ -1,5 +1,5 @@
 #include <fuse/mouse.hpp>
-#include <fuse/logger.hpp>
+#include <fuse/core.hpp>
 
 using namespace fuse;
 

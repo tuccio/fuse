@@ -155,7 +155,7 @@ void realtime_renderer::render(D3D12_GPU_VIRTUAL_ADDRESS cbPerFrameAddress, scen
 	m_renderables = scene->frustum_culling(camera->get_frustum());
 
 	auto renderableObjects = std::make_pair(m_renderables.begin(), m_renderables.end());
-	//auto renderableObjects = g_scene.get_renderable_objects();
+	//auto renderableObjects = scene->get_renderable_objects();
 
 	auto fullscreenViewport    = make_fullscreen_viewport(m_renderResolution.x, m_renderResolution.y);
 	auto fullscreenScissorRect = make_fullscreen_scissor_rect(m_renderResolution.x, m_renderResolution.y);
@@ -285,7 +285,7 @@ void realtime_renderer::render(D3D12_GPU_VIRTUAL_ADDRESS cbPerFrameAddress, scen
 
 			XMMATRIX lightViewMatrix = XMMatrixLookAtLH(XMVectorZero(),
 				to_vector(sunLight.direction),
-				camera->left());
+				XMLoadFloat3(&(const XMFLOAT3&)camera->left()));
 			//XMVectorSet(sunLight.direction.y > .99f ? 1.f : 0.f, sunLight.direction.y > .99f ? 0.f : 1.f, 0.f, 0.f));
 
 			XMMATRIX lightCropMatrix = sm_crop_matrix_lh(lightViewMatrix, renderableObjects.first, renderableObjects.second);

@@ -227,43 +227,48 @@ LRESULT fps_camera_controller::on_resize(UINT width, UINT height)
 
 LRESULT fps_camera_controller::on_update(float dt)
 {
-
 	// TODO: RK4 solver
 
 	if (m_strafingForward)
 	{
-		auto position = m_camera->get_position();
-		m_camera->set_position(XMVectorAdd(position, XMVectorScale(m_camera->forward(), m_speed.z * dt)));
+		float3 position = m_camera->get_position();
+		float3 newPosition = position + m_camera->forward() * (m_speed.z * dt);
+		m_camera->set_position(newPosition);
 	}
 
 	if (m_strafingBackward)
 	{
-		auto position = m_camera->get_position();
-		m_camera->set_position(XMVectorSubtract(position, XMVectorScale(m_camera->forward(), m_speed.z * dt)));
+		float3 position = m_camera->get_position();
+		float3 newPosition = position - m_camera->forward() * (m_speed.z * dt);
+		m_camera->set_position(newPosition);
 	}
 
 	if (m_strafingLeft)
 	{
-		auto position = m_camera->get_position();
-		m_camera->set_position(XMVectorSubtract(position, XMVectorScale(m_camera->right(), m_speed.x * dt)));
+		float3 position = m_camera->get_position();
+		float3 newPosition = position - m_camera->right() * (m_speed.x * dt);
+		m_camera->set_position(newPosition);
 	}
 
 	if (m_strafingRight)
 	{
-		auto position = m_camera->get_position();
-		m_camera->set_position(XMVectorAdd(position, XMVectorScale(m_camera->right(), m_speed.x * dt)));
+		float3 position = m_camera->get_position();
+		float3 newPosition = position + m_camera->right() * (m_speed.x * dt);
+		m_camera->set_position(newPosition);
 	}
 
 	if (m_strafingUpward)
 	{
-		auto position = m_camera->get_position();
-		m_camera->set_position(XMVectorAdd(position, XMVectorScale(m_camera->up(), m_speed.y * dt)));
+		float3 position = m_camera->get_position();
+		float3 newPosition = position + m_camera->up() * (m_speed.y * dt);
+		m_camera->set_position(newPosition);
 	}
 
 	if (m_strafingDownward)
 	{
-		auto position = m_camera->get_position();
-		m_camera->set_position(XMVectorSubtract(position, XMVectorScale(m_camera->up(), m_speed.y * dt)));
+		float3 position = m_camera->get_position();
+		float3 newPosition = position - m_camera->up() * (m_speed.y * dt);
+		m_camera->set_position(newPosition);
 	}
 
 	return 0;
@@ -325,26 +330,27 @@ bool fps_camera_controller::on_mouse_event(const mouse & mouse, const mouse_even
 			m_centeringMouse = false;
 			return 0;
 		}*/
-
+		
 		const XMINT2 & pt = event.position;
 
-		static XMVECTOR lastPos = fuse::to_vector(XMFLOAT2(pt.x, pt.y));
-		XMVECTOR to = fuse::to_vector(XMFLOAT2(pt.x, pt.y));
+		static float2 lastPos(pt.x, pt.y);
+		float2 to(pt.x, pt.y);
 
 		if (m_rotating)
 		{
+			float2 from = lastPos;
+			float2 distance = to - from;
+			float2 t = distance / float2(m_screenSize.x, m_screenSize.y);
+			float2 delta(std::atan(t.x), std::atan(t.y));
 
-			XMVECTOR from = lastPos;
+			quaternion r1(float3(0, 1, 0), delta.x);
+			quaternion r2(float3(1, 0, 0), delta.y);
 
-			XMVECTOR delta = XMVectorATan((to - from) / fuse::to_vector(m_screenSize));
+			quaternion o = m_camera->get_orientation();
 
-			XMVECTOR r1 = XMQuaternionRotationAxis(to_vector(XMFLOAT3(0, 1, 0)), XMVectorGetX(delta));
-			XMVECTOR r2 = XMQuaternionRotationAxis(to_vector(XMFLOAT3(1, 0, 0)), XMVectorGetY(delta));
-
-			XMVECTOR newOrientation = XMQuaternionNormalize(XMQuaternionMultiply(XMQuaternionMultiply(r2, m_camera->get_orientation()), r1));
+			quaternion newOrientation = normalize(r1 * o * r2);
 
 			m_camera->set_orientation(newOrientation);
-
 		}
 
 		if (m_centerMouse)

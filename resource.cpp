@@ -1,5 +1,5 @@
 #include <fuse/resource.hpp>
-#include <fuse/logger.hpp>
+#include <fuse/core.hpp>
 
 #include <sstream>
 

@@ -212,7 +212,7 @@ bool scene::import_cameras(assimp_loader * loader)
 			lookAt   = to_float3(XMVector3Transform(to_vector(lookAt), transform));
 		}
 
-		camera->look_at(position, up, lookAt);
+		camera->look_at((const float3&)position, (const float3&)up, (const float3&)lookAt);
 
 		camera->set_znear(scene->mCameras[i]->mClipPlaneNear);
 		camera->set_zfar(scene->mCameras[i]->mClipPlaneFar);

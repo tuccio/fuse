@@ -4,11 +4,9 @@
 
 using namespace fuse;
 
-FUSE_DEFINE_ALIGNED_ALLOCATOR_NEW(camera, 16)
-
 camera::camera(void) :
-	m_orientation(XMQuaternionIdentity()),
-	m_position(XMVectorZero()),
+	m_orientation(1, 0, 0, 0),
+	m_position(0, 0, 0),
 	m_fovy(half_pi<float>()),
 	m_znear(.1f),
 	m_zfar(100.f),
@@ -18,29 +16,26 @@ camera::camera(void) :
 
 void camera::update_world_matrix(void) const
 {
-	XMMATRIX rotation = XMMatrixRotationQuaternion(m_orientation);
-	m_worldMatrix = XMMatrixRotationQuaternion(m_orientation) * XMMatrixTranslationFromVector(m_position);
+	float4x4 rotation = to_rotation4(m_orientation);
+	m_worldMatrix = rotation * to_translation4(m_position);
 	m_worldMatrixDirty = false;
 }
 
 void camera::update_view_matrix(void) const
 {
+	float4x4 rotation = to_rotation4(m_orientation);
+	
+	m_viewMatrix = transpose(rotation);
 
-	XMMATRIX rotation = XMMatrixRotationQuaternion(m_orientation);
-	m_viewMatrix = XMMatrixTranspose(rotation);
-
-	XMVECTOR xyUU = XMVectorPermute<XM_PERMUTE_0X, XM_PERMUTE_1Y, XM_PERMUTE_1Z, XM_PERMUTE_1W>(XMVector3Dot(rotation.r[0], m_position), XMVector3Dot(rotation.r[1], m_position));
-	XMVECTOR UUzw = XMVectorPermute<XM_PERMUTE_0X, XM_PERMUTE_0Y, XM_PERMUTE_0Z, XM_PERMUTE_1W>(XMVector3Dot(rotation.r[2], m_position), XMVectorSet(0, 0, 0, -1));
-
-	m_viewMatrix.r[3] = - XMVectorPermute<XM_PERMUTE_0X, XM_PERMUTE_0Y, XM_PERMUTE_1Z, XM_PERMUTE_1W>(xyUU, UUzw);
+	m_viewMatrix._30 = -dot(float3(rotation._00, rotation._01, rotation._02), m_position);
+	m_viewMatrix._31 = -dot(float3(rotation._10, rotation._11, rotation._12), m_position);
+	m_viewMatrix._32 = -dot(float3(rotation._20, rotation._21, rotation._22), m_position);
 
 	m_viewMatrixDirty = false;
-
 }
 
 void camera::update_projection_matrix(void) const
 {
-
 	float tanFovY  = std::tan(m_fovy * .5f);
 	float yScale   = 1.f / tanFovY;
 	float xScale   = yScale / m_aspectRatio;
@@ -48,7 +43,7 @@ void camera::update_projection_matrix(void) const
 
 	float Q = m_zfar * invDepth;
 
-	m_projectionMatrix = XMMatrixSet (
+	m_projectionMatrix = float4x4(
 		xScale, 0, 0, 0,
 		0, yScale, 0, 0,
 		0, 0, Q, 1,
@@ -56,32 +51,27 @@ void camera::update_projection_matrix(void) const
 	);
 
 	m_projectionMatrixDirty = false;
-
 }
 
-void camera::look_at(const XMFLOAT3 & eye, const XMFLOAT3 & up, const XMFLOAT3 & target)
+void camera::look_at(const float3 & eye, const float3 & up, const float3 & target)
 {
+	m_position = eye;
 
-	m_position = fuse::to_vector(eye);
+	float3 z = normalize(m_position - target);
+	float3 x = normalize(cross(up, z));
+	float3 y = cross(z, x);
 
-	XMVECTOR z = XMVector3Normalize(m_position - to_vector(target));
-	XMVECTOR x = XMVector3Normalize(XMVector3Cross(to_vector(up), z));
-	XMVECTOR y = XMVector3Cross(z, x);
+	float4x4 inverseRotation(
+		x.x, x.y, x.z, 0.f,
+		y.x, y.y, y.z, 0.f,
+		z.x, z.y, z.z, 0.f,
+		0.f, 0.f, 0.f, 1.f
+	);
 
-	XMMATRIX inverseRotation = XMMatrixIdentity();
-
-	inverseRotation.r[0] = XMVectorPermute<XM_PERMUTE_0X, XM_PERMUTE_0Y, XM_PERMUTE_0Z, XM_PERMUTE_1W>(x, inverseRotation.r[0]);
-	inverseRotation.r[1] = XMVectorPermute<XM_PERMUTE_0X, XM_PERMUTE_0Y, XM_PERMUTE_0Z, XM_PERMUTE_1W>(y, inverseRotation.r[1]);
-	inverseRotation.r[2] = XMVectorPermute<XM_PERMUTE_0X, XM_PERMUTE_0Y, XM_PERMUTE_0Z, XM_PERMUTE_1W>(z, inverseRotation.r[2]);
-
-	//XMMATRIX rotation = XMMatrixTranspose(inverseRotation);
-
-	//m_orientation = XMQuaternionRotationMatrix(rotation);
-	m_orientation = XMQuaternionConjugate(XMQuaternionRotationMatrix(inverseRotation));
+	m_orientation = conjugate(to_quaternion(inverseRotation));
 
 	m_viewMatrixDirty = true;
 	m_worldMatrixDirty = true;
-
 }
 
 void camera::set_projection(float fovy, float znear, float zfar)
@@ -92,78 +82,69 @@ void camera::set_projection(float fovy, float znear, float zfar)
 	m_projectionMatrixDirty = true;
 }
 
-const XMMATRIX & camera::get_world_matrix(void) const
+const float4x4 & camera::get_world_matrix(void) const
 {
-
 	if (m_worldMatrixDirty)
 	{
 		update_world_matrix();
 	}
 
 	return m_worldMatrix;
-
 }
 
-const XMMATRIX & camera::get_view_matrix(void) const
+const float4x4 & camera::get_view_matrix(void) const
 {
-
 	if (m_viewMatrixDirty)
 	{
 		update_view_matrix();
 	}
 
 	return m_viewMatrix;
-
 }
 
-const XMMATRIX & camera::get_projection_matrix(void) const
+const float4x4 & camera::get_projection_matrix(void) const
 {
-
 	if (m_projectionMatrixDirty)
 	{
 		update_projection_matrix();
 	}
 
 	return m_projectionMatrix;
-
 }
 
-void camera::set_world_matrix(const XMMATRIX & matrix)
+void camera::set_world_matrix(const float4x4 & matrix)
 {
-	XMVECTOR scale;
-	bool success = XMMatrixDecompose(&scale, &m_orientation, &m_position, matrix);
-	assert(success && "Impossible to decompose the matrix");
-	m_worldMatrix = matrix;
-	m_worldMatrixDirty = false;
-	m_viewMatrixDirty  = true;
+	throw;
 }
 
-void camera::set_view_matrix(const XMMATRIX & matrix)
+void camera::set_view_matrix(const float4x4 & matrix)
 {
-	XMMATRIX world = XMMatrixInverse(nullptr, matrix);
-	set_world_matrix(world);
-	m_viewMatrix = matrix;
-	m_viewMatrixDirty = false;
+	throw;
 }
 
-void camera::set_projection_matrix(const XMMATRIX & matrix)
+void camera::set_projection_matrix(const float4x4 & matrix)
 {
-	throw; // TODO
+	throw;
 }
 
 frustum camera::get_frustum(void) const
 {
-	return frustum(get_projection_matrix(), get_view_matrix());
+	XMMATRIX v, p;
+
+	p = XMLoadFloat4x4((const XMFLOAT4X4*)&transpose(get_projection_matrix()));
+	v = XMLoadFloat4x4((const XMFLOAT4X4*)&transpose(get_view_matrix()));
+
+	return frustum(p, v);
 }
 
-void camera::set_position(const XMVECTOR & position)
+void camera::set_position(const float3 & position)
 {
 	m_position = position;
 	m_worldMatrixDirty = true;
 	m_viewMatrixDirty = true;
 }
 
-void camera::set_orientation(const XMVECTOR & orientation)
+void camera::set_orientation(const quaternion & orientation)
 {
 	m_orientation = orientation;
 	m_worldMatrixDirty = true;
