@@ -1,7 +1,6 @@
 #pragma once
 
 #include "vec128.hpp"
-
 #include "matrix4x4.hpp"
 
 namespace fuse

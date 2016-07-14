@@ -47,7 +47,7 @@ void mouse::post_mouse_button_up(mouse_vk key)
 
 }
 
-void mouse::post_mouse_move(const XMINT2 & position)
+void mouse::post_mouse_move(const int2 & position)
 {
 	m_position = position;
 	mouse_event_info event = { FUSE_MOUSE_EVENT_MOVE, m_position };

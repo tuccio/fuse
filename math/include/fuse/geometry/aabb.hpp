@@ -1,10 +1,7 @@
 #pragma once
 
-#include <fuse/math/math.hpp>
-
-#include <fuse/math.hpp>
 #include <fuse/core.hpp>
-#include <fuse/properties_macros.hpp>
+#include <fuse/math.hpp>
 
 #include <array>
 

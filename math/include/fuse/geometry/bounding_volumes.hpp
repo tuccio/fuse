@@ -22,7 +22,7 @@ namespace fuse
 		for (auto it = begin; it != end; it++)
 		{
 			vec128 t = to_vec128(*it);
-			centroid += t;
+			centroid = centroid + t;
 		}
 
 		centroid = centroid / (float) size;
@@ -31,7 +31,7 @@ namespace fuse
 
 		for (auto it = begin; it != end; ++it)
 		{
-			distance = vec128_max(vec128_len3(centroid - to_vec128(*it)), distance);
+			distance = vec128_max(vec128_length3(centroid - to_vec128(*it)), distance);
 		}
 
 		return sphere(centroid, distance);
@@ -67,7 +67,7 @@ namespace fuse
 		vec128 svec  = s.get_sphere_vector();
 		vec128 msvec = - svec;
 
-		vec128 matrix_zero = XMVectorZero();
+		vec128 matrix_zero = vec128_zero();
 
 		std::array<vec128, 6> points = {
 			svec + vec128_permute<FUSE_W1, FUSE_Y0, FUSE_Z0, FUSE_W0>(matrix_zero, svec),

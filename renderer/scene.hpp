@@ -17,10 +17,22 @@
 namespace fuse
 {
 
+	struct geometry_bounding_sphere
+	{
+		inline sphere operator() (scene_graph_geometry * g) const
+		{
+			return g->get_global_bounding_sphere();
+		}
+	};
+
 	using renderable_vector = std::vector<renderable*>;
 	using renderable_iterator = renderable_vector::iterator;
 
 	using renderable_octree = loose_octree<renderable*, sphere, renderable_bounding_sphere_functor>;
+
+	using geometry_octree   = loose_octree<scene_graph_geometry*, sphere, geometry_bounding_sphere>;
+	using geometry_vector   = std::vector<scene_graph_geometry*>;
+	using geometry_iterator = geometry_vector::iterator;
 
 	using camera_vector = std::vector<camera*>;
 	using camera_iterator = camera_vector::iterator;
@@ -28,7 +40,8 @@ namespace fuse
 	using light_vector = std::vector<light*>;
 	using light_iterator = light_vector::iterator;
 
-	class alignas(16) scene
+	class alignas(16) scene :
+		public scene_graph_node_listener
 	{
 
 	public:
@@ -54,14 +67,29 @@ namespace fuse
 		void recalculate_octree(void);
 
 		renderable_vector frustum_culling(const frustum & f);
+		geometry_vector frustum_culling_sg(const frustum & f);
 
-		inline void set_scene_bounds(const XMVECTOR & center, float halfExtents) { m_sceneBounds = aabb::from_center_half_extents(center, XMVectorSet(halfExtents, halfExtents, halfExtents, halfExtents)); }
+		inline void set_scene_bounds(const vec128 & center, float halfExtents) { m_sceneBounds = aabb::from_center_half_extents(center, vec128_set(halfExtents, halfExtents, halfExtents, halfExtents)); }
 		inline aabb get_scene_bounds(void) const { return m_sceneBounds; }
 
 		void draw_octree(visual_debugger * debugger);
 
 		aabb get_fitting_bounds(void) const;
 		void fit_octree(float scale = 1.f);
+
+		scene_graph * get_scene_graph(void)
+		{
+			return &m_sceneGraph;
+		}
+
+		const scene_graph * get_scene_graph(void) const
+		{
+			return &m_sceneGraph;
+		}
+
+		void update(void);
+
+		void on_scene_graph_node_move(scene_graph_node * node, const mat128 & oldTransform, const mat128 & newTransform);
 
 	private:
 
@@ -76,14 +104,22 @@ namespace fuse
 		camera * m_activeCamera;
 
 		renderable_octree m_octree;
+		geometry_octree m_sgOctree;
 
-		//scene_graph m_scene;
+		scene_graph m_sceneGraph;
 
 	public:
 
 		FUSE_PROPERTIES_BY_VALUE (
 			(active_camera, m_activeCamera)
 		)
+
+	private:
+
+		void on_geometry_add(scene_graph_geometry * g);
+		void on_geometry_remove(scene_graph_geometry * g);
+
+		void create_scene_graph_assimp(assimp_loader * loader, const aiScene * scene, aiNode * node, scene_graph_node * parent);
 
 	};
 

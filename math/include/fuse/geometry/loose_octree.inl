@@ -26,7 +26,7 @@ namespace fuse
 	}
 
 	FUSE_LOOSEOCTREE_TEMPLATE_DECLARATION
-		FUSE_LOOSEOCTREE_TYPE::loose_octree(const XMVECTOR & center,
+		FUSE_LOOSEOCTREE_TYPE::loose_octree(const vec128 & center,
 		                                    float halfextent,
 		                                    unsigned int maxdepth,
 		                                    BoundingVolumeFunctor functor,
@@ -56,7 +56,6 @@ namespace fuse
 	FUSE_LOOSEOCTREE_TEMPLATE_DECLARATION
 		bool FUSE_LOOSEOCTREE_TYPE::insert(const Object & object, const BoundingVolume & volume)
 	{
-
 		aabb aabb = bounding_aabb(volume);
 
 		if (!contains(get_aabb(), aabb))
@@ -73,7 +72,6 @@ namespace fuse
 		increase_occupancy(it);
 
 		return true;
-
 	}
 
 	FUSE_LOOSEOCTREE_TEMPLATE_DECLARATION
@@ -85,52 +83,42 @@ namespace fuse
 	FUSE_LOOSEOCTREE_TEMPLATE_DECLARATION
 		bool FUSE_LOOSEOCTREE_TYPE::remove(const Object & object, const BoundingVolume & volume)
 	{
-
 		aabb aabb = bounding_aabb(volume);
 
-		monton_code octant = calculate_fitting_octant(aabb);
+		morton_code octant = calculate_fitting_octant(aabb);
 
 		auto it = m_nodes.find(octant);
 
 		if (it != m_nodes.end())
 		{
-
 			node & node = it->second;
 
 			for (auto listIt = node.objects.begin(); listIt != node.objects.end(); listIt++)
 			{
-
 				if (m_comparator(*listIt, object))
 				{
 					node.objects.erase(listIt);
 					decrease_occupancy(it);
 					return true;
 				}
-
 			}
-
 		}
 
 		return false;
-
 	}
 
 	FUSE_LOOSEOCTREE_TEMPLATE_DECLARATION
 		template <typename QueryType, typename Visitor>
 	void FUSE_LOOSEOCTREE_TYPE::query(const QueryType & query, Visitor visitor)
 	{
-
-		aabb rootAABB = aabb::from_center_half_extents(m_center, XMVectorScale(m_halfextent, 2.f));
-
+		aabb rootAABB = aabb::from_center_half_extents(m_center, m_halfextent * 2.f);
 		traverse(FUSE_LOOSEOCTREE_ROOT_INDEX, rootAABB, query, visitor);
-
 	}
 
 	FUSE_LOOSEOCTREE_TEMPLATE_DECLARATION
 		bool FUSE_LOOSEOCTREE_TYPE::ray_pick(const ray & ray, Object & result, float & t)
 	{
-
-		aabb rootAABB = aabb::from_center_half_extents(m_center, XMVectorScale(m_halfextent, 2.f));
+		aabb rootAABB = aabb::from_center_half_extents(m_center, vec128Scale(m_halfextent, 2.f));
 
 		Object * object = nullptr;
 		t = std::numeric_limits<float>::infinity();
@@ -146,39 +134,34 @@ namespace fuse
 		{
 			return false;
 		}
-
 	}
 
 	FUSE_LOOSEOCTREE_TEMPLATE_DECLARATION
-		void FUSE_LOOSEOCTREE_TYPE::create_octree(const XMVECTOR & center,
+		void FUSE_LOOSEOCTREE_TYPE::create_octree(const vec128 & center,
 		                                          float halfextent,
 		                                          unsigned int maxdepth,
 		                                          BoundingVolumeFunctor functor,
 		                                          Comparator comparator)
 	{
-
 		m_center     = center;
-		m_halfextent = XMVectorSet(halfextent, halfextent, halfextent, halfextent);
+		m_halfextent = vec128_set(halfextent, halfextent, halfextent, halfextent);
 		m_maxdepth   = maxdepth;
 		m_functor    = functor;
 		m_comparator = comparator;
 
 		m_nodes.emplace(FUSE_LOOSEOCTREE_ROOT_INDEX, node());
-
 	}
 
 	FUSE_LOOSEOCTREE_TEMPLATE_DECLARATION
 		template <typename Visitor>
 	void FUSE_LOOSEOCTREE_TYPE::traverse(Visitor visitor)
 	{
-
 		dfs_visit(FUSE_LOOSEOCTREE_ROOT_INDEX,
 			[this, visitor](node_hashmap_iterator it)
 		{
 			aabb aabb = get_octant_aabb(it->first);
 			visitor(aabb, it->second.objects.begin(), it->second.objects.end());
 		});
-
 	}
 
 	FUSE_LOOSEOCTREE_TEMPLATE_DECLARATION
@@ -191,7 +174,6 @@ namespace fuse
 		typename FUSE_LOOSEOCTREE_TYPE::node_hashmap_iterator
 		FUSE_LOOSEOCTREE_TYPE::create_octant(morton_code octantLocation)
 	{
-
 		auto nodeInsertResult = m_nodes.emplace(octantLocation, node());
 
 		node_hashmap_iterator octant = nodeInsertResult.first;
@@ -211,13 +193,11 @@ namespace fuse
 		}
 
 		return octant;
-
 	}
 
 	FUSE_LOOSEOCTREE_TEMPLATE_DECLARATION
 		void FUSE_LOOSEOCTREE_TYPE::shrink(void)
 	{
-
 		dfs_visit(FUSE_LOOSEOCTREE_ROOT_INDEX,
 			[this](node_hashmap_iterator it)
 		{
@@ -231,32 +211,33 @@ namespace fuse
 			}
 
 		});
-
 	}
 
 	FUSE_LOOSEOCTREE_TEMPLATE_DECLARATION
 		morton_code FUSE_LOOSEOCTREE_TYPE::calculate_fitting_octant(const aabb & aabb) const
 	{
+		vec128 center   = aabb.get_center();
+		vec128 hExtents = aabb.get_half_extents();
 
-		XMVECTOR center   = aabb.get_center();
-		XMVECTOR hExtents = aabb.get_half_extents();
+		float maxExtent = std::max(std::max(vec128_get_x(hExtents), vec128_get_y(hExtents)), vec128_get_z(hExtents));
 
-		float maxExtent = std::max(std::max(XMVectorGetX(hExtents), XMVectorGetY(hExtents)), XMVectorGetZ(hExtents));
-
-		XMVECTOR normalizedCentroid = XMVectorAdd(XMVectorSubtract(center, m_center), m_halfextent);
-		normalizedCentroid = XMVectorDivide(normalizedCentroid, XMVectorScale(m_halfextent, 2.f));
+		vec128 normalizedCentroid = (center - m_center) + m_halfextent;
+		normalizedCentroid = normalizedCentroid / (2.f * m_halfextent);
 
 		// Given an object of size wx, we want a depth d such that wx <= wd, where wd = w0 / 2^d
 		// Solving we have d <= log2 w0/wx. So d = floor(log2(w0/wx)) is the max depth an
 		// object can fit in.
 
-		unsigned int fitDepth = (unsigned int) std::floor(std::log2(XMVectorGetX(m_halfextent) / maxExtent));
+		unsigned int fitDepth = (unsigned int) std::floor(std::log2(vec128_get_x(m_halfextent) / maxExtent));
 		unsigned int depth    = std::min(fitDepth, m_maxdepth);
 
-		XMVECTOR t = XMVectorFloor(XMVectorScale(normalizedCentroid, (1 << m_maxdepth)));
+		vec128_f32 t = vec128_floor(normalizedCentroid * (1 << m_maxdepth));
 
-		XMUINT3 octreeCenterCoordinates;
-		XMStoreUInt3(&octreeCenterCoordinates, t);
+		morton_unpacked octreeCenterCoordinates = {
+			static_cast<uint32_t>(t.f32[0]),
+			static_cast<uint32_t>(t.f32[1]),
+			static_cast<uint32_t>(t.f32[2])
+		};
 
 		morton_code centerLocation = morton_encode3(octreeCenterCoordinates);
 
@@ -267,25 +248,21 @@ namespace fuse
 		morton_code location = centerLocationSentinel >> (3 * (m_maxdepth - depth));
 
 		return location;
-
 	}
 
 	FUSE_LOOSEOCTREE_TEMPLATE_DECLARATION
 		unsigned int FUSE_LOOSEOCTREE_TYPE::get_octant_depth(morton_code location) const
 	{
-
 		// Find the most significant one (the sentinel value) and
 		// return the number of bit triplets in the code as the depth value
 
 		uint32_t mso = most_significant_one(location);
 		return mso / 3;
-
 	}
 
 	FUSE_LOOSEOCTREE_TEMPLATE_DECLARATION
 		aabb FUSE_LOOSEOCTREE_TYPE::get_octant_aabb(morton_code location) const
 	{
-
 		if (location == FUSE_LOOSEOCTREE_ROOT_INDEX)
 		{
 			return get_aabb();
@@ -295,42 +272,36 @@ namespace fuse
 
 		if (it != m_nodes.end())
 		{
-
 			unsigned int depth = get_octant_depth(location);
 
 			// The half extents of the regular octant
-			XMVECTOR hd      = XMVectorScale(m_halfextent, 1.f / (1 << depth));
-			XMVECTOR hdloose = XMVectorScale(hd, 2.f);
+			vec128 hd      = m_halfextent * (1.f / (1 << depth));
+			vec128 hdloose = hd * 2.f;
 
-			XMUINT3 octantCoords = get_octant_coords(location);
+			uint3 octantCoords = get_octant_coords(location);
 
-			XMVECTOR ijk = XMVectorSet(octantCoords.x, octantCoords.y, octantCoords.z, 0.f);
+			vec128 ijk = vec128_set(octantCoords.x, octantCoords.y, octantCoords.z, 0.f);
 
-			ijk = XMVectorScale(ijk, 2.f);
-			ijk = XMVectorAdd(ijk, XMVectorSplatOne());
+			ijk = ijk * 2.f;
+			ijk = ijk + vec128_one();
 			
-			XMVECTOR minPoint = XMVectorSubtract(m_center, m_halfextent);
-			XMVECTOR center   = XMVectorMultiplyAdd(ijk, hd, minPoint);
+			vec128 minPoint = m_center - m_halfextent;
+			vec128 center   = ijk * hd + minPoint;
 
 			return aabb::from_center_half_extents(center, hdloose);
-
 		}
 
-		return aabb::from_center_half_extents(XMVectorZero(), XMVectorZero());
-
+		return aabb::from_center_half_extents(vec128_zero(), vec128_zero());
 	}
 
 	FUSE_LOOSEOCTREE_TEMPLATE_DECLARATION
-		XMUINT3 FUSE_LOOSEOCTREE_TYPE::get_octant_coords(morton_code location) const
+		uint3 FUSE_LOOSEOCTREE_TYPE::get_octant_coords(morton_code location) const
 	{
-
 		uint32_t mso = most_significant_one(location);
 
 		// Remove the sentinel
 		morton_code code = (1ULL << mso) ^ location;
-
-		return morton_decode3(code);
-
+		return reinterpret_cast<const uint3&>(morton_decode3(code));
 	}
 
 	FUSE_LOOSEOCTREE_TEMPLATE_DECLARATION
@@ -340,60 +311,52 @@ namespace fuse
 	                                     const QueryType & query,
 	                                     Visitor visitor)
 	{
-
 		auto it = m_nodes.find(currentLocation);
 
-		if (it->second.occupancy > 0 && intersects(current, query))
+		if (it != m_nodes.end() && 
+		    it->second.occupancy > 0 &&
+		    intersects(current, query))
 		{
-
 			for (Object & o : it->second.objects)
 			{
-
 				if (intersects(query, m_functor(o)))
 				{
 					visitor(o);
 				}
-
 			}
 
 			auto currentCenter      = current.get_center();
 			auto currentHalfExtents = current.get_half_extents();
 
-			auto nextHalfExtents = XMVectorScale(currentHalfExtents, .5f);
-			auto shiftSize       = XMVectorScale(currentHalfExtents, .25f);
+			auto nextHalfExtents = currentHalfExtents * .5f;
+			auto shiftSize       = currentHalfExtents * .25f;
 
 			for (int child = 0; child < 8; child++)
 			{
-
 				morton_code nextLevelLocation = currentLocation << 3;
 
 				if (it->second.childrenMask & FUSE_LOOSEOCTREE_MAKE_CHILD_MASK(child))
 				{
-
 					morton_code childCode = nextLevelLocation | child;
 
 					// Set the direction of shift setting the signbit to 0/1 according to the child
 					// location (thus moving in the positive/negative direction as needed) ...
 
-					XMVECTOR centerShift = XMVectorSet(child & 1 ? 0.f : -0.f,
-					                                   child & 2 ? 0.f : -0.f,
-					                                   child & 4 ? 0.f : -0.f,
-					                                   0.f);
+					vec128 centerShift = vec128_set(child & 1 ? 0.f : -0.f,
+					                                child & 2 ? 0.f : -0.f,
+					                                child & 4 ? 0.f : -0.f,
+					                                0.f);
 
 					// ... then set mantissa/exponent to the shift size
 
-					centerShift = XMVectorOrInt(centerShift, shiftSize);
+					centerShift = vec128_or(centerShift, shiftSize);
 
-					aabb childAABB = aabb::from_center_half_extents(XMVectorAdd(currentCenter, centerShift), nextHalfExtents);
+					aabb childAABB = aabb::from_center_half_extents(currentCenter + centerShift, nextHalfExtents);
 
 					traverse(childCode, childAABB, query, visitor);
-
 				}
-
 			}
-
 		}
-
 	}
 
 	FUSE_LOOSEOCTREE_TEMPLATE_DECLARATION
@@ -403,10 +366,8 @@ namespace fuse
 		                                     float & minDistance,
 		                                     Object * & object)
 	{
-
 		if (intersects(ray, current))
 		{
-
 			auto it = m_nodes.find(currentLocation);
 
 			for (Object & o : it->second.objects)
@@ -418,29 +379,26 @@ namespace fuse
 					minDistance = t;
 					object      = &o;
 				}
-
 			}
 
 			auto currentCenter      = current.get_center();
 			auto currentHalfExtents = current.get_half_extents();
 
-			auto nextHalfExtents = XMVectorScale(currentHalfExtents, .5f);
-			auto shiftSize       = XMVectorScale(currentHalfExtents, .25f);
+			auto nextHalfExtents = vec128Scale(currentHalfExtents, .5f);
+			auto shiftSize       = vec128Scale(currentHalfExtents, .25f);
 
 			for (int child = 0; child < 8; child++)
 			{
-
 				morton_code nextLevelLocation = currentLocation << 3;
 
 				if (it->second.childrenMask & FUSE_LOOSEOCTREE_MAKE_CHILD_MASK(child))
 				{
-
 					morton_code childCode = nextLevelLocation | child;
 
 					// Set the direction of shift setting the signbit to 0/1 according to the child
 					// location (thus moving in the positive/negative direction as needed) ...
 
-					XMVECTOR centerShift = XMVectorSet(
+					vec128 centerShift = vec128_set(
 						child & 1 ? 0.f : -0.f,
 						child & 2 ? 0.f : -0.f,
 						child & 4 ? 0.f : -0.f,
@@ -448,76 +406,57 @@ namespace fuse
 
 					// ... then set mantissa/exponent to the shift size
 
-					centerShift = XMVectorOrInt(centerShift, shiftSize);
+					centerShift = vec128_or(centerShift, shiftSize);
 
-					aabb childAABB = aabb::from_center_half_extents(XMVectorAdd(currentCenter, centerShift), nextHalfExtents);
+					aabb childAABB = aabb::from_center_half_extents(vec128Add(currentCenter, centerShift), nextHalfExtents);
 
 					ray_pick(childCode, childAABB, ray, minDistance, object);
-
 				}
-
 			}
-
 		}
-
 	}
 
 	FUSE_LOOSEOCTREE_TEMPLATE_DECLARATION
 		template <typename Visitor>
 	void FUSE_LOOSEOCTREE_TYPE::dfs_visit(morton_code code, Visitor visitor)
 	{
-
 		auto it = m_nodes.find(code);
 
 		morton_code nextLevelLocation = code << 3;
 
 		for (int child = 0; child < 8; child++)
 		{
-
 			if (it->second.childrenMask & FUSE_LOOSEOCTREE_MAKE_CHILD_MASK(child))
 			{
 				dfs_visit(nextLevelLocation | child, visitor);
 			}
-
 		}
 
 		visitor(it);
-
 	}
 
 	FUSE_LOOSEOCTREE_TEMPLATE_DECLARATION
 		void FUSE_LOOSEOCTREE_TYPE::increase_occupancy(node_hashmap_iterator octant)
 	{
-
 		octant->second.occupancy++;
 
 		if (octant->first != FUSE_LOOSEOCTREE_ROOT_INDEX)
 		{
-
 			auto parentIt = m_nodes.find(octant->first >> 3);
-
 			increase_occupancy(parentIt);
-
 		}
-
 	}
 
 	FUSE_LOOSEOCTREE_TEMPLATE_DECLARATION
 		void FUSE_LOOSEOCTREE_TYPE::decrease_occupancy(node_hashmap_iterator octant)
 	{
-
-
 		octant->second.occupancy--;
 
 		if (octant->first != FUSE_LOOSEOCTREE_ROOT_INDEX)
 		{
-
 			auto parentIt = m_nodes.find(octant->first >> 3);
-
 			decrease_occupancy(parentIt);
-
 		}
-
 	}
 
 	FUSE_LOOSEOCTREE_TEMPLATE_DECLARATION
@@ -526,7 +465,6 @@ namespace fuse
 		auto it = m_nodes.find(FUSE_LOOSEOCTREE_ROOT_INDEX);
 		return it->second.occupancy;
 	}
-
 
 }
 

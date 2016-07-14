@@ -35,7 +35,7 @@ namespace fuse
 			gpu_graphics_command_list & commandList,
 			gpu_ring_buffer & ringBuffer,
 			D3D12_GPU_VIRTUAL_ADDRESS cbPerFrame,
-			const XMMATRIX & lightMatrix,
+			const mat128 & lightMatrix,
 			const render_resource & renderTarget,
 			const render_resource & depthBuffer,
 			renderable_iterator begin,

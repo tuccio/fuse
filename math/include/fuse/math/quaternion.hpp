@@ -30,15 +30,6 @@ namespace fuse
 		quaternion(float w, float x, float y, float z) :
 			x(x), y(y), z(z), w(w) {}
 
-		quaternion(const vec128 & q)
-		{
-			auto qf32 = reinterpret_cast<const quaternion&>(q);
-			w = qf32.w;
-			x = qf32.x;
-			y = qf32.y;
-			z = qf32.z;
-		}
-
 		union
 		{
 

@@ -10,6 +10,13 @@ namespace fuse
 
 	typedef uint64_t morton_code;
 
+	struct morton_unpacked
+	{
+		uint32_t x;
+		uint32_t y;
+		uint32_t z;
+	};
+
 	namespace detail
 	{
 
@@ -95,9 +102,8 @@ namespace fuse
 
 	// Morton code obtained interleaving as in zyx
 
-	inline morton_code morton_encode3(const XMUINT3 & m)
+	inline morton_code morton_encode3(const morton_unpacked & m)
 	{
-
 		__m128i xiyi = detail::morton_split3_low_high(_mm_set_epi32(0x0, m.y, 0x0, m.x));
 		__m128i zi   = detail::morton_split3_low(_mm_set_epi32(0x0, 0x0, 0x0, m.z));
 
@@ -109,12 +115,10 @@ namespace fuse
 		detail::sse_register r = { _mm_or_si128(_mm_or_si128(xiyi, yi), zi) };
 
 		return r.__ui64[0];
-
 	}
 
-	inline XMUINT3 morton_decode3(morton_code code)
+	inline morton_unpacked morton_decode3(morton_code code)
 	{
-
 		detail::sse_register rx, ry, rz;
 
 		rx.__ui64[0] = code;
@@ -126,8 +130,7 @@ namespace fuse
 		ry = { detail::morton_compact3_low(ry.__128i) };
 		rz = { detail::morton_compact3_low(rz.__128i) };
 
-		return XMUINT3(rx.__ui64[0], ry.__ui64[0], rz.__ui64[0]);
-
+		return morton_unpacked{ static_cast<uint32_t>(rx.__ui64[0]), static_cast<uint32_t>(ry.__ui64[0]), static_cast<uint32_t>(rz.__ui64[0]) };
 	}
 
 }

@@ -16,7 +16,7 @@ bool skydome::init(ID3D12Device * device, uint32_t width, uint32_t height, uint3
 
 	m_skydomes.resize(buffers);
 
-	m_skydomeResolution = XMUINT2(2048, 768);
+	m_skydomeResolution = uint2(2048, 768);
 
 	for (auto & skydome : m_skydomes)
 	{
@@ -60,28 +60,29 @@ render_resource & skydome::get_current_skydome(void)
 	return m_skydomes[m_lastUpdatedBuffer];
 }
 
-static XMFLOAT3 compute_sun_direction(float zenith, float azimuth)
+static float3 compute_sun_direction(float elevation, float azimuth)
 {
 
 	float sinAzimuth, cosAzimuth;
 	float sinElevation, cosElevation;
 
-	XMScalarSinCos(&sinAzimuth, &cosAzimuth, azimuth);
-	XMScalarSinCos(&cosElevation, &sinElevation, zenith); // cos(elevation) = sin(zenith) ..
+	sinAzimuth = std::sin(azimuth);
+	cosAzimuth = std::cos(azimuth);
 
-	XMFLOAT3 direction;
+	sinElevation = std::sin(elevation);
+	cosElevation = std::cos(elevation);
+
+	float3 direction;
 
 	direction.y = sinElevation;
 	direction.x = cosElevation * cosAzimuth;
 	direction.z = cosElevation * sinAzimuth;
 
 	return direction;
-
 }
 
 light skydome::get_sun_light(void)
 {
-
 	// TODO
 
 	light sun;
@@ -97,7 +98,6 @@ light skydome::get_sun_light(void)
 	sun.skydome   = this;
 
 	return sun;
-
 }
 
 bool skydome_renderer::init(ID3D12Device * device)
@@ -119,7 +119,7 @@ struct cbSkydome
 
 	float __fill0[2];
 
-	XMFLOAT3 sunDirection;
+	float3 sunDirection;
 
 	float zenith_Y;
 	float zenith_x;
@@ -127,9 +127,9 @@ struct cbSkydome
 
 	float __fill1[2];
 
-	XMFLOAT4 perez_Y[5];
-	XMFLOAT4 perez_x[5];
-	XMFLOAT4 perez_y[5];
+	float4 perez_Y[5];
+	float4 perez_x[5];
+	float4 perez_y[5];
 
 };
 
@@ -160,7 +160,6 @@ void skydome_renderer::render(
 
 bool skydome_renderer::create_pso(ID3D12Device * device)
 {
-
 	com_ptr<ID3DBlob> quadVS, skyboxGS, skyboxPS;
 	std::vector<D3D12_INPUT_ELEMENT_DESC> inputLayoutVector;
 
@@ -212,7 +211,6 @@ bool skydome_renderer::create_pso(ID3D12Device * device)
 	}
 
 	return false;
-
 }
 
 bool skydome_renderer::create_nishita_pso(ID3D12Device * device)
@@ -284,7 +282,7 @@ static void skydome_nishita_setup(cbSkydome & skydata, float thetaSun, float azi
 
 	skydata.sunDirection = compute_sun_direction(thetaSun, azimuth);
 
-	float chi = (4.f / 9.f - T / 120.f) * (pi<float>() - 2.f * thetaSun);
+	float chi = (4.f / 9.f - T / 120.f) * (FUSE_PI - 2.f * thetaSun);
 
 	skydata.zenith_Y = (4.0453f * T - 4.9710f) * std::tan(chi) - .2155f * T + 2.4192f;
 	//skydata.zenith_Y *= 1000.f;  // conversion from kcd/m^2 to cd/m^2
@@ -354,7 +352,7 @@ bool skydome_renderer::render_sky_nishita(
 
 		commandList->OMSetRenderTargets(1, &rtv, false, nullptr);
 
-		XMUINT2 resolution = sky.get_skydome_resolution();
+		uint2 resolution = sky.get_skydome_resolution();
 
 		commandList->RSSetViewports(1, &make_fullscreen_viewport(resolution.x, resolution.y));
 		commandList->RSSetScissorRects(1, &make_fullscreen_scissor_rect(resolution.x, resolution.y));

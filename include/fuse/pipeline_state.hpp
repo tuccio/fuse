@@ -1,7 +1,7 @@
 #pragma once
 
 #include <fuse/directx_helper.hpp>
-#include <fuse/properties_macros.hpp>
+#include <fuse/core.hpp>
 
 #include <boost/optional.hpp>
 

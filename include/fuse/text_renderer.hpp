@@ -29,8 +29,8 @@ namespace fuse
 			D3D12_GPU_VIRTUAL_ADDRESS cbPerFrame,
 			bitmap_font * font,
 			const char * text,
-			const XMFLOAT2 & position,
-			const XMFLOAT4 & color);
+			const float2 & position,
+			const float4 & color);
 
 	private:
 

@@ -2,7 +2,7 @@
 
 #include <fuse/color.hpp>
 #include <fuse/geometry.hpp>
-#include <fuse/properties_macros.hpp>
+#include <fuse/core/properties_macros.hpp>
 
 #include <fuse/gpu_command_queue.hpp>
 

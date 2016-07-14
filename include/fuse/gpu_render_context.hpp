@@ -1,9 +1,9 @@
 #pragma once
 
+#include <fuse/core.hpp>
 #include <fuse/directx_helper.hpp>
 #include <fuse/gpu_command_queue.hpp>
 #include <fuse/gpu_ring_buffer.hpp>
-#include <fuse/core.hpp>
 
 #include <memory>
 #include <vector>

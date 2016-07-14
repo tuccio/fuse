@@ -2,7 +2,6 @@
 
 #include <fuse/core.hpp>
 #include <fuse/math.hpp>
-#include <fuse/properties_macros.hpp>
 
 namespace fuse
 {
@@ -16,19 +15,21 @@ namespace fuse
 		plane(const plane &) = default;
 		plane(plane &&) = default;
 
-		plane(const XMVECTOR & plane);
+		plane(const vec128 & plane);
 		plane(float a, float b, float c, float d);
-		plane(const XMFLOAT3 & normal, const XMFLOAT3 & point);
+		plane(const float3 & normal, const float3 & point);
+		plane(const float4 & plane);
 
 		plane & operator= (const plane &) = default;
 		plane & operator= (plane &&) = default;
 
 		plane flip(void) const;
 		plane normalize(void) const;
+		vec128 FUSE_VECTOR_CALL dot(vec128 x) const;
 
 	private:
 
-		XMVECTOR m_plane;
+		vec128 m_plane;
 
 	public:
 

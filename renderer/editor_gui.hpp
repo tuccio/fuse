@@ -10,6 +10,7 @@
 #include "renderable.hpp"
 #include "scene.hpp"
 #include "render_variables.hpp"
+#include "skydome.hpp"
 
 #include <list>
 
@@ -124,7 +125,7 @@ namespace fuse
 		private:
 
 			skydome * m_skydome;
-			bool     m_filling;
+			bool      m_filling;
 
 			void fill_form(void);
 

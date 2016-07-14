@@ -23,8 +23,8 @@ void text_renderer::render(
 	D3D12_GPU_VIRTUAL_ADDRESS cbPerFrame,
 	bitmap_font * font,
 	const char * text,
-	const XMFLOAT2 & position,
-	const XMFLOAT4 & color)
+	const float2 & position,
+	const float4 & color)
 {
 
 	if (font->load())
@@ -32,9 +32,9 @@ void text_renderer::render(
 
 		struct __char
 		{
-			XMFLOAT2 position;
-			XMFLOAT4 color;
-			XMFLOAT2 texcoord;
+			float2 position;
+			float4 color;
+			float2 texcoord;
 		};
 
 		size_t n = strlen(text);
@@ -42,7 +42,7 @@ void text_renderer::render(
 
 		data.reserve(6 * n);
 
-		XMFLOAT2 currentPosition = position;
+		float2 currentPosition = position;
 
 		UINT lineHeight = font->get_height();
 
@@ -60,7 +60,7 @@ void text_renderer::render(
 				char c = text[i];
 				auto & charInfo = (*font)[c];
 
-				XMFLOAT2 offsetPosition = currentPosition;
+				float2 offsetPosition = currentPosition;
 				offsetPosition.x += charInfo.offset[0];
 				offsetPosition.y += charInfo.offset[1];
 
@@ -68,7 +68,7 @@ void text_renderer::render(
 
 				vertices[0].color = color;
 				vertices[0].position = offsetPosition;
-				vertices[0].texcoord = XMFLOAT2(charInfo.minUV[0], charInfo.minUV[1]);
+				vertices[0].texcoord = float2(charInfo.minUV[0], charInfo.minUV[1]);
 
 				vertices[1] = vertices[0];
 				vertices[1].position.x += (charInfo.rect.right - charInfo.rect.left);

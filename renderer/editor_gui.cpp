@@ -588,25 +588,29 @@ void light_panel::set_light(light * light)
 
 }
 
-static void direction_to_elevation_azimuth(const XMFLOAT3 & direction, float & elevation, float & azimuth)
+static void direction_to_elevation_azimuth(const float3 & direction, float & elevation, float & azimuth)
 {
-	elevation = XMConvertToDegrees(std::asin(direction.y));
-	azimuth = XMConvertToDegrees(std::atan(direction.x / direction.y)) - 90.f;
+	elevation = to_degrees(std::asin(direction.y));
+	azimuth = to_degrees(std::atan(direction.x / direction.y)) - 90.f;
 }
 
-void elevation_azimuth_to_direction(float elevation, float azimuth, XMFLOAT3 & direction)
+void elevation_azimuth_to_direction(float elevation, float azimuth, float3 & direction)
 {
+	float rAzimuth   = to_radians(azimuth);
+	float rElevation = to_radians(elevation);
 
 	float sinAzimuth, cosAzimuth;
 	float sinElevation, cosElevation;
 
-	XMScalarSinCos(&sinAzimuth, &cosAzimuth, XMConvertToRadians(azimuth));
-	XMScalarSinCos(&sinElevation, &cosElevation, XMConvertToRadians(elevation));
+	sinAzimuth = std::sin(rAzimuth);
+	cosAzimuth = std::cos(rAzimuth);
+
+	sinElevation = std::sin(rElevation);
+	cosElevation = std::cos(rElevation);
 
 	direction.y = sinElevation;
 	direction.x = cosElevation * cosAzimuth;
 	direction.z = cosElevation * sinAzimuth;
-
 }
 
 void light_panel::ProcessEvent(Rocket::Core::Event & event)

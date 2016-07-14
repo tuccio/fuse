@@ -48,7 +48,7 @@ namespace fuse
 
 			void reset(void);
 
-			inline bool operator() (void) const { return m_resource; }
+			inline bool operator() (void) const { return m_resource != nullptr; }
 			inline void swap(render_resource_handle & r) { std::swap(m_resource, r.m_resource); std::swap(m_id, r.m_id); }
 
 			const render_resource * operator-> (void) const { return m_resource; }

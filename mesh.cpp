@@ -1,5 +1,4 @@
 #include <fuse/mesh.hpp>
-#include <fuse/math.hpp>
 
 using namespace fuse;
 
@@ -13,7 +12,6 @@ mesh::~mesh(void)
 
 bool mesh::create(size_t vertices, size_t triangles, unsigned int storage_semantics)
 {
-
 	clear();
 
 	m_numVertices  = vertices;
@@ -54,12 +52,10 @@ bool mesh::create(size_t vertices, size_t triangles, unsigned int storage_semant
 	recalculate_size();
 
 	return true;
-
 }
 
 uint32_t mesh::get_parameters_storage_semantic_flags(void)
 {
-
 	auto & params = get_parameters();
 
 	boost::optional<bool> normalsOpt    = params.get_optional<bool>(FUSE_LITERAL("normals"));
@@ -82,12 +78,10 @@ uint32_t mesh::get_parameters_storage_semantic_flags(void)
 	if (texcoords1Opt && *texcoords1Opt) flags |= FUSE_MESH_STORAGE_TEXCOORDS1;
 
 	return flags;
-
 }
 
 bool mesh::calculate_tangent_space(void)
 {
-
 	if (!has_storage_semantic(FUSE_MESH_STORAGE_NORMALS))
 	{
 		return false;
@@ -101,20 +95,18 @@ bool mesh::calculate_tangent_space(void)
 
 		for (int i = 0; i < m_numVertices; i++)
 		{
-
 			float absNx = fabs(m_normals[i].x);
 
-			XMFLOAT3 v = { absNx > .99f ? 0.f : 1.f, absNx > .99f ? 1.f : 0.f, 0.f };
+			float3 v = { absNx > .99f ? 0.f : 1.f, absNx > .99f ? 1.f : 0.f, 0.f };
 
-			XMVECTOR N = to_vector(m_normals[i]);
-			XMVECTOR T = to_vector(v);
-			XMVECTOR B = XMVector3Cross(N, T);
+			vec128 N = to_vec128(m_normals[i]);
+			vec128 T = to_vec128(v);
+			vec128 B = vec128_cross(N, T);
 
-			T = XMVector3Cross(N, B);
+			T = vec128_cross(N, B);
 
 			m_tangents[i]   = to_float3(T);
 			m_bitangents[i] = to_float3(B);
-
 		}
 
 	}
@@ -127,12 +119,10 @@ bool mesh::calculate_tangent_space(void)
 	}
 
 	return true;
-
 }
 
 void mesh::clear(void)
 {
-
 	m_vertices.clear();
 	m_vertices.shrink_to_fit();
 
@@ -153,7 +143,6 @@ void mesh::clear(void)
 
 	m_numVertices  = m_numTriangles = 0;
 	m_storageFlags = 0;
-
 }
 
 bool mesh::load_impl(void)
@@ -169,7 +158,6 @@ void mesh::unload_impl(void)
 
 size_t mesh::calculate_size_impl(void)
 {
-
 	size_t indicesSize   = m_numTriangles * 3 * sizeof(uint32_t);
 	size_t verticesSize  = m_numVertices * 3 * sizeof(float);
 	size_t texcoordsSize = m_numVertices * 2 * sizeof(float);
@@ -207,12 +195,10 @@ size_t mesh::calculate_size_impl(void)
 	}
 
 	return verticesSize * verticesMultiplier + texcoordsSize * texcoordsMultiplier + indicesSize;
-
 }
 
 bool mesh::add_storage_semantic(mesh_storage_semantic semantic)
 {
-
 	if (has_storage_semantic(semantic))
 	{
 		return false;
@@ -260,12 +246,10 @@ bool mesh::add_storage_semantic(mesh_storage_semantic semantic)
 	}
 
 	return false;
-
 }
 
 bool mesh::remove_storage_semantic(mesh_storage_semantic semantic)
 {
-	
 	if (!has_storage_semantic(semantic))
 	{
 		return false;
@@ -317,5 +301,4 @@ bool mesh::remove_storage_semantic(mesh_storage_semantic semantic)
 	}
 
 	return false;
-
 }

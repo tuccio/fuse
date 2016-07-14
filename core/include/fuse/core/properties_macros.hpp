@@ -17,8 +17,8 @@
 #define FUSE_PROPERTY_GET_SMART_POINTER(PropertyName, MemberVariable) BOOST_PP_CAT(inline auto get_, PropertyName (void) const -> decltype(MemberVariable.get()) { return MemberVariable ## .get(); })
 #define FUSE_PROPERTY_SET_SMART_POINTER(PropertyName, MemberVariable) BOOST_PP_CAT(inline void set_, PropertyName (decltype(MemberVariable.get()) value) { MemberVariable = value; })
 
-#define FUSE_PROPERTY_GET_STRING(PropertyName, MemberVariable) BOOST_PP_CAT(inline const char * get_, PropertyName (void) { return MemberVariable.c_str(); })
-#define FUSE_PROPERTY_SET_STRING(PropertyName, MemberVariable) BOOST_PP_CAT(inline void set_, PropertyName (const char * value) { MemberVariable = value; })
+#define FUSE_PROPERTY_GET_STRING(PropertyName, MemberVariable) BOOST_PP_CAT(inline decltype(auto) get_, PropertyName (void) { return MemberVariable.c_str(); })
+#define FUSE_PROPERTY_SET_STRING(PropertyName, MemberVariable) BOOST_PP_CAT(inline void set_, PropertyName (const decltype(MemberVariable)::const_pointer value) { MemberVariable = value; })
 
 #define FUSE_PROPERTY_BY_CONST_REFERENCE(PropertyName, MemberVariable) FUSE_PROPERTY_GET_BY_CONST_REFERENCE(PropertyName, MemberVariable) FUSE_PROPERTY_SET_BY_CONST_REFERENCE(PropertyName, MemberVariable)
 #define FUSE_PROPERTY_BY_VALUE(PropertyName, MemberVariable) FUSE_PROPERTY_GET_BY_VALUE(PropertyName, MemberVariable) FUSE_PROPERTY_SET_BY_VALUE(PropertyName, MemberVariable)

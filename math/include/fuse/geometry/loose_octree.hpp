@@ -8,6 +8,8 @@
 #include <list>
 #include <unordered_map>
 
+#include "morton.hpp"
+
 #define FUSE_LOOSEOCTREE_DEFAULT_MAXDEPTH 8
 
 enum loose_octree_children
@@ -66,7 +68,7 @@ namespace fuse
 
 		loose_octree(void);
 
-		loose_octree(const XMVECTOR & center,
+		loose_octree(const vec128 & center,
 		             float halfextent,
 		             unsigned int maxdepth = FUSE_LOOSEOCTREE_DEFAULT_MAXDEPTH,
 		             BoundingVolumeFunctor functor = BoundingVolumeFunctor(),
@@ -110,8 +112,8 @@ namespace fuse
 		typedef std::unordered_map<morton_code, node> node_hashmap;
 		typedef typename node_hashmap::iterator       node_hashmap_iterator;
 
-		XMVECTOR m_center;
-		XMVECTOR m_halfextent;
+		vec128 m_center;
+		vec128 m_halfextent;
 
 		unsigned int m_maxdepth;
 
@@ -122,7 +124,7 @@ namespace fuse
 
 		/* Private methods */
 
-		void create_octree(const XMVECTOR & center,
+		void create_octree(const vec128 & center,
 		                   float halfextent,
 		                   unsigned int maxdepth,
 		                   BoundingVolumeFunctor functor,
@@ -134,7 +136,7 @@ namespace fuse
 
 		unsigned int get_octant_depth(morton_code octant) const;
 		aabb         get_octant_aabb(morton_code octant) const;
-		XMUINT3      get_octant_coords(morton_code octant) const;
+		uint3        get_octant_coords(morton_code octant) const;
 
 		template <typename QueryType, typename Visitor>
 		void traverse(morton_code currentLocation,

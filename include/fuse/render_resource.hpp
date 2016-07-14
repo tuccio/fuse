@@ -3,7 +3,7 @@
 #include <fuse/directx_helper.hpp>
 #include <fuse/descriptor_heap.hpp>
 
-#include <fuse/properties_macros.hpp>
+#include <fuse/core.hpp>
 
 namespace fuse
 {

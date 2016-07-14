@@ -23,7 +23,7 @@ void shadow_mapper::render(
 	gpu_graphics_command_list & commandList,
 	gpu_ring_buffer & ringBuffer,
 	D3D12_GPU_VIRTUAL_ADDRESS cbPerFrame,
-	const XMMATRIX & lightMatrix,
+	const mat128 & lightMatrix,
 	const render_resource & renderTarget,
 	const render_resource & depthBuffer,
 	renderable_iterator begin,
@@ -71,15 +71,15 @@ void shadow_mapper::render(
 
 		D3D12_GPU_VIRTUAL_ADDRESS cbPerLight;
 
-		void * cbData = ringBuffer.allocate_constant_buffer(device, commandQueue, sizeof(XMMATRIX), &cbPerLight);
+		void * cbData = ringBuffer.allocate_constant_buffer(device, commandQueue, sizeof(mat128), &cbPerLight);
 
 		if (cbData)
 		{
 
 			renderable * object = *it;
 
-			XMMATRIX worldLightSpace = XMMatrixMultiplyTranspose(object->get_world_matrix(), lightMatrix);
-			memcpy(cbData, &worldLightSpace, sizeof(XMMATRIX));
+			mat128 worldLightSpace = to_mat128(object->get_world_matrix()) * lightMatrix;
+			memcpy(cbData, &worldLightSpace, sizeof(mat128));
 
 			/* Draw */
 

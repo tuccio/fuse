@@ -63,25 +63,47 @@ namespace fuse
 		return r;
 	}
 
-	inline vec128 FUSE_VECTOR_CALL quat128_inv(vec128 lhs)
+	inline vec128 FUSE_VECTOR_CALL quat128_inverse(vec128 lhs)
 	{
-		vec128 t0 = vec128_dp4(lhs, lhs);
+		vec128 t0 = vec128_dot4(lhs, lhs);
 		vec128 t1 = detail::newton_raphson_simd<1>::reciprocal_ps(t0);
 		return _mm_mul_ps(t0, t1);
 	}
 
-
-	inline vec128 FUSE_VECTOR_CALL quat128_conj(vec128 lhs)
+	inline vec128 FUSE_VECTOR_CALL quat128_conjugate(vec128 lhs)
 	{
-		vec128 mask = _mm_set_ps(0.f, -0.f, -0.f, -0.f);
-		return _mm_xor_ps(mask, lhs);
+		static const vec128 signMask = _mm_set_ps(-0.f, -0.f, -0.f, 0.f);
+		return _mm_xor_ps(signMask, lhs);
 	}
 
 	inline vec128 FUSE_VECTOR_CALL quat128_transform(vec128 x, vec128 q)
 	{
 		vec128 t0 = _mm_castsi128_ps(_mm_set_epi32(0x0, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF));
 		vec128 pq = _mm_and_ps(x, t0);
-		return quat128_mul(quat128_mul(q, pq), quat128_conj(q));
+		return quat128_mul(quat128_mul(q, pq), quat128_conjugate(q));
+	}
+
+	inline vec128 FUSE_VECTOR_CALL quat128_norm(vec128 lhs)
+	{
+		return vec128_sqrt(vec128_dot4(lhs, lhs));
+	}
+
+	inline vec128 FUSE_VECTOR_CALL quat128_normalize(vec128 lhs)
+	{
+		return lhs * vec128_invsqrt(vec128_dot4(lhs, lhs));
+	}
+
+	/* Conversions */
+
+	inline quaternion FUSE_VECTOR_CALL to_quaternion(vec128 lhs)
+	{
+		return reinterpret_cast<const quaternion&>(lhs);
+	}
+
+
+	inline vec128 to_quat128(const quaternion & lhs)
+	{
+		return _mm_loadu_ps(&lhs.x);
 	}
 
 }

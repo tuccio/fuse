@@ -54,7 +54,9 @@ namespace fuse
 			inline static void transpose(transpose_type & r, const MatrixType & a)
 			{
 				matrix_cwise<MatrixType, I - 1>::transpose(r, a);
-				get<I - 1>(r) = get<(I - 1) / MatrixType::rows::value, (I - 1) % MatrixType::rows::value>(a);
+				using _row = std::integral_constant<int, (I - 1) % MatrixType::cols::value>;
+				using _col = std::integral_constant<int, (I - 1) / MatrixType::cols::value>;
+				get<_row::value, _col::value>(r) = get<_col::value, _row::value>(a);
 			}
 
 			inline static void hadd(typename MatrixType::scalar & r, const MatrixType & a)
@@ -162,7 +164,6 @@ namespace fuse
 				matrix_cwise<matrix_type, N * M>::divide(r, a, b);
 				return r;
 			}
-
 		};
 
 		template <typename T, int N, int M>
@@ -177,7 +178,30 @@ namespace fuse
 				matrix_cwise<matrix_type, N * M>::transpose(r, a);
 				return r;
 			}
+		};
 
+		template <typename T, int M>
+		struct matrix_transpose_impl<T, 1, M>
+		{
+			using matrix_type = matrix<T, 1, M>;
+			using transpose_type = matrix<T, M, 1>;
+
+			inline static const transpose_type & transpose(const matrix_type & a)
+			{
+				return reinterpret_cast<const transpose_type&>(a);
+			}
+		};
+
+		template <typename T, int N>
+		struct matrix_transpose_impl<T, N, 1>
+		{
+			using matrix_type = matrix<T, N, 1>;
+			using transpose_type = matrix<T, 1, N>;
+
+			inline static const transpose_type & transpose(const matrix_type & a)
+			{
+				return reinterpret_cast<const transpose_type&>(a);
+			}
 		};
 
 		/* Fill (accesses I, J by column) */

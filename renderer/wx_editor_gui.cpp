@@ -6,21 +6,29 @@
 #define FUSE_WX_SLIDER_RV(Parent, Type, Variable, Min, Max) FUSE_WX_SLIDER(Parent, Type, m_rendererConfiguration->get_ ## Variable, m_rendererConfiguration->set_ ## Variable, Min, Max)
 #define FUSE_WX_SPIN_RV(Parent, Type, Variable, Min, Max, Step) FUSE_WX_SPIN(Parent, Type, m_rendererConfiguration->get_ ## Variable, m_rendererConfiguration->set_ ## Variable, Min, Max, Step)
 
+#define FUSE_RENDERING_NOTEBOOK _("wx_editor_gui::rendering_notebook")
+#define FUSE_SCENE_NOTEBOOK     _("wx_editor_gui::scene_notebook")
+
 #include "wx_editor_gui.hpp"
 
 #include <fuse/wx_helpers.hpp>
+
+#include <algorithm>
+#include <deque>
+#include <iterator>
 
 using namespace fuse;
 
 bool wx_editor_gui::init(wxWindow * window, scene * scene, render_configuration * r, visual_debugger * visualDebugger)
 {
-
 	m_window  = window;
 	m_manager = wxAuiManager::GetManager(window);
 	m_scene   = scene;
 
 	m_visualDebugger        = visualDebugger;
 	m_rendererConfiguration = r;
+
+	m_selectedNode = nullptr;
 
 	wxAuiNotebook * renderingNotebook = new wxAuiNotebook(window, wxID_ANY);
 	wxAuiNotebook * sceneNotebook     = new wxAuiNotebook(window, wxID_ANY);
@@ -31,25 +39,28 @@ bool wx_editor_gui::init(wxWindow * window, scene * scene, render_configuration 
 	create_shadow_mapping_page(renderingNotebook);
 	create_skylight_page(sceneNotebook);
 	create_camera_page(sceneNotebook);
+	create_scene_graph_page(sceneNotebook);
 
 	if (visualDebugger)
 	{
 		create_debug_page(sceneNotebook);
 	}
 
-	m_manager->AddPane(renderingNotebook, wxLEFT, _(""));
-	m_manager->AddPane(sceneNotebook, wxRIGHT, _(""));
+	if (m_manager->AddPane(renderingNotebook, wxLEFT, _("")) &&
+	    m_manager->AddPane(sceneNotebook, wxRIGHT, _("")))
+	{
+		m_manager->GetPane(renderingNotebook).MinSize(wxSize(200, 250)).Name(FUSE_RENDERING_NOTEBOOK);
+		m_manager->GetPane(sceneNotebook).MinSize(wxSize(200, 250)).Name(FUSE_SCENE_NOTEBOOK);
 
-	m_manager->GetPane(renderingNotebook).MinSize(wxSize(200, 250)).Name("wx_editor_gui::rendering_notebook");
-	m_manager->GetPane(sceneNotebook).MinSize(wxSize(200, 250)).Name("wx_editor_gui::scene_notebook");
+		sceneNotebook->Thaw();
+		renderingNotebook->Thaw();
 
-	sceneNotebook->Thaw();
-	renderingNotebook->Thaw();
+		m_manager->Update();
 
-	m_manager->Update();
+		return true;
+	}
 
-	return true;
-
+	return false;
 }
 
 void wx_editor_gui::shutdown(void)
@@ -59,7 +70,6 @@ void wx_editor_gui::shutdown(void)
 
 void wx_editor_gui::create_shadow_mapping_page(wxAuiNotebook * notebook)
 {
-
 	const int padding = 5;
 
 	wxWindow   * panel        = new wxWindow(notebook, wxID_ANY);
@@ -68,7 +78,6 @@ void wx_editor_gui::create_shadow_mapping_page(wxAuiNotebook * notebook)
 	/* VSM */
 
 	{
-
 		wxWindow   * vsm   = new wxWindow(algoNotebook, wxID_ANY);
 		wxBoxSizer * sizer = new wxBoxSizer(wxVERTICAL);
 
@@ -95,13 +104,11 @@ void wx_editor_gui::create_shadow_mapping_page(wxAuiNotebook * notebook)
 		vsm->SetSizerAndFit(sizer);
 
 		algoNotebook->AddPage(vsm, _("VSM"));
-
 	}
 
 	/* EVSM2 */
 
 	{
-
 		wxWindow   * evsm2 = new wxWindow(algoNotebook, wxID_ANY);
 		wxBoxSizer * sizer = new wxBoxSizer(wxVERTICAL);
 
@@ -131,13 +138,11 @@ void wx_editor_gui::create_shadow_mapping_page(wxAuiNotebook * notebook)
 		evsm2->SetSizerAndFit(sizer);
 
 		algoNotebook->AddPage(evsm2, _("EVSM2"));
-
 	}
 
 	/* EVSM4 */
 
 	{
-
 		wxWindow   * evsm4 = new wxWindow(algoNotebook, wxID_ANY);
 		wxBoxSizer * sizer = new wxBoxSizer(wxVERTICAL);
 
@@ -170,7 +175,6 @@ void wx_editor_gui::create_shadow_mapping_page(wxAuiNotebook * notebook)
 		evsm4->SetSizerAndFit(sizer);
 
 		algoNotebook->AddPage(evsm4, _("EVSM4"));
-
 	}
 
 	/* Common */
@@ -195,13 +199,11 @@ void wx_editor_gui::create_shadow_mapping_page(wxAuiNotebook * notebook)
 
 	panel->SetSizerAndFit(panelSizer);
 
-	notebook->AddPage(panel, _("Shadow Mapping"));	
-
+	notebook->AddPage(panel, _("Shadow Mapping"));
 }
 
 void wx_editor_gui::create_skylight_page(wxAuiNotebook * notebook)
 {
-
 	const int padding = 5;
 
 	wxWindow   * skylight = new wxWindow(notebook, wxID_ANY);
@@ -211,10 +213,10 @@ void wx_editor_gui::create_skylight_page(wxAuiNotebook * notebook)
 	wxStaticBoxSizer * ambientSizer = new wxStaticBoxSizer(wxVERTICAL, skylight, _("Ambient Light"));
 
 	skySizer->Add(new wxStaticText(skySizer->GetStaticBox(), wxID_ANY, _("Zenith")), 0, wxEXPAND | wxALL, padding);
-	skySizer->Add(FUSE_WX_SLIDER(skySizer->GetStaticBox(), float, m_scene->get_skydome()->get_zenith, m_scene->get_skydome()->set_zenith, 0, half_pi<float>()), 0, wxEXPAND | wxALL, padding);
+	skySizer->Add(FUSE_WX_SLIDER(skySizer->GetStaticBox(), float, m_scene->get_skydome()->get_zenith, m_scene->get_skydome()->set_zenith, 0, FUSE_HALF_PI), 0, wxEXPAND | wxALL, padding);
 
 	skySizer->Add(new wxStaticText(skySizer->GetStaticBox(), wxID_ANY, _("Azimuth")), 0, wxEXPAND | wxALL, padding);
-	skySizer->Add(FUSE_WX_SLIDER(skySizer->GetStaticBox(), float, m_scene->get_skydome()->get_azimuth, m_scene->get_skydome()->set_azimuth, -pi<float>(), pi<float>()), 0, wxEXPAND | wxALL, padding);
+	skySizer->Add(FUSE_WX_SLIDER(skySizer->GetStaticBox(), float, m_scene->get_skydome()->get_azimuth, m_scene->get_skydome()->set_azimuth, -FUSE_PI, FUSE_PI), 0, wxEXPAND | wxALL, padding);
 
 	skySizer->Add(new wxStaticText(skySizer->GetStaticBox(), wxID_ANY, _("Turbidity")), 0, wxEXPAND | wxALL, padding);
 	skySizer->Add(FUSE_WX_SLIDER(skySizer->GetStaticBox(), float, m_scene->get_skydome()->get_turbidity, m_scene->get_skydome()->set_turbidity, 1, 10), 0, wxEXPAND | wxALL, padding);
@@ -232,19 +234,16 @@ void wx_editor_gui::create_skylight_page(wxAuiNotebook * notebook)
 	skylight->SetSizerAndFit(sizer);
 
 	notebook->AddPage(skylight, _("Skylight"));
-
 }
 
 void wx_editor_gui::create_debug_page(wxAuiNotebook * notebook)
 {
-
 	const int padding = 5;
 
 	wxWindow   * debug = new wxWindow(notebook, wxID_ANY);
 	wxBoxSizer * sizer = new wxBoxSizer(wxVERTICAL);
 
 	{
-
 		wxStaticBoxSizer * drawSizer = new wxStaticBoxSizer(wxVERTICAL, debug, _("Draw"));
 
 		drawSizer->Add(new wx_checkbox([&](bool value) { m_visualDebugger->set_draw_bounding_volumes(value); },
@@ -264,18 +263,15 @@ void wx_editor_gui::create_debug_page(wxAuiNotebook * notebook)
 			drawSizer->GetStaticBox(), wxID_ANY, _("Skydome"), m_visualDebugger->get_draw_skydome()), 0, wxEXPAND | wxALL, padding);
 
 		sizer->Add(drawSizer, 0, wxEXPAND | wxALL, padding);
-
 	}
 
 	debug->SetSizerAndFit(sizer);
 
 	notebook->AddPage(debug, _("Debug"));
-
 }
 
 void wx_editor_gui::create_camera_page(wxAuiNotebook * notebook)
 {
-
 	const int padding = 5;
 
 	wxWindow   * camera = new wxWindow(notebook, wxID_ANY);
@@ -293,6 +289,149 @@ void wx_editor_gui::create_camera_page(wxAuiNotebook * notebook)
 	camera->SetSizerAndFit(sizer);
 
 	notebook->AddPage(camera, _("Camera"));
+}
+
+void wx_editor_gui::create_scene_graph_page(wxAuiNotebook * notebook)
+{
+	const int padding = 5;
+
+	wxWindow   * sg    = new wxWindow(notebook, wxID_ANY);
+	wxBoxSizer * sizer = new wxBoxSizer(wxVERTICAL);
+
+	wxStaticBoxSizer * localTranslationBox    = new wxStaticBoxSizer(wxVERTICAL, sg, _("Local translation"));
+	wxBoxSizer       * localTranslationFields = new wxBoxSizer(wxHORIZONTAL);
+
+	m_sgTree = new wxTreeCtrl(sg);
+
+	load_scene_graph();
+
+	/* Local translation */
+
+	auto localTranslationX = new wx_spin<float>(
+		[&]()
+	{
+		if (m_selectedNode)
+		{
+			return vec128_get_x(m_selectedNode->get_local_translation());
+		}
+	},
+		[&](float x)
+	{
+		if (m_selectedNode)
+		{
+			auto v = m_selectedNode->get_local_translation();
+			vec128_set_x(v, x);
+			return m_selectedNode->set_local_translation(v);
+		}
+	}, sg, wxID_ANY, -FLT_MAX, FLT_MAX, .1f);
+
+	auto localTranslationY = new wx_spin<float>(
+		[&]()
+	{
+		if (m_selectedNode)
+		{
+			return vec128_get_y(m_selectedNode->get_local_translation());
+		}
+	},
+		[&](float x)
+	{
+		if (m_selectedNode)
+		{
+			auto v = m_selectedNode->get_local_translation();
+			vec128_set_y(v, x);
+			return m_selectedNode->set_local_translation(v);
+		}
+	}, sg, wxID_ANY, -FLT_MAX, FLT_MAX, .1f);
+
+	auto localTranslationZ = new wx_spin<float>(
+		[&]()
+	{
+		if (m_selectedNode)
+		{
+			return vec128_get_z(m_selectedNode->get_local_translation());
+		}
+	},
+		[&](float x)
+	{
+		if (m_selectedNode)
+		{
+			auto v = m_selectedNode->get_local_translation();
+			vec128_set_z(v, x);
+			return m_selectedNode->set_local_translation(v);
+		}
+	}, sg, wxID_ANY, -FLT_MAX, FLT_MAX, .1f);
+
+	localTranslationX->SetMinSize(wxSize(64, 24));
+	localTranslationY->SetMinSize(wxSize(64, 24));
+	localTranslationZ->SetMinSize(wxSize(64, 24));
+
+	/* Add elements */
+
+	//localTranslation->Add(new wxStaticText(sg, wxID_ANY, _("Translation")), 0, wxEXPAND | wxALL, padding);
+	localTranslationFields->Add(localTranslationX, 0, wxEXPAND | wxALL);
+	localTranslationFields->Add(localTranslationY, 0, wxEXPAND | wxALL);
+	localTranslationFields->Add(localTranslationZ, 0, wxEXPAND | wxALL);
+
+	localTranslationBox->Add(localTranslationFields, 0, wxEXPAND | wxALL);
+
+	sizer->Add(m_sgTree, 1, wxEXPAND | wxALL, padding);
+	sizer->Add(localTranslationBox, 0, wxEXPAND | wxALL, padding);
+
+	sg->SetSizerAndFit(sizer);
+
+	notebook->AddPage(sg, _("Scene Graph"));
+
+	m_sgTree->Bind(wxEVT_TREE_ITEM_ACTIVATED,
+		[&, localTranslationX, localTranslationY, localTranslationZ](wxTreeEvent & event)
+	{
+		wxTreeItemId item = event.GetItem();
+		m_selectedNode = m_itemNodeMap[item];
+		localTranslationX->update_value();
+		localTranslationY->update_value();
+		localTranslationZ->update_value();
+	});
+}
+
+void wx_editor_gui::load_scene_graph(void)
+{
+	m_sgTree->DeleteAllItems();
+
+	std::deque<scene_graph_node*> stack = { m_scene->get_scene_graph()->get_root() };
+
+	do
+	{
+		scene_graph_node * node   = stack.front();
+		scene_graph_node * parent = node->get_parent();
+
+		string_t name = node->get_name();
+		wxTreeItemId id;
+
+		if (parent)
+		{
+			id = m_sgTree->AppendItem(
+				m_nodeItemMap[parent],
+				name.empty() ? _("<unnamed node>") : name.c_str());
+		}
+		else
+		{
+			id = m_sgTree->AddRoot(_("<root>"));
+		}
+
+		m_nodeItemMap[node] = id;
+		m_itemNodeMap[id]   = node;
+
+		std::copy(node->begin(), node->end(), std::back_inserter(stack));
+		stack.pop_front();
+	} while (!stack.empty());
+}
+
+void wx_editor_gui::update_selected_node(scene_graph_node * node)
+{
+	
+}
+
+void wx_editor_gui::on_scene_graph_node_select(wxTreeEvent & event)
+{
 
 }
 

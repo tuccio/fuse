@@ -20,7 +20,7 @@ aabb fuse::operator^ (const aabb & a, const aabb & b)
 	);
 }
 
-std::array<XMVECTOR, 8> aabb::get_corners(void) const
+std::array<vec128, 8> aabb::get_corners(void) const
 {
 
 	std::array<vec128, 8> v;

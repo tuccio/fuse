@@ -1,18 +1,16 @@
 #include <fuse/camera.hpp>
 
-#include <boost/math/constants/constants.hpp>
-
 using namespace fuse;
 
 camera::camera(void) :
 	m_orientation(1, 0, 0, 0),
 	m_position(0, 0, 0),
-	m_fovy(half_pi<float>()),
+	m_fovy(FUSE_HALF_PI),
 	m_znear(.1f),
 	m_zfar(100.f),
 	m_aspectRatio(1.f),
 	m_viewMatrixDirty(true),
-	m_projectionMatrixDirty(true) { }
+	m_projectionMatrixDirty(true) {}
 
 void camera::update_world_matrix(void) const
 {
@@ -129,12 +127,7 @@ void camera::set_projection_matrix(const float4x4 & matrix)
 
 frustum camera::get_frustum(void) const
 {
-	XMMATRIX v, p;
-
-	p = XMLoadFloat4x4((const XMFLOAT4X4*)&transpose(get_projection_matrix()));
-	v = XMLoadFloat4x4((const XMFLOAT4X4*)&transpose(get_view_matrix()));
-
-	return frustum(p, v);
+	return frustum(get_view_matrix() * get_projection_matrix());
 }
 
 void camera::set_position(const float3 & position)
@@ -193,20 +186,20 @@ void camera::set_fovx(float fovx)
 
 float camera::get_fovy_deg(void) const
 {
-	return rad_to_deg(get_fovy());
+	return to_degrees(get_fovy());
 }
 
 float camera::get_fovx_deg(void) const
 {
-	return rad_to_deg(get_fovx());
+	return to_degrees(get_fovx());
 }
 
 void camera::set_fovy_deg(float fovy)
 {
-	set_fovy(deg_to_rad(fovy));
+	set_fovy(to_radians(fovy));
 }
 
 void camera::set_fovx_deg(float fovx)
 {
-	set_fovx(deg_to_rad(fovx));
+	set_fovx(to_radians(fovx));
 }

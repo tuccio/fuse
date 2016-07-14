@@ -1,6 +1,8 @@
 #include "realtime_renderer.hpp"
 #include "render_variables.hpp"
 
+#include <sstream>
+
 using namespace fuse;
 
 bool realtime_renderer::init(gpu_render_context & renderContext, render_configuration * renderConfiguration)
@@ -82,9 +84,6 @@ void realtime_renderer::render(D3D12_GPU_VIRTUAL_ADDRESS cbPerFrameAddress, scen
 
 	/* Setup render */
 
-	auto shadowMapViewport = make_fullscreen_viewport(m_shadowMapResolution, m_shadowMapResolution);
-	auto shadowMapScissorRect = make_fullscreen_scissor_rect(m_shadowMapResolution, m_shadowMapResolution);
-
 	render_resource_manager & renderResourceManager = render_resource_manager::get_singleton_reference();
 
 	/* Get the resources for gbuffer rendering and clear them */
@@ -153,6 +152,9 @@ void realtime_renderer::render(D3D12_GPU_VIRTUAL_ADDRESS cbPerFrameAddress, scen
 	/* GBuffer rendering */
 
 	m_renderables = scene->frustum_culling(camera->get_frustum());
+	auto sgfc = scene->frustum_culling_sg(camera->get_frustum());
+
+	//FUSE_LOG(FUSE_LITERAL("realtime_renderer"), stringstream_t() << "Drawing " << m_renderables.size() << " objects.");
 
 	auto renderableObjects = std::make_pair(m_renderables.begin(), m_renderables.end());
 	//auto renderableObjects = scene->get_renderable_objects();
@@ -274,7 +276,7 @@ void realtime_renderer::render(D3D12_GPU_VIRTUAL_ADDRESS cbPerFrameAddress, scen
 
 		if (m_visualDebugger && m_visualDebugger->get_draw_skydome())
 		{
-			m_visualDebugger->add(device, commandList, bufferIndex, skydome->get_current_skydome(), XMUINT2(16, 16), m_visualDebugger->get_textures_scale(), true);
+			m_visualDebugger->add(device, commandList, bufferIndex, skydome->get_current_skydome(), uint2(16, 16), m_visualDebugger->get_textures_scale(), true);
 		}
 
 		light sunLight = skydome->get_sun_light();
@@ -282,22 +284,15 @@ void realtime_renderer::render(D3D12_GPU_VIRTUAL_ADDRESS cbPerFrameAddress, scen
 		shadowMapInfo.shadowMap = shadowMapResources[0].get();
 
 		{
+			mat128 lightViewMatrix = look_at_lh(vec128_zero(), to_vec128(sunLight.direction), to_vec128(camera->left()));
+			//vec128_set(sunLight.direction.y > .99f ? 1.f : 0.f, sunLight.direction.y > .99f ? 0.f : 1.f, 0.f, 0.f));
 
-			XMMATRIX lightViewMatrix = XMMatrixLookAtLH(XMVectorZero(),
-				to_vector(sunLight.direction),
-				XMLoadFloat3(&(const XMFLOAT3&)camera->left()));
-			//XMVectorSet(sunLight.direction.y > .99f ? 1.f : 0.f, sunLight.direction.y > .99f ? 0.f : 1.f, 0.f, 0.f));
+			mat128 lightCropMatrix = sm_crop_matrix_lh(lightViewMatrix, renderableObjects.first, renderableObjects.second);
 
-			XMMATRIX lightCropMatrix = sm_crop_matrix_lh(lightViewMatrix, renderableObjects.first, renderableObjects.second);
-
-			shadowMapInfo.lightMatrix = XMMatrixMultiply(lightViewMatrix, lightCropMatrix);
-
+			shadowMapInfo.lightMatrix = lightViewMatrix * lightCropMatrix;
 		}
 
 		/* Sun shadow map */
-
-		commandList->RSSetViewports(1, &shadowMapViewport);
-		commandList->RSSetScissorRects(1, &shadowMapScissorRect);
 
 		m_shadowMapper.render(
 			device,
@@ -353,7 +348,6 @@ void realtime_renderer::render(D3D12_GPU_VIRTUAL_ADDRESS cbPerFrameAddress, scen
 
 render_resource_ptr realtime_renderer::get_shadow_map_render_target(void)
 {
-
 	return render_resource_manager::get_singleton_pointer()->get_texture_2d(
 		m_renderContext->get_device(),
 		m_renderContext->get_buffer_index(),
@@ -363,14 +357,12 @@ render_resource_ptr realtime_renderer::get_shadow_map_render_target(void)
 		1, 0, 1, 0,
 		D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET | D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
 		&CD3DX12_CLEAR_VALUE(m_shadowMapRTV, color_rgba::zero));
-
 }
-
-bool realtime_renderer::setup_shadow_mapping(ID3D12Device * device)
-{
 
 #define FAIL_IF(Condition) if (Condition) return false;
 
+bool realtime_renderer::setup_shadow_mapping(ID3D12Device * device)
+{
 	uint32_t resolution = m_renderConfiguration->get_shadow_map_resolution();
 	shadow_mapping_algorithm algorithm = m_renderConfiguration->get_shadow_mapping_algorithm();
 
@@ -391,11 +383,10 @@ bool realtime_renderer::setup_shadow_mapping(ID3D12Device * device)
 			m_shadowMapRTV = DXGI_FORMAT_R32G32_FLOAT;
 		}
 
-		FAIL_IF(m_shadowMapBlur.init_box_blur(
+		FAIL_IF(!m_shadowMapBlur.init_box_blur(
 			device,
 			"float2",
 			m_renderConfiguration->get_vsm_blur_kernel_size(),
-			//2.f,
 			resolution, resolution));
 
 			break;
@@ -415,7 +406,6 @@ bool realtime_renderer::setup_shadow_mapping(ID3D12Device * device)
 			device,
 			"float2",
 			m_renderConfiguration->get_evsm2_blur_kernel_size(),
-			//2.f,
 			resolution, resolution))
 
 			break;
@@ -435,14 +425,13 @@ bool realtime_renderer::setup_shadow_mapping(ID3D12Device * device)
 			device,
 			"float4",
 			m_renderConfiguration->get_evsm4_blur_kernel_size(),
-			//2.f,
 			resolution, resolution))
 
 			break;
 
 	}
 
-	shadow_mapper_configuration shadowMapperCFG;
+	shadow_mapper_configuration shadowMapperCFG = {};
 
 	shadowMapperCFG.cullMode  = D3D12_CULL_MODE_NONE;
 	shadowMapperCFG.rtvFormat = m_shadowMapRTV;
@@ -458,8 +447,9 @@ bool realtime_renderer::setup_shadow_mapping(ID3D12Device * device)
 	render_resource_manager::get_singleton_pointer()->clear();
 
 	return true;
-
 }
+
+#undef FAIL_IF
 
 void realtime_renderer::update_render_configuration(void)
 {

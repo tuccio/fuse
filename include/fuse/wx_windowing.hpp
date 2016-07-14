@@ -218,7 +218,7 @@ namespace fuse
 
 			if (event.Moving() || event.Dragging())
 			{
-				wx_windowing::get_mouse().post_mouse_move(reinterpret_cast<const XMINT2&>(event.GetPosition()));
+				wx_windowing::get_mouse().post_mouse_move(reinterpret_cast<const int2&>(event.GetPosition()));
 			}
 
 			if (event.GetEventType() == wxEVT_MOUSEWHEEL)

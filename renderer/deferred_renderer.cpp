@@ -8,6 +8,7 @@
 #include <fuse/gpu_global_resource_state.hpp>
 
 #include "cbuffer_structs.hpp"
+#include "shadow_mapping.hpp"
 
 using namespace fuse;
 
@@ -93,14 +94,12 @@ void deferred_renderer::render_gbuffer(
 	renderable_iterator begin,
 	renderable_iterator end)
 {
-
 	/* Maybe sort the object first */
 
-	/* Temp */
-	auto view              = XMMatrixTranspose(XMLoadFloat4x4((const XMFLOAT4X4*)&camera->get_view_matrix()));
-	auto projection        = XMMatrixTranspose(XMLoadFloat4x4((const XMFLOAT4X4*)&camera->get_projection_matrix()));
-	auto viewProjection    = XMMatrixMultiply(view, projection);
-	auto invViewProjection = XMMatrixInverse(&XMMatrixDeterminant(viewProjection), viewProjection);
+	mat128 view              = mat128_load(camera->get_view_matrix());
+	mat128 projection        = mat128_load(camera->get_projection_matrix());
+	mat128 viewProjection    = view * projection;
+	mat128 invViewProjection = mat128_inverse4(viewProjection);
 
 	/* Setup the pipeline state */
 
@@ -145,7 +144,6 @@ void deferred_renderer::render_gbuffer(
 
 	for (auto it = begin; it != end; it++)
 	{
-
 		renderable * object = *it;
 
 		/* Fill buffer per object */
@@ -154,15 +152,15 @@ void deferred_renderer::render_gbuffer(
 
 		cb_per_object cbPerObject;
 
-		cbPerObject.transform.world               = XMMatrixTranspose(world);
-		cbPerObject.transform.worldView           = XMMatrixMultiplyTranspose(world, view);
-		cbPerObject.transform.worldViewProjection = XMMatrixMultiplyTranspose(world, viewProjection);
+		cbPerObject.transform.world               = world;
+		cbPerObject.transform.worldView           = world * view;
+		cbPerObject.transform.worldViewProjection = world * viewProjection;
 
 		auto objectMaterial = object->get_material();
 
 		material * materialData = (objectMaterial && objectMaterial->load()) ? objectMaterial.get() : &defaultMaterial;
 
-		cbPerObject.material.baseColor = reinterpret_cast<const XMFLOAT3&>(materialData->get_base_albedo());
+		cbPerObject.material.baseColor = to_float3(materialData->get_base_albedo());
 		cbPerObject.material.roughness = materialData->get_roughness();
 		cbPerObject.material.specular  = materialData->get_specular();
 		cbPerObject.material.metallic  = materialData->get_metallic();
@@ -173,7 +171,6 @@ void deferred_renderer::render_gbuffer(
 
 		if (cbData)
 		{
-
 			memcpy(cbData, &cbPerObject, sizeof(cb_per_object));
 
 			commandList->SetGraphicsRootConstantBufferView(1, address);
@@ -236,13 +233,10 @@ void deferred_renderer::render_gbuffer(
 			//	commandList->SetPipelineState(gbufferPSO);
 
 			//}
-			
 		}
 
 		++objectIndex;
-
 	}
-
 }
 
 void deferred_renderer::render_light(
@@ -257,14 +251,12 @@ void deferred_renderer::render_light(
 	const light * light,
 	const shadow_map_info * shadowMapInfo)
 {
-
 	D3D12_GPU_VIRTUAL_ADDRESS address;
 
 	void * cbData = ringBuffer.allocate_constant_buffer(device, commandQueue, sizeof(cb_per_light), &address);
 
 	if (cbData)
 	{
-
 		cb_per_light cbPerLight = {};
 
 		cbPerLight.light.type        = light->type;
@@ -273,7 +265,7 @@ void deferred_renderer::render_light(
 		cbPerLight.light.luminance   = to_float3(light->color * light->intensity);
 		cbPerLight.light.ambient     = to_float3(light->ambient);
 		
-		cbPerLight.shadowMapping.lightMatrix = XMMatrixTranspose(shadowMapInfo->lightMatrix);
+		cbPerLight.shadowMapping.lightMatrix = shadowMapInfo->lightMatrix;
 
 		memcpy(cbData, &cbPerLight, sizeof(cb_per_light));
 
@@ -296,24 +288,19 @@ void deferred_renderer::render_light(
 
 		if (shadowMapInfo)
 		{
-
 			commandList.resource_barrier_transition(shadowMapInfo->shadowMap->get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 			commandList->SetGraphicsRootDescriptorTable(3, shadowMapInfo->shadowMap->get_srv_gpu_descriptor_handle());
-
 			if (light->type == FUSE_LIGHT_TYPE_SKYDOME)
 			{
 				commandList->SetGraphicsRootConstantBufferView(5, shadowMapInfo->sdsmCBAddress);
 			}
-
 		}
 
 		commandList->OMSetRenderTargets(1, &renderTarget.get_rtv_cpu_descriptor_handle(), false, nullptr);
 
 		commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 		commandList->DrawInstanced(4, 1, 0, 0);
-
 	}
-
 }
 
 void deferred_renderer::render_skydome(
@@ -325,7 +312,6 @@ void deferred_renderer::render_skydome(
 	const render_resource & depthBuffer,
 	skydome & sky)
 {
-
 	commandList->SetPipelineState(m_skydomePSO.get());
 
 	commandList.resource_barrier_transition(depthBuffer.get(), D3D12_RESOURCE_STATE_DEPTH_WRITE);
@@ -342,7 +328,6 @@ void deferred_renderer::render_skydome(
 
 	commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 	commandList->DrawInstanced(4, 1, 0, 0);
-
 }
 
 bool deferred_renderer::create_debug_pso(ID3D12Device * device)
@@ -354,7 +339,6 @@ bool deferred_renderer::create_debug_pso(ID3D12Device * device)
 
 bool deferred_renderer::create_gbuffer_pso(ID3D12Device * device)
 {
-
 	com_ptr<ID3DBlob> serializedSignature;
 	com_ptr<ID3DBlob> errorsBlob;
 
@@ -370,7 +354,6 @@ bool deferred_renderer::create_gbuffer_pso(ID3D12Device * device)
 	if (!FUSE_HR_FAILED_BLOB(D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &serializedSignature, &errorsBlob), errorsBlob) &&
 	    !FUSE_HR_FAILED(device->CreateRootSignature(0, FUSE_BLOB_ARGS(serializedSignature), IID_PPV_ARGS(&m_gbufferRS))))
 	{
-
 		/* GBuffer PSO */
 		D3D12_GRAPHICS_PIPELINE_STATE_DESC gbufferPSODesc = {};
 
@@ -397,7 +380,7 @@ bool deferred_renderer::create_gbuffer_pso(ID3D12Device * device)
 		gbufferPSODesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 		gbufferPSODesc.pRootSignature        = m_gbufferRS.get();
 
-		m_gbufferPST = pipeline_state_template({ },	gbufferPSODesc, "5_0");
+		m_gbufferPST = pipeline_state_template({},	gbufferPSODesc, "5_0");
 
 		m_gbufferPST.set_vertex_shader(FUSE_LITERAL("shaders/deferred_shading_gbuffer.hlsl"), "gbuffer_vs");
 		m_gbufferPST.set_pixel_shader(FUSE_LITERAL("shaders/deferred_shading_gbuffer.hlsl"), "gbuffer_ps");
@@ -445,12 +428,9 @@ bool deferred_renderer::create_gbuffer_pso(ID3D12Device * device)
 				nullptr,
 				IID_PPV_ARGS(&m_queryResult)) &&
 			!FUSE_HR_FAILED(device->CreateQueryHeap(&queryHeapDesc, IID_PPV_ARGS(&m_queryHeap)));
-		//return true;
-
 	}
 
 	return false;
-
 }
 
 bool deferred_renderer::create_shading_pst(ID3D12Device * device)

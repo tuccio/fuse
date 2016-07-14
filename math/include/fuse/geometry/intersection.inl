@@ -16,33 +16,29 @@ namespace fuse
 
 			inline static bool contains(const aabb & a, const aabb & b)
 			{
+				vec128 aMin = a.get_min();
+				vec128 aMax = a.get_max();
 
-				XMVECTOR aMin = a.get_min();
-				XMVECTOR aMax = a.get_max();
+				vec128 bMin = b.get_min();
+				vec128 bMax = b.get_max();
 
-				XMVECTOR bMin = b.get_min();
-				XMVECTOR bMax = b.get_max();
+				vec128 andResult = vec128_and(vec128_ge(aMax, bMax), vec128_le(aMin, bMin));
 
-				XMVECTOR andResult = XMVectorAndInt(XMVectorGreaterOrEqual(aMax, bMax), XMVectorLessOrEqual(aMin, bMin));
-				
-				return XMComparisonAllFalse(XMVector3EqualR(andResult, XMVectorZero()));
-
+				return vec128_checksign<0, 0, 0>(vec128_eq(andResult, vec128_zero()));
 			}
 
 			inline static bool intersects(const aabb & a, const aabb & b)
 			{
+				vec128 aCenter      = a.get_center();
+				vec128 aHalfExtents = a.get_half_extents();
 
-				XMVECTOR aCenter      = a.get_center();
-				XMVECTOR aHalfExtents = a.get_half_extents();
+				vec128 bCenter      = b.get_center();
+				vec128 bHalfExtents = b.get_half_extents();
 
-				XMVECTOR bCenter      = b.get_center();
-				XMVECTOR bHalfExtents = b.get_half_extents();
+				vec128 t1 = aCenter - bCenter;
+				vec128 t2 = aHalfExtents + bHalfExtents;
 
-				XMVECTOR t1 = XMVectorSubtract(aCenter, bCenter);
-				XMVECTOR t2 = XMVectorAdd(aHalfExtents, bHalfExtents);
-
-				return XMComparisonAllTrue(XMVector3Greater(t2, t1));
-
+				return vec128_checksign<1, 1, 1>(vec128_gt(t2, t1));
 			}
 
 		};
@@ -56,29 +52,27 @@ namespace fuse
 
 			inline static bool intersects(const aabb & a, const sphere & b)
 			{
+				vec128 aabbMin = a.get_min();
+				vec128 aabbMax = a.get_max();
 
-				XMVECTOR aabbMin = a.get_min();
-				XMVECTOR aabbMax = a.get_max();
+				vec128 sphereCenter = b.get_center();
+				vec128 sphereRadius = b.get_radius();
 
-				XMVECTOR sphereCenter = b.get_center();
-				XMVECTOR sphereRadius = b.get_radius();
+				vec128 d = vec128_zero();
 
-				XMVECTOR d = XMVectorZero();
+				vec128 t1 = vec128_saturate(aabbMin - sphereCenter);
+				vec128 t2 = vec128_saturate(sphereCenter - aabbMax);
 
-				XMVECTOR t1 = XMVectorSaturate(XMVectorSubtract(aabbMin, sphereCenter));
-				XMVECTOR t2 = XMVectorSaturate(XMVectorSubtract(sphereCenter, aabbMax));
+				vec128 e = t1 + t2;
 
-				XMVECTOR e = XMVectorAdd(t1, t2);
+				d = e * e + d;
 
-				d = XMVectorMultiplyAdd(e, e, d);
+				vec128 r2 = sphereRadius * sphereRadius;
 
-				XMVECTOR r2 = XMVectorMultiply(sphereRadius, sphereRadius);
+				d = vec128_splat<FUSE_X>(d) + vec128_splat<FUSE_Y>(d) + vec128_splat<FUSE_Z>(d);
 
-				d = XMVectorAdd(XMVectorAdd(XMVectorSplatX(d), XMVectorSplatY(d)), XMVectorSplatZ(d));
-
-				return XMComparisonAllTrue(XMVector3Greater(e, sphereRadius)) &&
-				       XMComparisonAnyTrue(XMVector3Greater(d, r2));
-
+				return vec128_checksign<1, 1, 1>(vec128_gt(e, sphereRadius)) &&
+				       !vec128_checksign<0, 0, 0>(vec128_gt(d, r2));
 			}
 
 		};
@@ -92,19 +86,18 @@ namespace fuse
 
 			inline static bool intersects(const aabb & a, const frustum & b)
 			{
-
 				auto planes = b.get_planes();
 
-				XMFLOAT3 min = to_float3(a.get_min());
-				XMFLOAT3 max = to_float3(a.get_max());
+				float3 min = vec128_f32(a.get_min()).v3f;
+				float3 max = vec128_f32(a.get_max()).v3f;
 
 				for (int i = 0; i < 6; i++)
 				{
 
-					XMVECTOR planeVector = planes[i].get_plane_vector();
+					vec128 planeVector = planes[i].get_plane_vector();
 
-					XMFLOAT3 normal = to_float3(planeVector);
-					XMFLOAT3 n, p;
+					float3 normal = vec128_f32(planeVector).v3f;
+					float3 n, p;
 
 					if (normal.x > 0)
 					{
@@ -139,7 +132,10 @@ namespace fuse
 						p.z = min.z;
 					}
 
-					if (XMVectorGetX(XMPlaneDotCoord(planeVector, to_vector(n))) > 0)
+					//if (vec128_checksign<1, 1, 1, 1>(vec128_dp4(planeVector, vec128_load(n))))
+					//if (vec128GetX(XMPlaneDotCoord(planeVector, vec128_load(n))) > 0)
+					//if (vec128_get_x(vec128_dp4(planeVector, vec128_load(n))) > 0)
+					if (vec128_get_x(plane(planeVector).dot(vec128_load(n))) > 0)
 					{
 						return false;
 					}
@@ -147,7 +143,6 @@ namespace fuse
 				}
 
 				return true;
-
 			}
 
 		};
@@ -166,18 +161,19 @@ namespace fuse
 
 				auto planes = b.get_planes();
 
-				XMVECTOR sphereCenter = a.get_center();
-				XMVECTOR sphereRadius = a.get_radius();
+				vec128 sphereCenter = a.get_center();
+				vec128 sphereRadius = a.get_radius();
 
 				for (int i = 0; i < 6; i++)
 				{
 
-					XMVECTOR planeVector = planes[i].get_plane_vector();
+					vec128 planeVector = planes[i].get_plane_vector();
 
 					// Sphere-Frustum distance
-					float distance = XMVectorGetX(XMPlaneDotCoord(planeVector, sphereCenter));
+					//float distance = vec128GetX(XMPlaneDotCoord(planeVector, sphereCenter));
+					float distance = vec128_get_x(plane(planeVector).dot(sphereCenter));
 
-					if (distance > sphereRadius.m128_f32[0])
+					if (distance > vec128_get_x(sphereRadius))
 					{
 						return false;
 					}

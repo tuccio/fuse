@@ -5,6 +5,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <vector>
 
 #define FUSE_MESH_MAX_TEXCOORDS 8
 
@@ -50,7 +51,7 @@ namespace fuse
 		inline uint32_t get_num_vertices(void) const { return m_numVertices; }
 		inline uint32_t get_num_indices(void) const { return 3 * m_numTriangles; }
 
-		inline bool     has_storage_semantic(mesh_storage_semantic semantic) const { return static_cast<bool>(semantic & m_storageFlags);  }
+		inline bool     has_storage_semantic(mesh_storage_semantic semantic) const { return (semantic & m_storageFlags) != 0;  }
 		inline uint32_t get_storage_semantic_flags(void) const { return m_storageFlags; }
 
 		uint32_t get_parameters_storage_semantic_flags(void);
@@ -72,12 +73,12 @@ namespace fuse
 
 	private:
 
-		mutable std::vector<XMFLOAT3> m_vertices;
-		mutable std::vector<XMFLOAT3> m_normals;
-		mutable std::vector<XMFLOAT3> m_tangents;
-		mutable std::vector<XMFLOAT3> m_bitangents;
-		mutable std::vector<XMFLOAT2> m_texcoords[FUSE_MESH_MAX_TEXCOORDS];
-		mutable std::vector<XMUINT3>  m_indices;
+		mutable std::vector<float3> m_vertices;
+		mutable std::vector<float3> m_normals;
+		mutable std::vector<float3> m_tangents;
+		mutable std::vector<float3> m_bitangents;
+		mutable std::vector<float2> m_texcoords[FUSE_MESH_MAX_TEXCOORDS];
+		mutable std::vector<uint3>  m_indices;
 
 		uint32_t   m_numVertices;
 		uint32_t   m_numTriangles;

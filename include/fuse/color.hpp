@@ -102,7 +102,7 @@ namespace fuse
 	//inline color_rgb operator* (const color_rgb & color, float s) { return color_rgb(color.r * s, color.g * s, color.b * s); }
 	//inline color_rgb operator/ (const color_rgb & color, float s) { return color_rgb(s / color.r, s / color.g, s / color.b); }
 
-	inline XMFLOAT3 to_float3(const color_rgb & color) { return XMFLOAT3(color.r, color.g, color.b); }
-	inline XMFLOAT4 to_float4(const color_rgba & color) { return XMFLOAT4(color.r, color.g, color.b, color.a); }
+	inline float3 to_float3(const color_rgb & color) { return float3(color.r, color.g, color.b); }
+	inline float4 to_float4(const color_rgba & color) { return float4(color.r, color.g, color.b, color.a); }
 
 }

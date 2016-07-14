@@ -2,10 +2,7 @@
 
 #include <fuse/core.hpp>
 #include <fuse/math.hpp>
-#include <fuse/properties_macros.hpp>
 #include <fuse/geometry.hpp>
-
-#include <fuse/math/math.hpp>
 
 namespace fuse
 {
@@ -112,7 +109,6 @@ namespace fuse
 			(fovy,         m_fovy)
 			(znear,        m_znear)
 			(zfar,         m_zfar)
-
 		)
 	};
 

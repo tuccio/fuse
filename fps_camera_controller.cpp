@@ -6,8 +6,8 @@ FUSE_DEFINE_ALIGNED_ALLOCATOR_NEW(fps_camera_controller, 16)
 
 fps_camera_controller::fps_camera_controller(void) :
 	m_camera(nullptr),
-	m_velocity(XMVectorZero()),
-	m_acceleration(XMVectorZero()),
+	m_velocity(vec128_zero()),
+	m_acceleration(vec128_zero()),
 	m_sensitivity(1.f),
 	m_speed(0.25f, 0.25f, 0.25f),
 	m_centerMouse(false),
@@ -123,20 +123,20 @@ LRESULT fps_camera_controller::on_mouse(WPARAM wParam, LPARAM lParam)
 	//	POINT pt = mouseStruct->pt;
 	//	ScreenToClient(mouseStruct->hwnd, &pt);
 
-	//	static XMVECTOR lastPos = fuse::to_vector(XMFLOAT2(pt.x, pt.y));
-	//	XMVECTOR to = fuse::to_vector(XMFLOAT2(pt.x, pt.y));
+	//	static vec128 lastPos = fuse::to_vector(XMFLOAT2(pt.x, pt.y));
+	//	vec128 to = fuse::to_vector(XMFLOAT2(pt.x, pt.y));
 
 	//	if (m_rotating)
 	//	{
 
-	//		XMVECTOR from = lastPos;
+	//		vec128 from = lastPos;
 
-	//		XMVECTOR delta = XMVectorATan((to - from) / fuse::to_vector(m_screenSize));
+	//		vec128 delta = vec128ATan((to - from) / fuse::to_vector(m_screenSize));
 
-	//		XMVECTOR r1 = XMQuaternionRotationAxis(to_vector(XMFLOAT3(0, 1, 0)), XMVectorGetX(delta));
-	//		XMVECTOR r2 = XMQuaternionRotationAxis(to_vector(XMFLOAT3(1, 0, 0)), XMVectorGetY(delta));
+	//		vec128 r1 = XMQuaternionRotationAxis(to_vector(XMFLOAT3(0, 1, 0)), vec128GetX(delta));
+	//		vec128 r2 = XMQuaternionRotationAxis(to_vector(XMFLOAT3(1, 0, 0)), vec128GetY(delta));
 
-	//		XMVECTOR newOrientation = XMQuaternionNormalize(XMQuaternionMultiply(XMQuaternionMultiply(r2, m_camera->get_orientation()), r1));
+	//		vec128 newOrientation = XMQuaternionNormalize(XMQuaternionMultiply(XMQuaternionMultiply(r2, m_camera->get_orientation()), r1));
 
 	//		m_camera->set_orientation(newOrientation);
 
@@ -220,8 +220,8 @@ LRESULT fps_camera_controller::on_mouse(WPARAM wParam, LPARAM lParam)
 
 LRESULT fps_camera_controller::on_resize(UINT width, UINT height)
 {
-	m_screenSize   = XMFLOAT2(width, height);
-	m_screenCenter = XMFLOAT2(width / 2, height / 2);
+	m_screenSize   = float2(width, height);
+	m_screenCenter = float2(width / 2, height / 2);
 	return 0;
 }
 
@@ -331,7 +331,7 @@ bool fps_camera_controller::on_mouse_event(const mouse & mouse, const mouse_even
 			return 0;
 		}*/
 		
-		const XMINT2 & pt = event.position;
+		int2 pt = event.position;
 
 		static float2 lastPos(pt.x, pt.y);
 		float2 to(pt.x, pt.y);

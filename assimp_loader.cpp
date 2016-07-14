@@ -21,7 +21,6 @@ using namespace fuse;
 assimp_loader::assimp_loader(const char_t * filename, unsigned int flags) :
 	m_filename(filename)
 {
-
 	auto fnString = string_narrow(filename);
 
 	m_scene = m_importer.ReadFile(fnString.c_str(), flags | aiProcess_Triangulate);
@@ -32,7 +31,6 @@ assimp_loader::assimp_loader(const char_t * filename, unsigned int flags) :
 	{
 		FUSE_LOG_OPT_DEBUG(stringstream_t() << "Failed to load scene \"" << filename << "\": " << m_importer.GetErrorString());
 	}
-
 }
 
 assimp_loader::~assimp_loader(void)
@@ -42,7 +40,6 @@ assimp_loader::~assimp_loader(void)
 
 bool assimp_loader::load(resource * r)
 {
-
 	const char_t * resourceType = r->get_owner()->get_type();
 
 	if (string_equals(resourceType, FUSE_RESOURCE_TYPE_MESH))
@@ -55,12 +52,10 @@ bool assimp_loader::load(resource * r)
 	}
 
 	return false;
-
 }
 
 void assimp_loader::unload(resource * r)
 {
-
 	const char_t * resourceType = r->get_owner()->get_type();
 
 	if (string_equals(resourceType, FUSE_RESOURCE_TYPE_MESH))
@@ -71,7 +66,6 @@ void assimp_loader::unload(resource * r)
 	{
 		unload_material(static_cast<material *>(r));
 	}
-
 }
 
 const aiScene * assimp_loader::get_scene(void) const
@@ -91,7 +85,6 @@ std::shared_ptr<material> assimp_loader::create_material(unsigned int materialIn
 
 bool assimp_loader::load_mesh(mesh * m)
 {
-
 	const char_t * name = m->get_name();
 
 	unsigned int id;
@@ -103,27 +96,20 @@ bool assimp_loader::load_mesh(mesh * m)
 
 	if (ss.fail() || id >= m_scene->mNumMeshes)
 	{
-
 		id = -1;
-
-
 		for (int i = 0; i < m_scene->mNumMeshes; i++)
 		{
-
 			if (!string_equals(name, m_scene->mMeshes[i]->mName.C_Str()))
 			{
 				id = i;
 				break;
 			}
 		}
-
 	}
 
 	if (id >= 0)
 	{
-
 		// Load the mesh
-
 		aiMesh * pMesh = m_scene->mMeshes[id];
 
 		unsigned int flags = 0;
@@ -142,8 +128,8 @@ bool assimp_loader::load_mesh(mesh * m)
 
 		std::transform(pMesh->mFaces,
 		               pMesh->mFaces + pMesh->mNumFaces,
-		               (XMUINT3 *) m->get_indices(),
-		               [] (const aiFace & face) { return XMUINT3 { face.mIndices[0], face.mIndices[1], face.mIndices[2] }; });
+		               (uint3 *) m->get_indices(),
+		               [] (const aiFace & face) { return uint3 { face.mIndices[0], face.mIndices[1], face.mIndices[2] }; });
 
 		memcpy(m->get_vertices(), pMesh->mVertices, pMesh->mNumVertices * sizeof(float) * 3);
 
@@ -172,13 +158,11 @@ bool assimp_loader::load_mesh(mesh * m)
 		}
 
 		return true;
-
 	}
 	else
 	{
 		return false;
 	}
-
 }
 
 void assimp_loader::unload_mesh(mesh * m)
@@ -188,7 +172,6 @@ void assimp_loader::unload_mesh(mesh * m)
 
 bool assimp_loader::load_material(material * m)
 {
-
 	const char_t * name = m->get_name();
 
 	unsigned int id;
@@ -280,10 +263,8 @@ bool assimp_loader::load_material(material * m)
 
 	if (pMat->Get(AI_MATKEY_SHADING_MODEL, shadingModel) == aiReturn_SUCCESS)
 	{
-
 		switch (shadingModel)
 		{
-
 		case aiShadingMode_CookTorrance:
 			fuseShadingModel = FUSE_SHADING_MODEL_COOK_TORRANCE; break;
 
@@ -304,7 +285,6 @@ bool assimp_loader::load_material(material * m)
 	m->set_material_type(fuseShadingModel);
 
 	return true;
-
 }
 
 void assimp_loader::unload_material(material * m)

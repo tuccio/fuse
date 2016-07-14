@@ -48,7 +48,7 @@ namespace fuse
 		gpu_render_context   * m_renderContext;
 		render_configuration * m_renderConfiguration;
 
-		XMUINT2 m_renderResolution;
+		uint2 m_renderResolution;
 
 		uint32_t    m_shadowMapResolution;
 		DXGI_FORMAT m_shadowMapRTV;

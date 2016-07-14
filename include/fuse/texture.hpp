@@ -5,7 +5,7 @@
 #include <fuse/image.hpp>
 #include <fuse/gpu_upload_manager.hpp>
 #include <fuse/gpu_ring_buffer.hpp>
-#include <fuse/properties_macros.hpp>
+#include <fuse/core.hpp>
 
 namespace fuse
 {

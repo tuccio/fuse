@@ -4,9 +4,6 @@
 #include <fuse/math.hpp>
 #include <fuse/gpu_mesh.hpp>
 #include <fuse/material.hpp>
-
-#include <fuse/properties_macros.hpp>
-
 #include <fuse/resource_factory.hpp>
 #include <fuse/geometry.hpp>
 #include <fuse/gpu_render_context.hpp>
@@ -30,9 +27,8 @@ namespace fuse
 
 	private:
 
-		XMMATRIX     m_world;
-
-		sphere       m_boundingSphere;
+		mat128 m_world;
+		sphere m_boundingSphere;
 
 		gpu_mesh_ptr            m_occlusionQueryBB;
 		com_ptr<ID3D12Resource> m_queryResult;

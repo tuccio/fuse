@@ -2,7 +2,6 @@
 
 #include <fuse/core.hpp>
 #include <fuse/camera.hpp>
-#include <fuse/properties_macros.hpp>
 #include <fuse/keyboard.hpp>
 #include <fuse/mouse.hpp>
 
@@ -53,34 +52,33 @@ namespace fuse
 
 	private:
 
-		XMVECTOR   m_acceleration;
-		XMVECTOR   m_velocity;
+		vec128   m_acceleration;
+		vec128   m_velocity;
 
-		camera   * m_camera;
+		camera * m_camera;
 
-		XMFLOAT3   m_speed;
+		float3   m_speed;
 
-		XMFLOAT2   m_screenSize;
-		XMFLOAT2   m_screenCenter;
+		float2   m_screenSize;
+		float2   m_screenCenter;
 
-		float      m_sensitivity;
+		float    m_sensitivity;
 
-		bool       m_centerMouse;
-		bool       m_centeringMouse;
-		bool       m_holdToRotate;
+		bool     m_centerMouse;
+		bool     m_centeringMouse;
+		bool     m_holdToRotate;
 
-		bool       m_rotating;
+		bool     m_rotating;
 
-		bool       m_strafingForward;
-		bool       m_strafingBackward;
-		bool       m_strafingLeft;
-		bool       m_strafingRight;
-		bool       m_strafingUpward;
-		bool       m_strafingDownward;
-
+		bool     m_strafingForward;
+		bool     m_strafingBackward;
+		bool     m_strafingLeft;
+		bool     m_strafingRight;
+		bool     m_strafingUpward;
+		bool     m_strafingDownward;
 
 		std::unordered_map<keyboard_vk, camera_action> m_keyboardBinds;
-		std::unordered_map<UINT, camera_action> m_mouseBinds;
+		std::unordered_map<UINT, camera_action>        m_mouseBinds;
 
 		void handle_action_key(camera_action action, bool pressed);
 

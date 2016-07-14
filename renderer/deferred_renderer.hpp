@@ -8,7 +8,7 @@
 #include <fuse/camera.hpp>
 #include <fuse/directx_helper.hpp>
 #include <fuse/gpu_upload_manager.hpp>
-#include <fuse/properties_macros.hpp>
+#include <fuse/core/properties_macros.hpp>
 #include <fuse/gpu_command_queue.hpp>
 #include <fuse/gpu_graphics_command_list.hpp>
 #include <fuse/gpu_ring_buffer.hpp>

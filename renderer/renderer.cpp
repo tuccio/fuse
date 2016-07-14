@@ -1,7 +1,7 @@
 #include "renderer_application.hpp"
 
-#include <fuse/debug_ostream.hpp>
 #include <fuse/core.hpp>
+#include <fuse/core/debug_ostream.hpp>
 
 #include <iostream>
 #include <fstream>

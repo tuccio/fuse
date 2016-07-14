@@ -1,9 +1,9 @@
 #pragma once
 
+#include <fuse/core.hpp>
 #include <fuse/mesh.hpp>
 #include <fuse/gpu_command_queue.hpp>
 #include <fuse/gpu_ring_buffer.hpp>
-#include <fuse/properties_macros.hpp>
 
 namespace fuse
 {
@@ -24,7 +24,7 @@ namespace fuse
 
 		inline uint32_t get_num_indices(void) const { return 3 * m_numTriangles; }
 
-		inline bool has_storage_semantic(mesh_storage_semantic semantic) const { return static_cast<bool>(semantic & m_storageFlags); }
+		inline bool has_storage_semantic(mesh_storage_semantic semantic) const { return (semantic & m_storageFlags) != 0; }
 
 	protected:
 

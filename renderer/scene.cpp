@@ -1,9 +1,8 @@
 #include "scene.hpp"
 
-#include <assimp/scene.h>
-
 #include <fuse/resource_factory.hpp>
 
+#include <iterator>
 #include <stack>
 
 using namespace fuse;
@@ -13,14 +12,14 @@ using namespace fuse;
 FUSE_DEFINE_ALIGNED_ALLOCATOR_NEW(renderable, 16)
 FUSE_DEFINE_ALIGNED_ALLOCATOR_NEW(scene, 16)
 
-static const XMFLOAT3 & to_xmfloat3(const aiVector3D & color)
+static const float3 & to_float3(const aiVector3D & color)
 {
-	return reinterpret_cast<const XMFLOAT3 &>(color);
+	return reinterpret_cast<const float3 &>(color);
 
 }
-static const XMFLOAT3 & to_xmfloat3(const aiColor3D & color)
+static const float3 & to_float3(const aiColor3D & color)
 {
-	return reinterpret_cast<const XMFLOAT3 &>(color);
+	return reinterpret_cast<const float3 &>(color);
 }
 
 static const color_rgb & to_color_rgb(const aiColor3D & color)
@@ -28,40 +27,36 @@ static const color_rgb & to_color_rgb(const aiColor3D & color)
 	return reinterpret_cast<const color_rgb &>(color);
 
 }
-static XMMATRIX to_xmmatrix(const aiMatrix4x4 & matrix)
+static mat128 to_mat128(const aiMatrix4x4 & matrix)
 {
-
-	XMMATRIX result;
+	/*XMMATRIX result;
 
 	for (int i = 0; i < 4; i++)
 	{
 		result.r[i] = XMLoadFloat4(reinterpret_cast<const XMFLOAT4 *>(matrix[i]));
 	}
 
-	return result;
-
+	return result;*/
+	return mat128_load(reinterpret_cast<const float4x4&>(matrix));
 };
 
 template <typename Visitor>
 void visit_assimp_scene_dfs(const aiScene * scene, Visitor visitor)
 {
-
-	std::stack<aiNode *> stack;
-	std::stack<XMMATRIX> parentTransform;
+	std::stack<aiNode*> stack;
+	std::stack<mat128, std::deque<mat128, aligned_allocator<mat128>>> parentTransform;
 
 	stack.push(scene->mRootNode);
-	parentTransform.push(DirectX::XMMatrixIdentity());
+	parentTransform.push(mat128_identity());
 
 	do
 	{
-
 		aiNode * node = stack.top();
 
-		XMMATRIX world      = parentTransform.top();
-		XMMATRIX local      = XMMatrixTranspose(to_xmmatrix(node->mTransformation)); // Transpose because assimp uses column vector algebra
-		//local = XMMatrixIdentity();
-		XMMATRIX worldLocal = local * world;
+		mat128 world = parentTransform.top();
+		mat128 local = to_mat128(node->mTransformation);
 
+		mat128 worldLocal = local * world;
 
 		if (!visitor(scene, node, world, local, worldLocal))
 		{
@@ -78,13 +73,94 @@ void visit_assimp_scene_dfs(const aiScene * scene, Visitor visitor)
 		}
 
 	} while (!stack.empty());
-
 }
 
+void scene::create_scene_graph_assimp(assimp_loader * loader, const aiScene * scene, aiNode * node, scene_graph_node * parent)
+{
+	if (node)
+	{
+		scene_graph_node * newNode = nullptr;
+
+		if (node->mNumMeshes)
+		{
+			newNode = parent->add_child<scene_graph_geometry>();
+		}
+		else
+		{
+			newNode = parent->add_child<scene_graph_group>();
+		}
+
+		if (newNode)
+		{
+			string_t name = to_string_t(node->mName.C_Str());
+
+			float4x4 m = reinterpret_cast<const float4x4&>(node->mTransformation);
+
+			quaternion r;
+			float3 s, t;
+			decompose_affine(m, &s, &r, &t);
+
+			r = normalize(r);
+
+			newNode->set_name(name.c_str());
+
+			newNode->set_local_rotation(r);
+			newNode->set_local_translation(t);
+			newNode->set_local_scale(s);
+
+			newNode->set_name(to_string_t(node->mName.C_Str()).c_str());
+
+			for (int i = 0; i < node->mNumChildren; ++i)
+			{
+				create_scene_graph_assimp(loader, scene, node->mChildren[i], newNode);
+			}
+
+			if (newNode->get_type() == FUSE_SCENE_GRAPH_GEOMETRY)
+			{
+				scene_graph_geometry * gNode = static_cast<scene_graph_geometry*>(newNode);
+
+				unsigned int meshIndex     = node->mMeshes[0];
+				unsigned int materialIndex = scene->mMeshes[meshIndex]->mMaterialIndex;
+
+				mesh_ptr nodeMesh = loader->create_mesh(meshIndex);
+
+				if (nodeMesh && nodeMesh->load())
+				{
+
+					if (!nodeMesh->has_storage_semantic(FUSE_MESH_STORAGE_TANGENTS))
+					{
+						nodeMesh->calculate_tangent_space();
+					}
+
+					// TODO: remove phony texcoords to handle the objects with no diffuse texture (add shaders permutations)
+
+					if (nodeMesh->add_storage_semantic(FUSE_MESH_STORAGE_TEXCOORDS0))
+					{
+						FUSE_LOG_OPT(FUSE_LITERAL("assimp_loader"), FUSE_LITERAL("Added phony texcoords to mesh."));
+					}
+
+					gpu_mesh_ptr nodeGPUMesh = resource_factory::get_singleton_pointer()->create<gpu_mesh>(FUSE_RESOURCE_TYPE_GPU_MESH, nodeMesh->get_name());
+					material_ptr nodeMaterial = loader->create_material(materialIndex);
+
+					if (nodeGPUMesh && nodeGPUMesh->load() &&
+					    nodeMaterial && nodeMaterial->load())
+					{
+						sphere s = bounding_sphere(
+							reinterpret_cast<const float3 *>(nodeMesh->get_vertices()),
+							reinterpret_cast<const float3 *>(nodeMesh->get_vertices()) + nodeMesh->get_num_vertices());
+
+						gNode->set_local_bounding_sphere(s);
+					}
+				}
+
+				on_geometry_add(static_cast<scene_graph_geometry*>(newNode));
+			}
+		}
+	}
+}
 
 bool scene::import_static_objects(assimp_loader * loader)
 {
-
 	if (!loader->is_loaded())
 	{
 		return false;
@@ -92,13 +168,13 @@ bool scene::import_static_objects(assimp_loader * loader)
 
 	const aiScene * scene = loader->get_scene();
 
-	visit_assimp_scene_dfs(scene, 
-		[&] (const aiScene * scene, const aiNode * node, const XMMATRIX & world, const XMMATRIX & local, const XMMATRIX & worldLocal)
-	{
+	create_scene_graph_assimp(loader, scene, scene->mRootNode, m_sceneGraph.get_root());
 
+	visit_assimp_scene_dfs(scene, 
+		[&] (const aiScene * scene, const aiNode * node, const mat128 & world, const mat128 & local, const mat128 & worldLocal)
+	{
 		for (int i = 0; i < node->mNumMeshes; i++)
 		{
-
 			unsigned int meshIndex     = node->mMeshes[i];
 			unsigned int materialIndex = scene->mMeshes[meshIndex]->mMaterialIndex;
 
@@ -131,8 +207,8 @@ bool scene::import_static_objects(assimp_loader * loader)
 			}
 
 			sphere boundingSphere = bounding_sphere(
-				reinterpret_cast<const XMFLOAT3 *>(nodeMesh->get_vertices()),
-				reinterpret_cast<const XMFLOAT3 *>(nodeMesh->get_vertices()) + nodeMesh->get_num_vertices());
+				reinterpret_cast<const float3 *>(nodeMesh->get_vertices()),
+				reinterpret_cast<const float3 *>(nodeMesh->get_vertices()) + nodeMesh->get_num_vertices());
 
 			renderable * object = new renderable;
 
@@ -142,27 +218,22 @@ bool scene::import_static_objects(assimp_loader * loader)
 			object->set_bounding_sphere(boundingSphere);
 
 			m_renderableObjects.push_back(object);
-
 		}
 
 		return true;
-
 	}
 	);
 
 	return true;
-
 }
 
-static bool find_node_by_name(const aiScene * scene, const aiString & name, aiNode ** outNode, XMMATRIX * outTransform)
+static bool find_node_by_name(const aiScene * scene, const aiString & name, aiNode ** outNode, mat128 * outTransform)
 {
-
 	*outNode = nullptr;
 
 	visit_assimp_scene_dfs(scene,
-		[&] (const aiScene * scene, aiNode * node, const XMMATRIX & world, const XMMATRIX & local, const XMMATRIX & worldLocal)
+		[&] (const aiScene * scene, aiNode * node, const mat128 & world, const mat128 & local, const mat128 & worldLocal)
 	{
-
 		if (node->mName == name)
 		{
 			*outNode      = node;
@@ -171,17 +242,14 @@ static bool find_node_by_name(const aiScene * scene, const aiString & name, aiNo
 		}
 
 		return true;
-
 	}
 	);
 
 	return *outNode != nullptr;
-
 }
 
 bool scene::import_cameras(assimp_loader * loader)
 {
-
 	if (!loader->is_loaded())
 	{
 		return false;
@@ -195,24 +263,24 @@ bool scene::import_cameras(assimp_loader * loader)
 		camera * camera = new fuse::camera;
 
 		aiNode * node;
-		XMMATRIX transform;
+		mat128 transform;
 
-		XMFLOAT3 position      = to_xmfloat3(scene->mCameras[i]->mPosition);
-		XMFLOAT3 up            = to_xmfloat3(scene->mCameras[i]->mUp);
-		XMFLOAT3 viewDirection = to_xmfloat3(scene->mCameras[i]->mLookAt);
+		float3 position      = to_float3(scene->mCameras[i]->mPosition);
+		float3 up            = to_float3(scene->mCameras[i]->mUp);
+		float3 viewDirection = to_float3(scene->mCameras[i]->mLookAt);
 		
 		position.z = -position.z;
 
-		XMFLOAT3 lookAt = to_float3(to_vector(position) - to_vector(viewDirection));
+		float3 lookAt = position - viewDirection;
 
 		if (find_node_by_name(scene, scene->mCameras[i]->mName, &node, &transform))
 		{
-			position = to_float3(XMVector3Transform(to_vector(position), transform));
-			up       = to_float3((XMVector3TransformNormal(to_vector(up), transform)));
-			lookAt   = to_float3(XMVector3Transform(to_vector(lookAt), transform));
+			position = to_float3(mat128_transform3(to_vec128(position), transform));
+			up       = to_float3((mat128_transform_normal(to_vec128(up), transform)));
+			lookAt   = to_float3(mat128_transform3(to_vec128(lookAt), transform));
 		}
 
-		camera->look_at((const float3&)position, (const float3&)up, (const float3&)lookAt);
+		camera->look_at(position, up, lookAt);
 
 		camera->set_znear(scene->mCameras[i]->mClipPlaneNear);
 		camera->set_zfar(scene->mCameras[i]->mClipPlaneFar);
@@ -229,12 +297,10 @@ bool scene::import_cameras(assimp_loader * loader)
 	}
 
 	return true;
-
 }
 
 bool scene::import_lights(assimp_loader * loader)
 {
-
 	if (!loader->is_loaded())
 	{
 		return false;
@@ -244,22 +310,20 @@ bool scene::import_lights(assimp_loader * loader)
 
 	for (int i = 0; i < scene->mNumLights; i++)
 	{
-
 		aiNode * node;
-		XMMATRIX transform;
+		mat128 transform;
 
 		if (scene->mLights[i]->mType == aiLightSource_DIRECTIONAL &&
 		    find_node_by_name(scene, scene->mLights[i]->mName, &node, &transform))
 		{
-
-			XMVECTOR direction = XMVector3Normalize(XMVector3Transform(to_vector(to_xmfloat3(scene->mLights[i]->mDirection)), transform));
+			vec128 direction = vec128_normalize3(mat128_transform3(to_vec128(to_float3(scene->mLights[i]->mDirection)), transform));
 
 			light * light = new ::light;
 
 			light->type      = FUSE_LIGHT_TYPE_DIRECTIONAL;
 			light->ambient   = to_color_rgb(scene->mLights[i]->mColorAmbient);
 			light->color     = to_color_rgb(scene->mLights[i]->mColorDiffuse);
-			light->direction = XMVector3Equal(direction, XMVectorZero()) ? XMFLOAT3(0, 1, 0) : to_float3(direction);
+			light->direction = vec128_checksign<1, 1, 1>(vec128_eq(direction, vec128_zero())) ? float3(0, 1, 0) : to_float3(direction);
 
 			light->intensity = 1.f;
 
@@ -277,13 +341,11 @@ bool scene::import_lights(assimp_loader * loader)
 			}
 
 			m_lights.push_back(light);
-
 		}
 
 	}
 	
 	return true;
-
 }
 
 std::pair<renderable_iterator, renderable_iterator> scene::get_renderable_objects(void)
@@ -303,26 +365,33 @@ std::pair<light_iterator, light_iterator> scene::get_lights(void)
 
 void scene::clear(void)
 {
-
 	for (auto r : m_renderableObjects)
 	{
 		delete r;
 	}
 
 	m_renderableObjects.clear();
-
 }
 
 void scene::recalculate_octree(void)
 {
-
-	m_octree = renderable_octree(m_sceneBounds.get_center(), XMVectorGetX(m_sceneBounds.get_half_extents()), OCTREE_MAX_DEPTH);
+	m_octree = renderable_octree(m_sceneBounds.get_center(), vec128_get_x(m_sceneBounds.get_half_extents()), OCTREE_MAX_DEPTH);
 
 	for (renderable * r : m_renderableObjects)
 	{
 		m_octree.insert(r);
 	}
 
+	m_sgOctree = geometry_octree(m_sceneBounds.get_center(), vec128_get_x(m_sceneBounds.get_half_extents()), OCTREE_MAX_DEPTH);
+
+	m_sceneGraph.visit(
+		[&](scene_graph_node * n)
+	{
+		if (n->get_type() == FUSE_SCENE_GRAPH_GEOMETRY)
+		{
+			m_sgOctree.insert(static_cast<scene_graph_geometry*>(n));
+		}
+	});
 }
 
 renderable_vector scene::frustum_culling(const frustum & f)
@@ -332,27 +401,32 @@ renderable_vector scene::frustum_culling(const frustum & f)
 	return renderables;
 }
 
+geometry_vector scene::frustum_culling_sg(const frustum & f)
+{
+	geometry_vector geometry;
+	m_sgOctree.query(f, [&](scene_graph_geometry * r) { geometry.push_back(r); });
+	return geometry;
+}
+
 void scene::draw_octree(visual_debugger * debugger)
 {
-
 	m_octree.traverse(
 		[=](const aabb & aabb, renderable_octree::objects_list_iterator begin, renderable_octree::objects_list_iterator end)
 	{
 		debugger->add(aabb, color_rgba(1, 0, 0, 1));
 	});
-
 }
 
 aabb scene::get_fitting_bounds(void) const
 {
-	
 	if (m_renderableObjects.empty())
 	{
-		return aabb::from_min_max(XMVectorZero(), XMVectorZero());
+		return aabb::from_min_max(vec128_zero(), vec128_zero());
 	}
 
-	aabb bounds = aabb::from_min_max(XMVectorSet(FLT_MAX, FLT_MAX, FLT_MAX, 1.f),
-		XMVectorSet(-FLT_MAX, -FLT_MAX, -FLT_MAX, 1.f));
+	aabb bounds = aabb::from_min_max(
+		vec128_set(FLT_MAX, FLT_MAX, FLT_MAX, 1.f),
+		vec128_set(-FLT_MAX, -FLT_MAX, -FLT_MAX, 1.f));
 
 	for (renderable * r : m_renderableObjects)
 	{
@@ -360,12 +434,34 @@ aabb scene::get_fitting_bounds(void) const
 	}
 
 	return bounds;
-
 }
 
 void scene::fit_octree(float scale)
 {
 	m_sceneBounds = get_fitting_bounds();
-	m_sceneBounds.set_half_extents(XMVectorScale(m_sceneBounds.get_half_extents(), scale));
+	m_sceneBounds.set_half_extents(m_sceneBounds.get_half_extents() * scale);
 	recalculate_octree();
+}
+
+void scene::update(void)
+{
+	m_sceneGraph.update();
+}
+
+void scene::on_geometry_add(scene_graph_geometry * g)
+{
+	g->add_listener(this);
+}
+
+void scene::on_geometry_remove(scene_graph_geometry * g)
+{
+	g->remove_listener(this);
+}
+
+void scene::on_scene_graph_node_move(scene_graph_node * node, const mat128 & oldTransform, const mat128 & newTransform)
+{
+	scene_graph_geometry * g = static_cast<scene_graph_geometry*>(node);
+	const sphere & s = g->get_local_bounding_sphere();
+	m_sgOctree.remove(g, transform_affine(s, oldTransform));
+	m_sgOctree.insert(g);
 }

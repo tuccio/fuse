@@ -5,13 +5,12 @@
 using namespace fuse;
 
 renderable::renderable(void) :
-	m_world(XMMatrixIdentity())
+	m_world(mat128_identity())
 {
 
 	m_loader = dynamic_resource_loader(
 		[&](resource * r)
 	{
-
 		/* Creates a bounding box vertex buffer used in occlusion queries */
 
 		auto renderContext = gpu_render_context::get_singleton_pointer();
@@ -21,12 +20,12 @@ renderable::renderable(void) :
 		auto bbMin = to_float3(bb.get_min());
 		auto bbMax = to_float3(bb.get_max());
 
-		XMFLOAT3 vertices[8] = {
+		float3 vertices[8] = {
 			bbMin, { bbMax.x, bbMin.y, bbMin.z }, { bbMax.x, bbMax.y, bbMin.z }, { bbMin.x, bbMax.y, bbMin.z },
 			bbMax, { bbMin.x, bbMax.y, bbMax.z },{ bbMin.x, bbMin.y, bbMax.z },{ bbMax.x, bbMin.y, bbMax.z }
 		};
 
-		XMUINT3 indices[12] = {
+		uint3 indices[12] = {
 			{ 0, 1, 2 }, { 0, 2, 3 },
 			{ 4, 5, 6 }, { 4, 6, 7 },
 			{ 1, 2, 7 }, { 2, 4, 7 },
@@ -47,7 +46,6 @@ renderable::renderable(void) :
 
 		occlusionBBCPU.clear();
 		return success;
-
 	},
 		[this](resource * r)
 	{

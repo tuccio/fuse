@@ -133,7 +133,7 @@ static float gaussian_weight(float sigma, float distance)
 {
 
 	float s2 = sigma * sigma;
-	float G  = 1.f / std::sqrt(2.f * pi<float>() * s2);
+	float G  = 1.f / std::sqrt(FUSE_TWO_PI * s2);
 
 	return G * std::exp(-.5f * (distance * distance) / s2);
 

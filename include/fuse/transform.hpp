@@ -1,8 +1,8 @@
 //#pragma once
 //
+//#include <fuse/core.hpp>
 //#include <fuse/allocators.hpp>
 //#include <fuse/math.hpp>
-//#include <fuse/properties_macros.hpp>
 //
 //namespace fuse
 //{
@@ -18,7 +18,7 @@
 //		{
 //			m_matrix         = XMMatrixIdentity();
 //			m_matrixUptodate = true;
-//			m_translation    = XMVectorZero();
+//			m_translation    = vec128_zero();
 //			m_rotation       = XMQuaternionIdentity();
 //		}
 //
@@ -28,19 +28,19 @@
 //			return m_matrix;
 //		}
 //
-//		inline void set_translation(const XMVECTOR & translation)
+//		inline void set_translation(const vec128 & translation)
 //		{
 //			m_translation = translation;
 //			m_matrixUptodate = false;
 //		}
 //
-//		inline void set_rotation(const XMVECTOR & rotation)
+//		inline void set_rotation(const vec128 & rotation)
 //		{
 //			m_rotation = rotation;
 //			m_matrixUptodate = false;
 //		}
 //
-//		inline void set_scale(const XMVECTOR & scale)
+//		inline void set_scale(const vec128 & scale)
 //		{
 //			m_scale = scale;
 //			m_matrixUptodate = false;
@@ -55,9 +55,9 @@
 //
 //		mutable XMMATRIX m_matrix;
 //
-//		XMVECTOR m_translation;
-//		XMVECTOR m_rotation;
-//		XMVECTOR m_scale;
+//		vec128 m_translation;
+//		vec128 m_rotation;
+//		vec128 m_scale;
 //		
 //		mutable bool m_matrixUptodate;
 //
@@ -65,7 +65,7 @@
 //		{
 //			if (!m_matrixUptodate)
 //			{
-//				m_matrix = XMMatrixAffineTransformation(m_scale, XMVectorZero(), m_rotation, m_translation);
+//				m_matrix = XMMatrixAffineTransformation(m_scale, vec128_zero(), m_rotation, m_translation);
 //				m_matrixUptodate = true;
 //			}
 //		}

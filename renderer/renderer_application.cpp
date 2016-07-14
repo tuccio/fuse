@@ -180,12 +180,13 @@ bool renderer_application::on_render_context_created(gpu_render_context & render
 	//g_cameraController = std::make_unique<fps_camera_controller>(g_scene.get_active_camera());
 
 	g_cameraController.set_camera(g_scene.get_active_camera());
-	g_cameraController.set_speed(XMFLOAT3(200, 200, 200));
+	g_cameraController.set_speed(float3(200, 200, 200));
 	
 	add_keyboard_listener(&g_cameraController);
 	add_mouse_listener(&g_cameraController);
 
-	g_scene.get_active_camera()->set_orientation(XMQuaternionIdentity());
+	g_scene.get_active_camera()->set_orientation(quaternion(1, 0, 0, 0));
+	//g_scene.get_active_camera()->set_position(float3(15, 135, -115));
 
 	/* Create gbuffer desc tables */
 
@@ -382,7 +383,7 @@ bool renderer_application::on_swap_chain_resized(ID3D12Device * device, IDXGISwa
 
 	get_command_queue().wait_for_frame(get_command_queue().get_frame_index());
 
-	g_renderConfiguration.set_render_resolution(XMUINT2(desc->Width, desc->Height));
+	g_renderConfiguration.set_render_resolution(uint2(desc->Width, desc->Height));
 
 	g_fullscreenViewport.Width    = desc->Width;
 	g_fullscreenViewport.Height   = desc->Height;
@@ -419,7 +420,8 @@ bool renderer_application::on_mouse_event(const mouse & mouse, const mouse_event
 
 	if (event.type == FUSE_MOUSE_EVENT_WHEEL)
 	{	
-		g_cameraController.set_speed(to_float3(XMVectorScale(to_vector(g_cameraController.get_speed()), (event.wheel * .2f + 1.f))));
+		//g_cameraController.set_speed(to_float3(vec128Scale(to_vector(g_cameraController.get_speed()), (event.wheel * .2f + 1.f))));
+		g_cameraController.set_speed(g_cameraController.get_speed() * (event.wheel * .2f + 1.f));
 		return true;
 	}
 
@@ -472,7 +474,6 @@ bool renderer_application::on_keyboard_event(const keyboard & keyboard, const ke
 
 void renderer_application::on_update(float dt)
 {
-
 	g_cameraController.on_update(dt);
 
 #ifdef FUSE_USE_LIBROCKET
@@ -484,38 +485,38 @@ void renderer_application::on_update(float dt)
 
 #endif
 
+	g_scene.update();
 }
 
 void renderer_application::upload_per_frame_resources(ID3D12Device * device, gpu_command_queue & commandQueue, gpu_graphics_command_list & commandList, gpu_ring_buffer & ringBuffer, ID3D12Resource * cbPerFrameBuffer)
 {
-
 	/* Setup per frame constant buffer */
 
 	camera * camera = g_scene.get_active_camera();
 
-	auto view              = XMMatrixTranspose(XMLoadFloat4x4((const XMFLOAT4X4*)&camera->get_view_matrix()));
-	auto projection        = XMMatrixTranspose(XMLoadFloat4x4((const XMFLOAT4X4*)&camera->get_projection_matrix()));
-	auto viewProjection    = XMMatrixMultiply(view, projection);
-	auto invViewProjection = XMMatrixInverse(&XMMatrixDeterminant(viewProjection), viewProjection);
+	auto view              = to_mat128(camera->get_view_matrix());
+	auto projection        = to_mat128(camera->get_projection_matrix());
+	auto viewProjection    = view * projection;
+	auto invViewProjection = mat128_inverse4(viewProjection);
 
 	cb_per_frame cbPerFrame;
 
 	/* Camera */
 
-	cbPerFrame.camera.position          = reinterpret_cast<const XMFLOAT3&>(camera->get_position());
+	cbPerFrame.camera.position          = reinterpret_cast<const float3&>(camera->get_position());
 	cbPerFrame.camera.fovy              = camera->get_fovy();
 	cbPerFrame.camera.aspectRatio       = camera->get_aspect_ratio();
 	cbPerFrame.camera.znear             = camera->get_znear();
 	cbPerFrame.camera.zfar              = camera->get_zfar();
-	cbPerFrame.camera.view              = XMMatrixTranspose(view);
-	cbPerFrame.camera.projection        = XMMatrixTranspose(projection);
-	cbPerFrame.camera.viewProjection    = XMMatrixTranspose(viewProjection);
-	cbPerFrame.camera.invViewProjection = XMMatrixTranspose(invViewProjection);
+	cbPerFrame.camera.view              = view;
+	cbPerFrame.camera.projection        = projection;
+	cbPerFrame.camera.viewProjection    = viewProjection;
+	cbPerFrame.camera.invViewProjection = invViewProjection;
 
 	/* Screen settings */
 
-	cbPerFrame.screen.resolution      = XMUINT2(get_render_window_width(), get_render_window_height());
-	cbPerFrame.screen.orthoProjection = XMMatrixTranspose(XMMatrixOrthographicOffCenterLH(0, get_render_window_width(), get_render_window_height(), 0, 0, 1));
+	cbPerFrame.screen.resolution      = uint2(get_render_window_width(), get_render_window_height());
+	cbPerFrame.screen.orthoProjection = to_mat128(ortho_lh(0, get_render_window_width(), get_render_window_height(), 0, 0, 1));
 
 	/* Render variables */
 
@@ -542,12 +543,10 @@ void renderer_application::upload_per_frame_resources(ID3D12Device * device, gpu
 	memcpy(cbData, &cbPerFrame, sizeof(cb_per_frame));
 
 	gpu_upload_buffer(commandQueue, commandList, cbPerFrameBuffer, 0, ringBuffer.get_heap(), address - heapAddress, sizeof(cb_per_frame));
-
 }
 
 void renderer_application::on_render(gpu_render_context & renderContext, const render_resource & backBuffer)
 {
-
 	ID3D12Device * device = renderContext.get_device();
 
 	uint32_t bufferIndex  = renderContext.get_buffer_index();
@@ -559,7 +558,7 @@ void renderer_application::on_render(gpu_render_context & renderContext, const r
 
 	g_realtimeRenderer.update_render_configuration();
 
-	XMUINT2 renderResolution = g_renderConfiguration.get_render_resolution();
+	uint2 renderResolution = g_renderConfiguration.get_render_resolution();
 
 	/* Reset command lists */
 
@@ -687,12 +686,10 @@ void renderer_application::on_render(gpu_render_context & renderContext, const r
 
 	FUSE_HR_CHECK(commandList->Close());
 	commandQueue.execute(commandList);
-
 }
 
 void renderer_application::draw_gui(ID3D12Device * device, gpu_command_queue & commandQueue, gpu_graphics_command_list & commandList, gpu_ring_buffer & ringBuffer, const render_resource & renderTarget)
 {
-
 	commandList->RSSetViewports(1, &g_fullscreenViewport);
 	commandList->RSSetScissorRects(1, &g_fullscreenScissorRect);
 
@@ -716,8 +713,8 @@ void renderer_application::draw_gui(ID3D12Device * device, gpu_command_queue & c
 		cbPerFrameAddress,
 		g_font.get(),
 		guiSS.str().c_str(),
-		XMFLOAT2(16, 16),
-		XMFLOAT4(.65f, .2f, .25f, 1));
+		float2(16, 16),
+		float4(.65f, .2f, .25f, 1));
 
 #ifdef FUSE_USE_LIBROCKET
 
@@ -739,7 +736,6 @@ void renderer_application::draw_gui(ID3D12Device * device, gpu_command_queue & c
 	}
 
 #endif
-
 }
 
 void renderer_application::on_configuration_init(application_config * configuration)

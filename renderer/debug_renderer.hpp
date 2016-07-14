@@ -26,11 +26,11 @@ namespace fuse
 
 		debug_vertex(void) = default;
 		debug_vertex(const debug_vertex &) = default;
-		debug_vertex(const XMFLOAT3 & position, const XMFLOAT4 & color = XMFLOAT4(0, 0, 1, 1)) :
+		debug_vertex(const float3 & position, const float4 & color = float4(0, 0, 1, 1)) :
 			position(position), color(color) {}
 
-		XMFLOAT3 position;
-		XMFLOAT4 color;
+		float3 position;
+		float4 color;
 
 	};
 
@@ -42,10 +42,10 @@ namespace fuse
 
 	struct debug_texture
 	{
-		XMUINT2 position;
-		float   scaledWidth;
-		float   scaledHeight;
-		bool    hdr;
+		uint2 position;
+		float scaledWidth;
+		float scaledHeight;
+		bool  hdr;
 		render_resource_ptr texture;
 	};
 
@@ -64,7 +64,7 @@ namespace fuse
 		void add(const aabb & bb, const color_rgba & color);
 		void add(const frustum & f, const color_rgba & color);
 
-		void add(ID3D12Device * device, gpu_graphics_command_list & commandList, UINT bufferIndex, const render_resource & r, XMUINT2 position, float scale, bool hdr);
+		void add(ID3D12Device * device, gpu_graphics_command_list & commandList, UINT bufferIndex, const render_resource & r, uint2 position, float scale, bool hdr);
 
 		void render(
 			ID3D12Device * device,

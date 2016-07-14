@@ -1,7 +1,7 @@
 #pragma once
 
+#include <fuse/core.hpp>
 #include <fuse/math.hpp>
-#include <fuse/properties_macros.hpp>
 #include <fuse/priority_observers.hpp>
 
 #include <Windows.h>
@@ -45,7 +45,7 @@ namespace fuse
 	{
 
 		mouse_event_type type;
-		XMINT2           position;
+		int2             position;
 
 		union
 		{
@@ -77,10 +77,10 @@ namespace fuse
 
 		void post_mouse_button_down(mouse_vk key);
 		void post_mouse_button_up(mouse_vk key);
-		void post_mouse_move(const XMINT2 & position);
+		void post_mouse_move(const int2 & position);
 		void post_mouse_wheel(int wheel);
 
-		inline const XMINT2 & get_last_click_position(mouse_vk key)
+		inline const int2 & get_last_click_position(mouse_vk key)
 		{
 			return m_lastClickPosition[key];
 		}
@@ -89,9 +89,9 @@ namespace fuse
 
 		int m_status[FUSE_MOUSE_VK_MAX];
 
-		XMINT2 m_lastClickPosition[FUSE_MOUSE_VK_MAX];
+		int2 m_lastClickPosition[FUSE_MOUSE_VK_MAX];
 
-		XMINT2 m_position;
+		int2 m_position;
 
 		HWND m_autoCenterWindow;
 		bool m_autoCenter;

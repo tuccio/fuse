@@ -7,32 +7,30 @@
 using namespace fuse;
 using namespace fuse::wx;
 
-#define FUSE_wx_windowing_VAR(Type, Name) Type wx_windowing::Name;
+#define FUSE_WX_WINDOWING_VAR(Type, Name) Type wx_windowing::Name;
 
-FUSE_wx_windowing_VAR(HINSTANCE, m_hInstance)
-FUSE_wx_windowing_VAR(HWND, m_hWndRenderWindow)
+FUSE_WX_WINDOWING_VAR(HINSTANCE, m_hInstance)
+FUSE_WX_WINDOWING_VAR(HWND, m_hWndRenderWindow)
 
-FUSE_wx_windowing_VAR(int, m_renderWidth)
-FUSE_wx_windowing_VAR(int, m_renderHeight)
+FUSE_WX_WINDOWING_VAR(int, m_renderWidth)
+FUSE_WX_WINDOWING_VAR(int, m_renderHeight)
 
-FUSE_wx_windowing_VAR(bool, m_silent)
-FUSE_wx_windowing_VAR(bool, m_initialized)
-FUSE_wx_windowing_VAR(bool, m_resized)
+FUSE_WX_WINDOWING_VAR(bool, m_silent)
+FUSE_WX_WINDOWING_VAR(bool, m_initialized)
+FUSE_WX_WINDOWING_VAR(bool, m_resized)
 
-FUSE_wx_windowing_VAR(wx_window *, m_mainWindow)
+FUSE_WX_WINDOWING_VAR(wx_window *, m_mainWindow)
 
-FUSE_wx_windowing_VAR(keyboard, m_keyboard)
-FUSE_wx_windowing_VAR(mouse,    m_mouse)
+FUSE_WX_WINDOWING_VAR(keyboard, m_keyboard)
+FUSE_WX_WINDOWING_VAR(mouse,    m_mouse)
 
 #define FUSE_WINDOW_MIN_SIZE_X 320
 #define FUSE_WINDOW_MIN_SIZE_Y 240
 
 bool wx_windowing::init(HINSTANCE hInstance, bool silent)
 {
-
 	if (!m_initialized)
 	{
-
 		m_initialized = wxInitialize();
 		m_hInstance   = hInstance;
 		m_silent      = silent;
@@ -40,38 +38,28 @@ bool wx_windowing::init(HINSTANCE hInstance, bool silent)
 		wxApp::SetInstance(new wx_app);
 
 		wxEntryStart(hInstance);
-
 	}
 
 	return m_initialized;
-
 }
 
 void wx_windowing::shutdown(void)
 {
-
 	if (m_initialized)
 	{
-
 		delete m_mainWindow;
 
 		wxEntryCleanup();
 		wxUninitialize();
 
 		m_initialized = false;
-
 	}
-
 }
 
 bool wx_windowing::create_window(int width, int height, const char_t * caption)
 {
-	
 	m_mainWindow = new wx_window(caption, wxPoint(100, 100), wxSize(width, height));
-	
-
 	return m_mainWindow->Show();
-
 }
 
 void wx_windowing::destroy_window(void)

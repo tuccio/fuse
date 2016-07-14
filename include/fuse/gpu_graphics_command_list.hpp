@@ -1,7 +1,7 @@
 #pragma once
 
+#include <fuse/core.hpp>
 #include <fuse/directx_helper.hpp>
-#include <fuse/properties_macros.hpp>
 
 #include <unordered_map>
 

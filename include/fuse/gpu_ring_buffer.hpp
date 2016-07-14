@@ -4,7 +4,7 @@
 
 #include <fuse/directx_helper.hpp>
 #include <fuse/gpu_command_queue.hpp>
-#include <fuse/properties_macros.hpp>
+#include <fuse/core.hpp>
 
 #include <queue>
 

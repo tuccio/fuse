@@ -19,14 +19,12 @@ namespace fuse
 
 	struct alignas(16) shadow_map_info
 	{
-
-		XMMATRIX lightMatrix;
+		mat128 lightMatrix;
 
 		const render_resource * shadowMap;
 
 		D3D12_GPU_VIRTUAL_ADDRESS sdsmCBAddress;
 		bool                      sdsm;
-
 	};
 
 	inline float esm_clamp_exponent_positive(float exponent, unsigned int precision)
@@ -41,6 +39,6 @@ namespace fuse
 		return std::copysign(clampedValue, exponent);
 	}
 
-	XMMATRIX sm_crop_matrix_lh(const XMMATRIX & viewMatrix, renderable_iterator begin, renderable_iterator end);
+	mat128 sm_crop_matrix_lh(const mat128 & viewMatrix, renderable_iterator begin, renderable_iterator end);
 
 }

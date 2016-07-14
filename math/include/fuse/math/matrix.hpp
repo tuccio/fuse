@@ -1,5 +1,7 @@
 #pragma once
 
+#include "matrix_traits.hpp"
+
 namespace fuse
 {
 

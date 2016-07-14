@@ -1,5 +1,9 @@
 #pragma once
 
+#include <type_traits>
+
+#include "matrix_iterators.hpp"
+
 #define FUSE_MATH_COLUMN_MAJOR_ACCESS(X, N, M, I, J) X[N * J + I]
 
 namespace fuse

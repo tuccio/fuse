@@ -149,7 +149,6 @@ namespace fuse
 		wx_spin(Functor cb, wxWindow * parent, int id, T value, T min, T max, T step = T(0.01)) :
 			wxSpinCtrlDouble(parent, id)
 		{
-
 			if (std::is_integral<T>::value) SetDigits(0);
 
 			SetRange(static_cast<double>(min), static_cast<double>(max));
@@ -157,9 +156,31 @@ namespace fuse
 			SetIncrement(static_cast<double>(step));
 
 			Bind(wxEVT_SPINCTRLDOUBLE, [=](wxSpinDoubleEvent & event) { cb(static_cast<T>(event.GetValue())); });
-
 		}
 
+		template <typename Getter, typename Setter>
+		wx_spin(Getter get, Setter set, wxWindow * parent, int id, T min, T max, T step = T(0.01)) :
+			wxSpinCtrlDouble(parent, id),
+			m_getter(get)
+		{
+			if (std::is_integral<T>::value) SetDigits(0);
+
+			SetRange(static_cast<double>(min), static_cast<double>(max));
+			SetIncrement(static_cast<double>(step));
+
+			update_value();
+
+			Bind(wxEVT_SPINCTRLDOUBLE, [=](wxSpinDoubleEvent & event) { set(static_cast<T>(event.GetValue())); });
+		}
+
+		void update_value(void)
+		{
+			SetValue(static_cast<double>(m_getter()));
+		}
+
+	private:
+
+		std::function<T(void)> m_getter;
 	};
 
 	/*template <typename T>
@@ -245,7 +266,6 @@ namespace fuse
 		template <typename Functor>
 		wx_color_picker(Functor cb, wxWindow * parent, int id, const color_rgba & color)
 		{
-
 			wxColour wx(
 				static_cast<unsigned char>(color.r * 255.f),
 				static_cast<unsigned char>(color.g * 255.f),
@@ -263,13 +283,11 @@ namespace fuse
 					value.Blue() / 255.f,
 					value.Alpha() / 255.f));
 			});
-
 		}
 
 		template <typename Functor>
 		wx_color_picker(Functor cb, wxWindow * parent, int id, const color_rgb & color)
 		{
-
 			wxColour wx(
 				static_cast<unsigned char>(color.r * 255.f),
 				static_cast<unsigned char>(color.g * 255.f),
@@ -286,7 +304,6 @@ namespace fuse
 					value.Green() / 255.f,
 					value.Blue() / 255.f));
 			});
-
 		}
 
 	};

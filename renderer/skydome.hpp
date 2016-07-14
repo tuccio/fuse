@@ -1,7 +1,7 @@
 #pragma once
 
 #include <fuse/directx_helper.hpp>
-#include <fuse/properties_macros.hpp>
+#include <fuse/core/properties_macros.hpp>
 #include <fuse/math.hpp>
 #include <fuse/color.hpp>
 #include <fuse/descriptor_heap.hpp>
@@ -51,7 +51,7 @@ namespace fuse
 	private:
 
 		uint32_t  m_resolution;
-		XMUINT2   m_skydomeResolution;
+		uint2     m_skydomeResolution;
 
 		float     m_turbidity;
 		color_rgb m_groundAlbedo;

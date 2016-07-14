@@ -1,8 +1,8 @@
 #pragma once
 
+#include <fuse/core.hpp>
 #include <fuse/directx_helper.hpp>
 #include <fuse/gpu_graphics_command_list.hpp>
-#include <fuse/properties_macros.hpp>
 #include <fuse/descriptor_heap.hpp>
 
 #include <queue>

@@ -26,4 +26,13 @@ namespace fuse
 			lhs.x, lhs.y, lhs.z, 1.f);
 	}
 
+	inline float4x4 to_scale4(const float3 & lhs)
+	{
+		return float4x4(
+			lhs.x, 0.f, 0.f, 0.f,
+			0.f, lhs.y, 0.f, 0.f,
+			0.f, 0.f, lhs.z, 0.f,
+			0.f, 0.f, 0.f, 1.f);
+	}
+
 }

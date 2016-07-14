@@ -3,7 +3,7 @@
 #include <fuse/resource.hpp>
 #include <fuse/directx_helper.hpp>
 #include <fuse/texture.hpp>
-#include <fuse/properties_macros.hpp>
+#include <fuse/core.hpp>
 #include <fuse/descriptor_heap.hpp>
 
 #include <unordered_map>

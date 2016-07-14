@@ -1,6 +1,6 @@
 #pragma once
 
-#include "math.hpp"
+#include "../math.hpp"
 
 #include <string>
 #include <sstream>

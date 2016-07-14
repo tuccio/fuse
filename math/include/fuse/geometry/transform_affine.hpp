@@ -5,20 +5,18 @@
 namespace fuse
 {
 
-	inline sphere transform_affine(const sphere & s, const XMMATRIX & transform)
+	inline sphere transform_affine(const sphere & s, const mat128 & transform)
 	{
+		vec128 svec = s.get_sphere_vector();
 
-		XMVECTOR svec = s.get_sphere_vector();
+		vec128 newCenter    = mat128_transform3(svec, transform);
+		vec128 surfacePoint = vec128_permute<FUSE_W1, FUSE_Y0, FUSE_Z0, FUSE_W1>(vec128_zero(), svec);
 
-		XMVECTOR newCenter    = XMVector3Transform(svec, transform);
-		XMVECTOR surfacePoint = XMVectorPermute<XM_PERMUTE_1W, XM_PERMUTE_0Y, XM_PERMUTE_0Z, XM_PERMUTE_0W>(XMVectorZero(), svec);
+		surfacePoint = mat128_transform3(svec + surfacePoint, transform);
 
-		surfacePoint = XMVector3Transform(XMVectorAdd(svec, surfacePoint), transform);
+		vec128 distance = vec128_length3(surfacePoint - newCenter);
 
-		XMVECTOR distance = XMVector3Length(XMVectorSubtract(surfacePoint, newCenter));
-
-		return sphere(XMVectorPermute<XM_PERMUTE_0X, XM_PERMUTE_0Y, XM_PERMUTE_0Z, XM_PERMUTE_1W>(newCenter, distance));
-
+		return sphere(vec128_select<FUSE_X0, FUSE_Y0, FUSE_Z0, FUSE_W1>(newCenter, distance));
 	}
 
 }

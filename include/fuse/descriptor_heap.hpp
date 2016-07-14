@@ -1,10 +1,9 @@
 #pragma once
 
 #include <fuse/core.hpp>
-#include <fuse/directx_helper.hpp>
+#include <fuse/core/pool_manager.hpp>
 
-#include <fuse/properties_macros.hpp>
-#include <fuse/pool_manager.hpp>
+#include <fuse/directx_helper.hpp>
 
 #define FUSE_DESCRIPTOR_INVALID (FUSE_POOL_INVALID)
 

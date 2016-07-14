@@ -1,5 +1,5 @@
-#include <fuse/pool_manager.hpp>
-#include <fuse/logger.hpp>
+#include <fuse/core.hpp>
+#include <fuse/core/pool_manager.hpp>
 
 using namespace fuse;
 

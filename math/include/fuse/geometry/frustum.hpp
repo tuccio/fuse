@@ -1,7 +1,5 @@
 #pragma once
 
-#include <fuse/math/math.hpp>
-
 #include <fuse/geometry/plane.hpp>
 #include <array>
 
@@ -41,7 +39,8 @@ namespace fuse
 		frustum(const frustum &) = default;
 		frustum(frustum &&) = default;
 
-		frustum(const XMMATRIX & projection, const XMMATRIX & view);
+		frustum(const float4x4 & viewProjection);
+		frustum(const mat128 & viewProjection);
 
 		frustum & operator= (const frustum &) = default;
 		frustum & operator= (frustum &&) = default;

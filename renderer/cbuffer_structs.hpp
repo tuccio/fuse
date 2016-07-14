@@ -7,8 +7,7 @@ namespace fuse
 
 	struct cb_camera
 	{
-
-		XMFLOAT3 position;
+		float3 position;
 		float fovy;
 
 		float aspectRatio;
@@ -17,25 +16,22 @@ namespace fuse
 
 		float __fill0;
 
-		XMMATRIX view;
-		XMMATRIX projection;
-		XMMATRIX viewProjection;
-		XMMATRIX invViewProjection;
-
+		mat128 view;
+		mat128 projection;
+		mat128 viewProjection;
+		mat128 invViewProjection;
 	};
 
 	struct cb_screen
 	{
-		XMUINT2  resolution;
+		uint2    resolution;
 		uint32_t __fill0[2];
-		XMMATRIX orthoProjection;
+		mat128   orthoProjection;
 	};
 
 	struct cb_render_variables
 	{
-
 		uint32_t shadowMapResolution;
-
 
 		float vsmMinVariance;
 		float vsmMinBleeding;
@@ -50,63 +46,56 @@ namespace fuse
 		float evsm4NegExponent;
 
 		//float __fill0[1];
-
 	};
 
 	struct cb_material
 	{
-
-		XMFLOAT3 baseColor;
+		float3 baseColor;
 		float metallic;
 
 		float roughness;
 		float specular;
 
 		float __fill[2];
-
 	};
 
 	struct cb_transform
 	{
-		XMMATRIX world;
-		XMMATRIX worldView;
-		XMMATRIX worldViewProjection;
+		mat128 world;
+		mat128 worldView;
+		mat128 worldViewProjection;
 	};
 
 	struct cb_light
 	{
-
 		uint32_t type;
 		uint32_t castShadows;
 		uint32_t __fill0[2];
 
-		XMFLOAT3 luminance;
+		float3 luminance;
 		float __fill1;
 
-		XMFLOAT3 ambient;
+		float3 ambient;
 		float __fill2;
 
-		XMFLOAT3 position;
+		float3 position;
 		float __fill3;
 
-		XMFLOAT3 direction;
+		float3 direction;
 		float spotAngle;
-
 	};
 
 	struct cb_shadowmapping
 	{
-		XMMATRIX lightMatrix;
+		mat128 lightMatrix;
 	};
 
 	struct cb_per_frame
 	{
-
 		cb_camera camera;
 		cb_screen screen;
 
 		cb_render_variables rvars;
-
 	};
 
 	struct cb_per_object

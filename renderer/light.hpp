@@ -25,7 +25,7 @@ namespace fuse
 		float     intensity;
 
 		color_rgb ambient;
-		XMFLOAT3  direction;
+		float3    direction;
 
 		bool castShadow;
 

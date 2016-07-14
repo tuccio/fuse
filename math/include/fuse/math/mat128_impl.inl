@@ -3,6 +3,34 @@
 namespace fuse
 {
 
+	/* Initializers */
+
+	inline const mat128 & mat128_identity(void)
+	{
+		static const mat128 t = mat128_f32(1.f);;
+		return t;
+	}
+
+	inline mat128 FUSE_VECTOR_CALL mat128_load(const float4x4 & lhs)
+	{
+		mat128 r;
+		r.c[0] = vec128_load(transpose(lhs.c[0]));
+		r.c[1] = vec128_load(transpose(lhs.c[1]));
+		r.c[2] = vec128_load(transpose(lhs.c[2]));
+		r.c[3] = vec128_load(transpose(lhs.c[3]));
+		return r;
+	}
+
+	inline mat128 FUSE_VECTOR_CALL mat128_load(const float3x3 & lhs)
+	{
+		mat128 r;
+		r.c[0] = vec128_select<FUSE_X0, FUSE_Y0, FUSE_Z0, FUSE_W1>(vec128_load(transpose(lhs.c[0])), vec128_zero());
+		r.c[1] = vec128_select<FUSE_X0, FUSE_Y0, FUSE_Z0, FUSE_W1>(vec128_load(transpose(lhs.c[1])), vec128_zero());
+		r.c[2] = vec128_select<FUSE_X0, FUSE_Y0, FUSE_Z0, FUSE_W1>(vec128_load(transpose(lhs.c[2])), vec128_zero());
+		r.c[3] = vec128_select<FUSE_X0, FUSE_Y0, FUSE_Z0, FUSE_W1>(vec128_zero(), vec128_one());
+		return r;
+	}
+
 	/* Matrix 4x4 */
 
 	inline mat128 FUSE_VECTOR_CALL mat128_transpose(mat128 lhs)
@@ -132,16 +160,16 @@ namespace fuse
 
 	}
 
-	inline mat128 FUSE_VECTOR_CALL mat128_mul4(mat128 lhs, mat128 rhs)
+	inline mat128 FUSE_VECTOR_CALL mat128_transform4(mat128 lhs, mat128 rhs)
 	{
 		mat128 r;
 		mat128 lhsT = mat128_transpose(lhs);
 
 		{
-			vec128 _00 = vec128_dp4(lhsT.c[0], rhs.c[0]);
-			vec128 _10 = vec128_dp4(lhsT.c[1], rhs.c[0]);
-			vec128 _20 = vec128_dp4(lhsT.c[2], rhs.c[0]);
-			vec128 _30 = vec128_dp4(lhsT.c[3], rhs.c[0]);
+			vec128 _00 = vec128_dot4(lhsT.c[0], rhs.c[0]);
+			vec128 _10 = vec128_dot4(lhsT.c[1], rhs.c[0]);
+			vec128 _20 = vec128_dot4(lhsT.c[2], rhs.c[0]);
+			vec128 _30 = vec128_dot4(lhsT.c[3], rhs.c[0]);
 
 			vec128 t0 = vec128_shuffle<FUSE_X0, FUSE_X0, FUSE_X1, FUSE_X1>(_00, _10);
 			vec128 t1 = vec128_shuffle<FUSE_X0, FUSE_X0, FUSE_X1, FUSE_X1>(_20, _30);
@@ -150,10 +178,10 @@ namespace fuse
 		}
 
 		{
-			vec128 _01 = vec128_dp4(lhsT.c[0], rhs.c[1]);
-			vec128 _11 = vec128_dp4(lhsT.c[1], rhs.c[1]);
-			vec128 _21 = vec128_dp4(lhsT.c[2], rhs.c[1]);
-			vec128 _31 = vec128_dp4(lhsT.c[3], rhs.c[1]);
+			vec128 _01 = vec128_dot4(lhsT.c[0], rhs.c[1]);
+			vec128 _11 = vec128_dot4(lhsT.c[1], rhs.c[1]);
+			vec128 _21 = vec128_dot4(lhsT.c[2], rhs.c[1]);
+			vec128 _31 = vec128_dot4(lhsT.c[3], rhs.c[1]);
 
 			vec128 t0 = vec128_shuffle<FUSE_X0, FUSE_X0, FUSE_X1, FUSE_X1>(_01, _11);
 			vec128 t1 = vec128_shuffle<FUSE_X0, FUSE_X0, FUSE_X1, FUSE_X1>(_21, _31);
@@ -162,10 +190,10 @@ namespace fuse
 		}
 
 		{
-			vec128 _02 = vec128_dp4(lhsT.c[0], rhs.c[2]);
-			vec128 _12 = vec128_dp4(lhsT.c[1], rhs.c[2]);
-			vec128 _22 = vec128_dp4(lhsT.c[2], rhs.c[2]);
-			vec128 _32 = vec128_dp4(lhsT.c[3], rhs.c[2]);
+			vec128 _02 = vec128_dot4(lhsT.c[0], rhs.c[2]);
+			vec128 _12 = vec128_dot4(lhsT.c[1], rhs.c[2]);
+			vec128 _22 = vec128_dot4(lhsT.c[2], rhs.c[2]);
+			vec128 _32 = vec128_dot4(lhsT.c[3], rhs.c[2]);
 
 			vec128 t0 = vec128_shuffle<FUSE_X0, FUSE_X0, FUSE_X1, FUSE_X1>(_02, _12);
 			vec128 t1 = vec128_shuffle<FUSE_X0, FUSE_X0, FUSE_X1, FUSE_X1>(_22, _32);
@@ -174,10 +202,10 @@ namespace fuse
 		}
 
 		{
-			vec128 _03 = vec128_dp4(lhsT.c[0], rhs.c[3]);
-			vec128 _13 = vec128_dp4(lhsT.c[1], rhs.c[3]);
-			vec128 _23 = vec128_dp4(lhsT.c[2], rhs.c[3]);
-			vec128 _33 = vec128_dp4(lhsT.c[3], rhs.c[3]);
+			vec128 _03 = vec128_dot4(lhsT.c[0], rhs.c[3]);
+			vec128 _13 = vec128_dot4(lhsT.c[1], rhs.c[3]);
+			vec128 _23 = vec128_dot4(lhsT.c[2], rhs.c[3]);
+			vec128 _33 = vec128_dot4(lhsT.c[3], rhs.c[3]);
 
 			vec128 t0 = vec128_shuffle<FUSE_X0, FUSE_X0, FUSE_X1, FUSE_X1>(_03, _13);
 			vec128 t1 = vec128_shuffle<FUSE_X0, FUSE_X0, FUSE_X1, FUSE_X1>(_23, _33);
@@ -188,7 +216,7 @@ namespace fuse
 		return r;
 	}
 
-	inline mat128 FUSE_VECTOR_CALL mat128_inv4(mat128 lhs, vec128 * pDeterminant = nullptr)
+	inline mat128 FUSE_VECTOR_CALL mat128_inverse4(mat128 lhs, vec128 * pDeterminant = nullptr)
 	{
 		mat128 r;
 		vec128 det;
@@ -203,7 +231,7 @@ namespace fuse
 		return r;
 	}
 
-	inline vec128 FUSE_VECTOR_CALL mat128_det3(mat128 lhs)
+	inline vec128 FUSE_VECTOR_CALL mat128_determinant3(mat128 lhs)
 	{
 		__m128 t0 = _mm_shuffle_ps(lhs.c[1], lhs.c[1], _MM_SHUFFLE(3, 0, 2, 1));
 		__m128 t1 = _mm_shuffle_ps(lhs.c[2], lhs.c[2], _MM_SHUFFLE(3, 1, 0, 2));
@@ -220,7 +248,7 @@ namespace fuse
 		return vec128_splat<FUSE_X>(_mm_sub_ss(t5, t8));
 	}
 
-	inline vec128 FUSE_VECTOR_CALL mat128_det4(mat128 lhs)
+	inline vec128 FUSE_VECTOR_CALL mat128_determinant4(mat128 lhs)
 	{
 		/* GLM sse_det_ps */
 
@@ -281,29 +309,47 @@ namespace fuse
 
 	/* Vector operations */
 
-	inline vec128 FUSE_VECTOR_CALL mat128_mul4(vec128 lhs, mat128 rhs)
+	inline vec128 FUSE_VECTOR_CALL mat128_transform4(vec128 lhs, mat128 rhs)
 	{
-		vec128 _0 = vec128_dp4(rhs.c[0], lhs);
-		vec128 _1 = vec128_dp4(rhs.c[1], lhs);
-		vec128 _2 = vec128_dp4(rhs.c[2], lhs);
-		vec128 _3 = vec128_dp4(rhs.c[3], lhs);
+		vec128 _0 = vec128_dot4(rhs.c[0], lhs);
+		vec128 _1 = vec128_dot4(rhs.c[1], lhs);
+		vec128 _2 = vec128_dot4(rhs.c[2], lhs);
+		vec128 _3 = vec128_dot4(rhs.c[3], lhs);
 
 		vec128 _0011 = vec128_shuffle<FUSE_X0, FUSE_X0, FUSE_X1, FUSE_X1>(_0, _1);
-		vec128 _2233 = vec128_shuffle<FUSE_X0, FUSE_X0, FUSE_X1, FUSE_X1>(_2, _1);
+		vec128 _2233 = vec128_shuffle<FUSE_X0, FUSE_X0, FUSE_X1, FUSE_X1>(_2, _3);
 
 		return vec128_shuffle<FUSE_X0, FUSE_Z0, FUSE_X1, FUSE_Z1>(_0011, _2233);
+	}
+
+	inline vec128 FUSE_VECTOR_CALL mat128_transform3(vec128 lhs, mat128 rhs)
+	{
+		vec128 t = vec128_select<FUSE_X0, FUSE_Y0, FUSE_Z0, FUSE_W1>(lhs, vec128_one());
+		return mat128_transform4(t, rhs);
+	}
+
+	inline vec128 FUSE_VECTOR_CALL mat128_transform_normal(vec128 lhs, mat128 rhs)
+	{
+		vec128 _0 = vec128_dot3(rhs.c[0], lhs);
+		vec128 _1 = vec128_dot3(rhs.c[1], lhs);
+		vec128 _2 = vec128_dot3(rhs.c[2], lhs);
+
+		vec128 _0011 = vec128_shuffle<FUSE_X0, FUSE_X0, FUSE_X1, FUSE_X1>(_0, _1);
+		vec128 _22ww = vec128_shuffle<FUSE_X0, FUSE_X0, FUSE_X1, FUSE_X1>(_2, vec128_one());
+
+		return vec128_shuffle<FUSE_X0, FUSE_Z0, FUSE_X1, FUSE_Z1>(_0011, _22ww);
 	}
 
 	/* Operators */
 
 	inline mat128 FUSE_VECTOR_CALL operator* (mat128 lhs, mat128 rhs)
 	{
-		return mat128_mul4(lhs, rhs);
+		return mat128_transform4(lhs, rhs);
 	}
 
 	inline vec128 FUSE_VECTOR_CALL operator* (vec128 lhs, mat128 rhs)
 	{
-		return mat128_mul4(lhs, rhs);
+		return mat128_transform4(lhs, rhs);
 	}
 
 }

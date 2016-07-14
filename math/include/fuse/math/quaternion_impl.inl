@@ -43,7 +43,7 @@ namespace fuse
 	inline quaternion inverse(const quaternion & q)
 	{
 		float invSquaredNorm = 1.f / (q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w);
-		return quaternion(q.w * invSquaredNorm, q.x * invSquaredNorm, q.y * invSquaredNorm, q.w * invSquaredNorm);
+		return quaternion(q.w * invSquaredNorm, q.x * invSquaredNorm, q.y * invSquaredNorm, q.z * invSquaredNorm);
 	}
 
 	inline float norm(const quaternion & q)
@@ -81,51 +81,6 @@ namespace fuse
 	{
 		float3 r = transform(reinterpret_cast<const float3 &>(lhs), rhs);
 		return float4(r.x, r.y, r.z, 1.f);
-	}
-
-	inline float3x3 to_rotation3(const quaternion & lhs)
-	{
-		const float tx = 2.f * lhs.x;
-		const float ty = 2.f * lhs.y;
-		const float tz = 2.f * lhs.z;
-		const float twx = tx * lhs.w;
-		const float twy = ty * lhs.w;
-		const float twz = tz * lhs.w;
-		const float txx = tx * lhs.x;
-		const float txy = ty * lhs.x;
-		const float txz = tz * lhs.x;
-		const float tyy = ty * lhs.y;
-		const float tyz = tz * lhs.y;
-		const float tzz = tz * lhs.z;
-
-		return float3x3(
-			1.f - (tyy + tzz), txy + twz, txz - twy,
-			txy - twz, 1.f - (txx + tzz), tyz + twx,
-			txz + twy, tyz - twx, 1.f - (txx + tyy)
-			);
-	}
-
-	inline float4x4 to_rotation4(const quaternion & lhs)
-	{
-		const float tx = 2.f * lhs.x;
-		const float ty = 2.f * lhs.y;
-		const float tz = 2.f * lhs.z;
-		const float twx = tx * lhs.w;
-		const float twy = ty * lhs.w;
-		const float twz = tz * lhs.w;
-		const float txx = tx * lhs.x;
-		const float txy = ty * lhs.x;
-		const float txz = tz * lhs.x;
-		const float tyy = ty * lhs.y;
-		const float tyz = tz * lhs.y;
-		const float tzz = tz * lhs.z;
-
-		return float4x4(
-			1.f - (tyy + tzz), txy + twz, txz - twy, 0.f,
-			txy - twz, 1.f - (txx + tzz), tyz + twx, 0.f,
-			txz + twy, tyz - twx, 1.f - (txx + tyy), 0.f,
-			0.f, 0.f, 0.f, 1.f
-		);
 	}
 
 	inline quaternion to_quaternion(const float3x3 & lhs)

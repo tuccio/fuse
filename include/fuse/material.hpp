@@ -2,7 +2,7 @@
 
 #include <fuse/color.hpp>
 #include <fuse/resource.hpp>
-#include <fuse/properties_macros.hpp>
+#include <fuse/core.hpp>
 
 #include <string>
 

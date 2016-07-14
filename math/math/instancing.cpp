@@ -1,4 +1,4 @@
-#include <fuse/math/math.hpp>
+#include <fuse/math.hpp>
 
 using namespace fuse;
 

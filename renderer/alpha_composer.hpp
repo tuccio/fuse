@@ -6,7 +6,7 @@
 #include <fuse/gpu_graphics_command_list.hpp>
 #include <fuse/render_resource.hpp>
 
-#include <fuse/properties_macros.hpp>
+#include <fuse/core/properties_macros.hpp>
 
 namespace fuse
 {

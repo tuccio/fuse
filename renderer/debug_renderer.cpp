@@ -79,27 +79,24 @@ void debug_renderer::add(const frustum & f, const color_rgba & color)
 
 	std::transform(planes.begin(), planes.end(), std::back_inserter(normals), [&](const plane & p)
 	{
-		
-		XMVECTOR plane = p.get_plane_vector();
+		vec128 plane = p.get_plane_vector();
 
 		debug_line line;
 
 		line.v0.position = to_float3(corners[FUSE_FRUSTUM_NEAR_BOTTOM_LEFT]);
 		line.v0.color    = to_float4(color);
-		line.v1.position = to_float3(XMVectorAdd(corners[FUSE_FRUSTUM_NEAR_BOTTOM_LEFT], plane));
+		line.v1.position = to_float3(corners[FUSE_FRUSTUM_NEAR_BOTTOM_LEFT] + plane);
 		line.v1.color    = to_float4(color);
 
 		return line;
-
 	});
 
 	add_lines(normals.begin(), normals.end());
 	
 }
 
-void debug_renderer::add(ID3D12Device * device, gpu_graphics_command_list & commandList, UINT bufferIndex, const render_resource & r, XMUINT2 position, float scale, bool hdr)
+void debug_renderer::add(ID3D12Device * device, gpu_graphics_command_list & commandList, UINT bufferIndex, const render_resource & r, uint2 position, float scale, bool hdr)
 {
-
 	D3D12_RESOURCE_DESC desc = r->GetDesc();
 	render_resource_ptr target = render_resource_manager::get_singleton_pointer()->get_texture_2d(device, bufferIndex, desc.Format, desc.Width, desc.Height);
 
@@ -109,7 +106,6 @@ void debug_renderer::add(ID3D12Device * device, gpu_graphics_command_list & comm
 	commandList->CopyResource(target->get(), r.get());
 
 	m_textures.push_back(debug_texture{ position, scale * desc.Width, scale * desc.Height, hdr, std::move(target) });
-
 }
 
 void debug_renderer::render(
