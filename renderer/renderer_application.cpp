@@ -40,7 +40,6 @@
 #include "scene.hpp"
 #include "shadow_mapper.hpp"
 #include "tonemapper.hpp"
-#include "editor_gui.hpp"
 #include "wx_editor_gui.hpp"
 #include "render_variables.hpp"
 #include "blur.hpp"
@@ -91,7 +90,6 @@ render_resource_manager g_renderResourceManager;
 
 fps_camera_controller g_cameraController;
 
-rocket_interface   g_rocketInterface;
 
 bitmap_font_ptr    g_font;
 
@@ -113,13 +111,12 @@ D3D12_RECT     g_fullscreenScissorRect;
 
 bool g_initialized;
 
-#ifdef FUSE_USE_LIBROCKET
-bool g_showGUI = true;
-editor_gui g_editorGUI;
-#endif
-
 #ifdef FUSE_USE_EDITOR_GUI
 wx_editor_gui g_wxEditorGUI;
+#endif
+
+#ifdef FUSE_LIBROCKET
+rocket_interface g_rocketInterface;
 #endif
 
 bool renderer_application::on_render_context_created(gpu_render_context & renderContext)
@@ -281,21 +278,6 @@ bool renderer_application::on_render_context_created(gpu_render_context & render
 	Rocket::Core::FontDatabase::LoadFontFace("ui/demo/Delicious-Italic.otf");
 	Rocket::Core::FontDatabase::LoadFontFace("ui/demo/Delicious-BoldItalic.otf");
 
-	g_editorGUI.set_render_options_visibility(true);
-	//g_editorGUI.set_light_panel_visibility(true);
-	g_editorGUI.set_skybox_panel_visibility(true);
-
-	add_mouse_listener(&g_editorGUI, FUSE_PRIORITY_DEFAULT_DELTA(1));
-	add_keyboard_listener(&g_editorGUI, FUSE_PRIORITY_DEFAULT_DELTA(1));
-
-#endif
-
-#ifdef FUSE_USE_EDITOR_GUI
-
-	FAIL_IF(!g_wxEditorGUI.init(get_wx_window(), &g_scene, &g_renderConfiguration, &g_visualDebugger));
-
-	load_ui_configuration(FUSE_UI_CONFIGURATION);
-
 #endif
 
 	debug_renderer_configuration debugRendererCFG;
@@ -338,6 +320,11 @@ bool renderer_application::on_render_context_created(gpu_render_context & render
 
 		CloseHandle(hEvent);
 
+#ifdef FUSE_USE_EDITOR_GUI
+		FAIL_IF(!g_wxEditorGUI.init(get_wx_window(), &g_scene, &g_renderConfiguration, &g_visualDebugger));
+		load_ui_configuration(FUSE_UI_CONFIGURATION);
+#endif
+
 		return g_initialized;
 
 	}
@@ -358,29 +345,22 @@ void renderer_application::on_render_context_released(gpu_render_context & rende
 	g_resourceFactory.clear();
 
 #ifdef FUSE_USE_LIBROCKET
-
-	g_editorGUI.shutdown();
 	Rocket::Core::Shutdown();
 	g_rocketInterface.shutdown();
-
 #endif
 
-#ifdef FUSE_USE_EDITOR_GUI
-
+#ifdef defined(FUSE_USE_EDITOR_GUI) && defined(FUSE_WXWIDGETS)
 	if (g_initialized)
 	{
 		save_ui_configuration(FUSE_UI_CONFIGURATION);
 	}
 
 	g_wxEditorGUI.shutdown();
-
 #endif
-
 }
 
 bool renderer_application::on_swap_chain_resized(ID3D12Device * device, IDXGISwapChain * swapChain, const DXGI_SURFACE_DESC * desc)
 {
-
 	get_command_queue().wait_for_frame(get_command_queue().get_frame_index());
 
 	g_renderConfiguration.set_render_resolution(uint2(desc->Width, desc->Height));
@@ -404,29 +384,83 @@ bool renderer_application::on_swap_chain_resized(ID3D12Device * device, IDXGISwa
 	}
 
 #ifdef FUSE_USE_LIBROCKET
-	g_editorGUI.on_resize(desc->Width, desc->Height);
-#endif
-
-#ifdef FUSE_USE_EDITOR_GUI
 	g_rocketInterface.on_resize(desc->Width, desc->Height);
 #endif
 
 	return true;
-
 }
 
 bool renderer_application::on_mouse_event(const mouse & mouse, const mouse_event_info & event)
 {
-
 	if (event.type == FUSE_MOUSE_EVENT_WHEEL)
 	{	
 		//g_cameraController.set_speed(to_float3(vec128Scale(to_vector(g_cameraController.get_speed()), (event.wheel * .2f + 1.f))));
 		g_cameraController.set_speed(g_cameraController.get_speed() * (event.wheel * .2f + 1.f));
 		return true;
 	}
+	else if (event.type == FUSE_MOUSE_EVENT_BUTTON_DOWN)
+	{
+#ifdef FUSE_USE_EDITOR_GUI
+		if (event.key == FUSE_MOUSE_VK_MOUSE1)
+		{
+			/*camera * cam = g_scene.get_active_camera();
+
+			float4x4 vp = cam->get_view_matrix() * cam->get_projection_matrix();
+			float4x4 invVP = inverse(vp);
+
+			float2 screenPosition = {
+				(float)event.position.x / get_render_window_width(),
+				(float)event.position.y / get_render_window_height()
+			};
+
+			screenPosition = 2.f * screenPosition - 1.f;
+
+			float4 clipPosition = float4(screenPosition.x, -screenPosition.y, 1, 1) * invVP;
+			float3 camPosition = cam->get_position();
+			float3 farPosition = to_float3(clipPosition);
+
+			ray r;
+			r.set_origin(to_vec128(camPosition));
+			r.set_direction(to_vec128(normalize(farPosition - camPosition)));*/
+
+			camera * c = g_scene.get_active_camera();
+
+			float4x4 viewProjMatrix    = c->get_view_matrix() * c->get_projection_matrix();
+			float4x4 invViewProjMatrix = inverse(viewProjMatrix);
+
+			float2 deviceCoords = {
+				(2 * event.position.x) / (float) get_render_window_width() - 1.f,
+				1.f - (2 * event.position.y) / (float) get_render_window_height()
+			};
+
+			float4 nearH = float4(deviceCoords.x, deviceCoords.y, 0, 1) * invViewProjMatrix;
+			float4 farH  = float4(deviceCoords.x, deviceCoords.y, 1, 1) * invViewProjMatrix;
+
+			float3 n = to_float3(nearH) / nearH.w;
+			float3 f = to_float3(farH) / farH.w;
+
+			ray r;
+			r.set_origin(to_vec128(c->get_position()));
+			r.set_direction(to_vec128(normalize(f - n)));
+
+			scene_graph_geometry * node;
+			float t;
+
+			if (g_scene.ray_pick(r, node, t))
+			{
+				g_wxEditorGUI.set_selected_node(node);
+			}
+			else
+			{
+				g_wxEditorGUI.set_selected_node(g_scene.get_scene_graph()->get_root());
+			}
+
+			//g_visualDebugger.add_persistent(FUSE_LITERAL("casted_ray"), r, color_rgba::green);
+		}
+#endif
+	}
 
 	return false;
-
 }
 
 bool renderer_application::on_keyboard_event(const keyboard & keyboard, const keyboard_event_info & event)
@@ -437,18 +471,6 @@ bool renderer_application::on_keyboard_event(const keyboard & keyboard, const ke
 
 		switch (event.key)
 		{
-
-		case FUSE_KEYBOARD_VK_F4:
-#ifdef FUSE_USE_LIBROCKET
-			g_showGUI = !g_showGUI;
-#endif
-			return true;
-
-		case FUSE_KEYBOARD_VK_F9:
-#ifdef FUSE_USE_LIBROCKET
-			g_editorGUI.set_debugger_visibility(!g_editorGUI.get_debugger_visibility());
-#endif
-			return true;
 
 		case FUSE_KEYBOARD_VK_F11:
 		{
@@ -475,16 +497,6 @@ bool renderer_application::on_keyboard_event(const keyboard & keyboard, const ke
 void renderer_application::on_update(float dt)
 {
 	g_cameraController.on_update(dt);
-
-#ifdef FUSE_USE_LIBROCKET
-
-	if (g_showGUI)
-	{
-		g_editorGUI.update();
-	}
-
-#endif
-
 	g_scene.update();
 }
 
@@ -543,6 +555,24 @@ void renderer_application::upload_per_frame_resources(ID3D12Device * device, gpu
 	memcpy(cbData, &cbPerFrame, sizeof(cb_per_frame));
 
 	gpu_upload_buffer(commandQueue, commandList, cbPerFrameBuffer, 0, ringBuffer.get_heap(), address - heapAddress, sizeof(cb_per_frame));
+}
+
+void draw_bounding_volume(scene_graph_geometry * node)
+{
+	static const color_rgba debugColors[] = {
+		{ 1, 0, 0, 1 },
+		{ 0, 1, 0, 1 },
+		{ 0, 0, 1, 1 },
+		{ 0, 1, 1, 1 },
+		{ 1, 0, 1, 1 },
+		{ 1, 1, 0, 1 }
+	};
+
+	int colorIndex = node->get_gpu_mesh()->get_id() % _countof(debugColors);
+
+	g_visualDebugger.add(
+		bounding_aabb(node->get_global_bounding_sphere()),
+		debugColors[colorIndex]);
 }
 
 void renderer_application::on_render(gpu_render_context & renderContext, const render_resource & backBuffer)
@@ -620,28 +650,22 @@ void renderer_application::on_render(gpu_render_context & renderContext, const r
 
 	if (g_visualDebugger.get_draw_bounding_volumes())
 	{
-
-		color_rgba debugColors[] = {
-			{ 1, 0, 0, 1 },
-			{ 0, 1, 0, 1 },
-			{ 0, 0, 1, 1 },
-			{ 0, 1, 1, 1 },
-			{ 1, 0, 1, 1 },
-			{ 1, 1, 0, 1 }
-		};
-
-		for (auto * r : g_realtimeRenderer.get_culling_results())
+		for (auto * g : g_realtimeRenderer.get_culling_results())
 		{
-
-			int colorIndex = r->get_mesh()->get_id() % _countof(debugColors);
-
-			g_visualDebugger.add(
-				bounding_aabb(transform_affine(r->get_bounding_sphere(), r->get_world_matrix())),
-				debugColors[colorIndex]);
-
+			draw_bounding_volume(g);
 		}
-
 	}
+#ifdef FUSE_USE_EDITOR_GUI
+	else if (g_visualDebugger.get_draw_selected_node_bounding_volume())
+	{
+		scene_graph_node * selectedNode = g_wxEditorGUI.get_selected_node();
+
+		if (selectedNode->get_type() == FUSE_SCENE_GRAPH_GEOMETRY)
+		{
+			draw_bounding_volume(static_cast<scene_graph_geometry*>(selectedNode));
+		}
+	}
+#endif
 
 	if (g_visualDebugger.get_draw_octree())
 	{
@@ -715,27 +739,6 @@ void renderer_application::draw_gui(ID3D12Device * device, gpu_command_queue & c
 		guiSS.str().c_str(),
 		float2(16, 16),
 		float4(.65f, .2f, .25f, 1));
-
-#ifdef FUSE_USE_LIBROCKET
-
-	if (g_showGUI)
-	{
-
-		g_rocketInterface.render_begin(
-			commandQueue,
-			commandList,
-			ringBuffer,
-			cbPerFrameAddress,
-			renderTarget.get(),
-			guiRTV);
-
-		g_editorGUI.render();
-
-		g_rocketInterface.render_end();
-
-	}
-
-#endif
 }
 
 void renderer_application::on_configuration_init(application_config * configuration)

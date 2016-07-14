@@ -83,6 +83,32 @@ namespace fuse
 		return float4(r.x, r.y, r.z, 1.f);
 	}
 
+	inline quaternion to_quaternion(const float3 & eulerAngles)
+	{
+		float3 h = eulerAngles * .5f;
+		float c1 = std::cos(h.y);
+		float s1 = std::sin(h.y);
+		float c2 = std::cos(h.z);
+		float s2 = std::sin(h.z);
+		float c3 = std::cos(h.x);
+		float s3 = std::sin(h.x);
+		quaternion q;
+		q.w = c1 * c2 * c3 - s1 * s2 * s3;
+		q.x = s1 * s2 * c3 + c1 * c2 * s3;
+		q.y = s1 * c2 * c3 + c1 * s2 * s3;
+		q.z = c1 * s2 * c3 - s1 * c2 * s3;
+		return q;
+	}
+
+	inline float3 to_euler(const quaternion & q)
+	{
+		float _2zz = 2 * q.z * q.z;
+		float y = std::atan2(2.f * q.y * q.w - 2.f * q.x * q.z, 1.f - 2.f * q.y * q.y - _2zz);
+		float z = std::asin(2.f * q.x * q.y + 2 * q.z * q.w);
+		float x = std::atan2(2.f * q.x * q.w - 2 * q.y * q.z, 1 - 2 * q.x * q.x - _2zz);
+		return float3(x, y, z);
+	}
+
 	inline quaternion to_quaternion(const float3x3 & lhs)
 	{
 		quaternion q;

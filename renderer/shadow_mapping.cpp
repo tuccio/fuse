@@ -3,7 +3,7 @@
 namespace fuse
 {
 
-	mat128 sm_crop_matrix_lh(const mat128 & viewMatrix, renderable_iterator begin, renderable_iterator end)
+	mat128 sm_crop_matrix_lh(const mat128 & viewMatrix, geometry_iterator begin, geometry_iterator end)
 	{
 		aabb currentAABB = aabb::from_min_max(
 			vec128_set(FLT_MAX, FLT_MAX, FLT_MAX, FLT_MAX),
@@ -11,9 +11,8 @@ namespace fuse
 
 		for (auto it = begin; it != end; it++)
 		{
-			mat128 worldView = (*it)->get_world_matrix() * viewMatrix;
-			sphere transformedSphere = transform_affine((*it)->get_bounding_sphere(), worldView);
-			aabb objectAABB = bounding_aabb(transformedSphere);
+			sphere transformedSphere = (*it)->get_global_bounding_sphere();
+			aabb   objectAABB        = bounding_aabb(transformedSphere);
 			currentAABB = currentAABB + objectAABB;
 		}
 

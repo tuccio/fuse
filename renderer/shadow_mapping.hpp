@@ -39,6 +39,6 @@ namespace fuse
 		return std::copysign(clampedValue, exponent);
 	}
 
-	mat128 sm_crop_matrix_lh(const mat128 & viewMatrix, renderable_iterator begin, renderable_iterator end);
+	mat128 sm_crop_matrix_lh(const mat128 & viewMatrix, geometry_iterator begin, geometry_iterator end);
 
 }

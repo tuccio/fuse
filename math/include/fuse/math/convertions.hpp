@@ -94,6 +94,15 @@ namespace fuse
 			lhs._20, lhs._21, lhs._22);
 	}
 
+	inline const float3x3 & FUSE_VECTOR_CALL to_float3x3(mat128 lhs)
+	{
+		float3x3 r;
+		r.c[0] = transpose(to_float3(lhs.c[0]));
+		r.c[1] = transpose(to_float3(lhs.c[1]));
+		r.c[2] = transpose(to_float3(lhs.c[2]));
+		return r;
+	}
+
 	/* to_float4x4 */
 
 	inline float4x4 to_float4x4(const float3x3 & lhs)
@@ -103,6 +112,11 @@ namespace fuse
 			lhs._10, lhs._11, lhs._12, 0.f,
 			lhs._20, lhs._21, lhs._22, 0.f,
 			0.f, 0.f, 0.f, 1.f);
+	}
+
+	inline const float4x4 & FUSE_VECTOR_CALL to_float4x4(mat128 lhs)
+	{
+		return reinterpret_cast<const float4x4&>(lhs);
 	}
 
 }

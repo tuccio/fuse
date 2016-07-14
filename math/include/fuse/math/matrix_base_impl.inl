@@ -26,10 +26,31 @@ namespace fuse
 				get<I - 1>(r) = get<I - 1>(a) + get<I - 1>(b);
 			}
 
+			template <typename Scalar>
+			inline static void add(MatrixType & r, const MatrixType & a, Scalar s)
+			{
+				matrix_cwise<MatrixType, I - 1>::add(r, a, s);
+				get<I - 1>(r) = get<I - 1>(a) + s;
+			}
+
 			inline static void sub(MatrixType & r, const MatrixType & a, const MatrixType & b)
 			{
 				matrix_cwise<MatrixType, I - 1>::sub(r, a, b);
 				get<I - 1>(r) = get<I - 1>(a) - get<I - 1>(b);
+			}
+
+			template <typename Scalar>
+			inline static void sub(MatrixType & r, const MatrixType & a, Scalar s)
+			{
+				matrix_cwise<MatrixType, I - 1>::sub(r, a, s);
+				get<I - 1>(r) = get<I - 1>(a) - s;
+			}
+
+			template <typename Scalar>
+			inline static void sub(MatrixType & r, Scalar s, const MatrixType & b)
+			{
+				matrix_cwise<MatrixType, I - 1>::sub(r, s, b);
+				get<I - 1>(r) = s - get<I - 1>(b);
 			}
 
 			template <typename Scalar>
@@ -76,7 +97,17 @@ namespace fuse
 			inline static void minus(MatrixType & r, const MatrixType & a) {}
 
 			inline static void add(MatrixType & r, const MatrixType & a, const MatrixType & b) {}
+
+			template <typename Scalar>
+			inline static void add(MatrixType & r, const MatrixType & a, Scalar s) {}
+
 			inline static void sub(MatrixType & r, const MatrixType & a, const MatrixType & b) {}
+
+			template <typename Scalar>
+			inline static void sub(MatrixType & r, const MatrixType & a, Scalar s) {}
+
+			template <typename Scalar>
+			inline static void sub(MatrixType & r, Scalar s, const MatrixType & b) {}
 
 			template <typename Scalar>
 			inline static void scale(MatrixType & r, const MatrixType & a, Scalar s) {}
@@ -114,6 +145,19 @@ namespace fuse
 				matrix_cwise<matrix_type, N * M>::add(r, a, b);
 				return r;
 			}
+			using matrix_type = matrix<T, N, M>;
+			inline static matrix_type add(const matrix_type & a, T s)
+			{
+				matrix_type r;
+				matrix_cwise<matrix_type, N * M>::add(r, a, s);
+				return r;
+			}
+
+			using matrix_type = matrix<T, N, M>;
+			inline static matrix_type add(T s, const matrix_type & b)
+			{
+				return add(b, s);
+			}
 		};
 
 		template <typename T, int N, int M>
@@ -124,6 +168,22 @@ namespace fuse
 			{
 				matrix_type r;
 				matrix_cwise<matrix_type, N * M>::sub(r, a, b);
+				return r;
+			}
+
+			using matrix_type = matrix<T, N, M>;
+			inline static matrix_type sub(const matrix_type & a, T s)
+			{
+				matrix_type r;
+				matrix_cwise<matrix_type, N * M>::sub(r, a, s);
+				return r;
+			}
+
+			using matrix_type = matrix<T, N, M>;
+			inline static matrix_type sub(T s, const matrix_type & b)
+			{
+				matrix_type r;
+				matrix_cwise<matrix_type, N * M>::sub(r, s, b);
 				return r;
 			}
 		};

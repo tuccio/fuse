@@ -41,9 +41,8 @@ namespace fuse
 	};
 
 	template <typename Char, typename T, int N, int M, template <typename Char, typename T, int N, int M> class Formatter = default_matrix_formatter>
-	std::ostream & operator<< (std::basic_ostream<Char> & os, const matrix<T, N, M> & m)
+	std::basic_ostream<Char> & operator<< (std::basic_ostream<Char> & os, const matrix<T, N, M> & m)
 	{
-
 		Formatter<Char, T, N, M> f;
 
 		f.matrix_begin(os, m);
@@ -69,13 +68,11 @@ namespace fuse
 		f.matrix_end(os, m);
 
 		return os;
-
 	}
 
 	template <typename Char, template <typename Char> class Formatter = default_quaternion_formatter>
-	std::ostream & operator<< (std::basic_ostream<Char> & os, const quaternion & q)
+	std::basic_ostream<Char> & operator<< (std::basic_ostream<Char> & os, const quaternion & q)
 	{
-
 		Formatter<Char> f;
 
 		f.quaternion_begin(os, q);
@@ -95,17 +92,18 @@ namespace fuse
 		f.quaternion_end(os, q);
 
 		return os;
-
 	}
 
-	std::ostream & operator<< (std::ostream & os, const vec128_f32 & v)
+	template <typename Char, template <typename Char> class Formatter = default_quaternion_formatter>
+	std::basic_ostream<Char> & operator<< (std::basic_ostream<Char> & os, const vec128_f32 & v)
 	{
-		return os << v.v4f;
+		return operator<< <Char, Formatter>(os, v.v4f);
 	}
 
-	std::ostream & operator<< (std::ostream & os, const mat128_f32 & v)
+	template <typename Char, template <typename Char> class Formatter = default_quaternion_formatter>
+	std::basic_ostream<Char> & operator<< (std::basic_ostream<Char> & os, const mat128_f32 & v)
 	{
-		return os << v.m;
+		return operator<< <Char, Formatter>(os, v.m);
 	}
 
 }

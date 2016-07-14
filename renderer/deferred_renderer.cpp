@@ -91,10 +91,9 @@ void deferred_renderer::render_gbuffer(
 	const render_resource * const * gbuffer,
 	const render_resource & depthBuffer,
 	const camera * camera,
-	renderable_iterator begin,
-	renderable_iterator end)
+	geometry_iterator begin,
+	geometry_iterator end)
 {
-	/* Maybe sort the object first */
 
 	mat128 view              = mat128_load(camera->get_view_matrix());
 	mat128 projection        = mat128_load(camera->get_projection_matrix());
@@ -123,7 +122,7 @@ void deferred_renderer::render_gbuffer(
 		gbuffer[2]->get_rtv_cpu_descriptor_handle(),
 		gbuffer[3]->get_rtv_cpu_descriptor_handle()
 	};
-	
+
 	commandList->OMSetRenderTargets(_countof(gbufferRTV), gbufferRTV, false, &dsv);
 	commandList->OMSetStencilRef(1);
 
@@ -144,11 +143,11 @@ void deferred_renderer::render_gbuffer(
 
 	for (auto it = begin; it != end; it++)
 	{
-		renderable * object = *it;
+		scene_graph_geometry * geometry = *it;
 
 		/* Fill buffer per object */
 
-		auto world = object->get_world_matrix();;
+		auto world = geometry->get_global_matrix();;
 
 		cb_per_object cbPerObject;
 
@@ -156,7 +155,7 @@ void deferred_renderer::render_gbuffer(
 		cbPerObject.transform.worldView           = world * view;
 		cbPerObject.transform.worldViewProjection = world * viewProjection;
 
-		auto objectMaterial = object->get_material();
+		auto objectMaterial = geometry->get_material();
 
 		material * materialData = (objectMaterial && objectMaterial->load()) ? objectMaterial.get() : &defaultMaterial;
 
@@ -175,64 +174,17 @@ void deferred_renderer::render_gbuffer(
 
 			commandList->SetGraphicsRootConstantBufferView(1, address);
 
-			auto boundingBox = object->get_occlusion_bounding_box();
-			auto mesh = object->get_mesh();
+			gpu_mesh_ptr mesh = geometry->get_gpu_mesh();
 
-			///* GPU culling */
-			//
-			//bool gpuOcclusion = object->load_occlusion_resources(device);
-
-			//if (gpuOcclusion)
-			//{
-			//	
-			//	//// Resolve query from last frame
-
-			//	//commandList.resource_barrier_transition(object->get_query_result().get(), D3D12_RESOURCE_STATE_COPY_DEST);
-			//	//commandList->ResolveQueryData(m_queryHeap.get(), D3D12_QUERY_TYPE_BINARY_OCCLUSION, objectIndex, 1, object->get_query_result().get(), 0);
-			//	//commandList.resource_barrier_transition(object->get_query_result().get(), D3D12_RESOURCE_STATE_GENERIC_READ);
-
-			//	//// Set predication
-			//	//
-			//	//commandList->SetPredication(object->get_query_result().get(), 0, D3D12_PREDICATION_OP_EQUAL_ZERO);
-
-			//}
-			//else
-			//{
-			//	// Disable predication if the bounding box isn't loaded
-			//	commandList->SetPredication(nullptr, 0, D3D12_PREDICATION_OP_EQUAL_ZERO);
-			//}
-			
 			/* Draw */
 
 			if (mesh && mesh->load())
 			{
-
 				commandList->IASetVertexBuffers(0, 2, mesh->get_vertex_buffers());
 				commandList->IASetIndexBuffer(&mesh->get_index_data());
 
 				commandList->DrawIndexedInstanced(mesh->get_num_indices(), 1, 0, 0, 0);
-
 			}
-
-			/* Submit query for the next frame */
-
-			//if (gpuOcclusion)
-			//{
-
-			//	// Draw bounding box
-
-			//	commandList->SetPipelineState(queryPSO);
-
-			//	commandList->IASetVertexBuffers(0, 1, boundingBox->get_vertex_buffers());
-			//	commandList->IASetIndexBuffer(&boundingBox->get_index_data());
-
-			//	commandList->BeginQuery(m_queryHeap.get(), D3D12_QUERY_TYPE_BINARY_OCCLUSION, objectIndex);
-			//	commandList->DrawIndexedInstanced(boundingBox->get_num_indices(), 1, 0, 0, 0);
-			//	commandList->EndQuery(m_queryHeap.get(), D3D12_QUERY_TYPE_BINARY_OCCLUSION, objectIndex);
-
-			//	commandList->SetPipelineState(gbufferPSO);
-
-			//}
 		}
 
 		++objectIndex;

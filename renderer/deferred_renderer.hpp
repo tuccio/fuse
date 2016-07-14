@@ -18,7 +18,6 @@
 #include "light.hpp"
 #include "scene.hpp"
 #include "shadow_mapping.hpp"
-#include "renderable.hpp"
 #include "skydome.hpp"
 
 namespace fuse
@@ -54,8 +53,8 @@ namespace fuse
 			const render_resource * const * gbuffer,
 			const render_resource & depthBuffer,
 			const camera * camera,
-			renderable_iterator begin,
-			renderable_iterator end);
+			geometry_iterator begin,
+			geometry_iterator end);
 
 		void render_light(
 			ID3D12Device * device,

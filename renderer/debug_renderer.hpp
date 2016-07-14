@@ -63,6 +63,7 @@ namespace fuse
 
 		void add(const aabb & bb, const color_rgba & color);
 		void add(const frustum & f, const color_rgba & color);
+		void add(const ray & r, const color_rgba & color);
 
 		void add(ID3D12Device * device, gpu_graphics_command_list & commandList, UINT bufferIndex, const render_resource & r, uint2 position, float scale, bool hdr);
 

@@ -64,7 +64,7 @@ namespace fuse
 
 		visual_debugger * m_visualDebugger;
 
-		renderable_vector m_renderables;
+		geometry_vector m_renderedGeometry;
 
 		std::vector<scoped_cbv_uav_srv_descriptor> m_gbufferSRVTable;
 
@@ -78,7 +78,7 @@ namespace fuse
 		)
 
 		FUSE_PROPERTIES_BY_CONST_REFERENCE_READ_ONLY(
-			(culling_results, m_renderables)
+			(culling_results, m_renderedGeometry)
 		)
 
 	};

@@ -13,6 +13,12 @@ enum __vec128_permutation
 	FUSE_X1 = 4, FUSE_Y1 = 5, FUSE_Z1 = 6, FUSE_W1 = 7
 };
 
+enum __vec128_sign
+{
+	FUSE_SIGN_POSITIVE = 0,
+	FUSE_SIGN_NEGATIVE = 1
+};
+
 namespace fuse
 {
 
@@ -225,30 +231,30 @@ namespace fuse
 	}
 
 	template <uint32_t Component>
-	inline void FUSE_VECTOR_CALL vec128_set(vec128 lhs, float rhs)
+	inline void FUSE_VECTOR_CALL vec128_set(vec128 & lhs, float rhs)
 	{
 		static_assert(Component < 4, "Index out of bounds.");
 		reinterpret_cast<vec128_f32&>(lhs).f32[Component] = rhs;
 	}
 
-	inline void FUSE_VECTOR_CALL vec128_set_x(vec128 lhs, float rhs)
+	inline void FUSE_VECTOR_CALL vec128_set_x(vec128 & lhs, float rhs)
 	{
-		return vec128_set<FUSE_X>(lhs, rhs);
+		vec128_set<FUSE_X>(lhs, rhs);
 	}
 
-	inline void FUSE_VECTOR_CALL vec128_set_y(vec128 lhs, float rhs)
+	inline void FUSE_VECTOR_CALL vec128_set_y(vec128 & lhs, float rhs)
 	{
-		return vec128_set<FUSE_Y>(lhs, rhs);
+		vec128_set<FUSE_Y>(lhs, rhs);
 	}
 
-	inline void FUSE_VECTOR_CALL vec128_set_z(vec128 lhs, float rhs)
+	inline void FUSE_VECTOR_CALL vec128_set_z(vec128 & lhs, float rhs)
 	{
-		return vec128_set<FUSE_Z>(lhs, rhs);
+		vec128_set<FUSE_Z>(lhs, rhs);
 	}
 
-	inline void FUSE_VECTOR_CALL vec128_set_w(vec128 lhs, float rhs)
+	inline void FUSE_VECTOR_CALL vec128_set_w(vec128 & lhs, float rhs)
 	{
-		return vec128_set<FUSE_W>(lhs, rhs);
+		vec128_set<FUSE_W>(lhs, rhs);
 	}
 
 	/* Dot products */
@@ -356,6 +362,16 @@ namespace fuse
 	inline vec128 FUSE_VECTOR_CALL vec128_ceil(vec128 lhs)
 	{
 		return _mm_ceil_ps(lhs);
+	}
+
+	inline bool FUSE_VECTOR_CALL vec128_all_true(vec128 lhs)
+	{
+		return vec128_checksign<FUSE_SIGN_NEGATIVE, FUSE_SIGN_NEGATIVE, FUSE_SIGN_NEGATIVE, FUSE_SIGN_NEGATIVE>(lhs);
+	}
+
+	inline bool FUSE_VECTOR_CALL vec128_any_true(vec128 lhs)
+	{
+		return vec128_signmask(lhs) != 0;
 	}
 
 	/* Functions */

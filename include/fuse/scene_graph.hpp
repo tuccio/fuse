@@ -37,16 +37,27 @@ namespace fuse
 
 		FUSE_DECLARE_ALIGNED_ALLOCATOR_NEW(16)
 
-		using children_iterator = std::vector<scene_graph_node*>::const_iterator;
+		using children_iterator       = std::vector<scene_graph_node*>::iterator;
+		using children_const_iterator = std::vector<scene_graph_node*>::const_iterator;
 
 		virtual ~scene_graph_node(void);
 
-		children_iterator begin(void) const
+		children_iterator begin(void)
+		{
+			return m_children.begin();
+		}
+
+		children_iterator end(void)
+		{
+			return m_children.end();
+		}
+
+		children_const_iterator begin(void) const
 		{
 			return m_children.cbegin();
 		}
 
-		children_iterator end(void) const
+		children_const_iterator end(void) const
 		{
 			return m_children.cend();
 		}

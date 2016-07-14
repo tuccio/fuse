@@ -61,3 +61,7 @@
 
 #include "math/constants.hpp"
 #include "math/trigonometry.hpp"
+
+/* Utility */
+
+#include "math/to_string.hpp"

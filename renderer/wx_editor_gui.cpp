@@ -246,6 +246,9 @@ void wx_editor_gui::create_debug_page(wxAuiNotebook * notebook)
 	{
 		wxStaticBoxSizer * drawSizer = new wxStaticBoxSizer(wxVERTICAL, debug, _("Draw"));
 
+		drawSizer->Add(new wx_checkbox([&](bool value) { m_visualDebugger->set_draw_selected_node_bounding_volume(value); },
+			drawSizer->GetStaticBox(), wxID_ANY, _("Selected Node Bounding Volume"), m_visualDebugger->get_draw_selected_node_bounding_volume()), 0, wxEXPAND | wxALL, padding);
+
 		drawSizer->Add(new wx_checkbox([&](bool value) { m_visualDebugger->set_draw_bounding_volumes(value); },
 			drawSizer->GetStaticBox(), wxID_ANY, _("Bounding Volumes"), m_visualDebugger->get_draw_bounding_volumes()), 0, wxEXPAND | wxALL, padding);
 
@@ -254,8 +257,8 @@ void wx_editor_gui::create_debug_page(wxAuiNotebook * notebook)
 
 		drawSizer->Add(new wx_checkbox(
 			[&](bool value) {
-				if (value) m_visualDebugger->add_persistent("camera", m_scene->get_active_camera()->get_frustum(), color_rgba(0, 1, 0, 1));
-				else m_visualDebugger->remove_persistent("camera");
+				if (value) m_visualDebugger->add_persistent(FUSE_LITERAL("camera"), m_scene->get_active_camera()->get_frustum(), color_rgba(0, 1, 0, 1));
+				else m_visualDebugger->remove_persistent(FUSE_LITERAL("camera"));
 			},
 			drawSizer->GetStaticBox(), wxID_ANY, _("Current Camera Frustum"), m_visualDebugger->get_draw_bounding_volumes()), 0, wxEXPAND | wxALL, padding);
 
@@ -301,9 +304,18 @@ void wx_editor_gui::create_scene_graph_page(wxAuiNotebook * notebook)
 	wxStaticBoxSizer * localTranslationBox    = new wxStaticBoxSizer(wxVERTICAL, sg, _("Local translation"));
 	wxBoxSizer       * localTranslationFields = new wxBoxSizer(wxHORIZONTAL);
 
+	wxStaticBoxSizer * localScaleBox    = new wxStaticBoxSizer(wxVERTICAL, sg, _("Local scale"));
+	wxBoxSizer       * localScaleFields = new wxBoxSizer(wxHORIZONTAL);
+
+	wxStaticBoxSizer * localRotationBox    = new wxStaticBoxSizer(wxVERTICAL, sg, _("Local rotation"));
+	wxBoxSizer       * localRotationFields = new wxBoxSizer(wxHORIZONTAL);
+
 	m_sgTree = new wxTreeCtrl(sg);
 
 	load_scene_graph();
+
+	m_sgTree->SelectItem(m_sgTree->GetRootItem());
+	m_selectedNode = m_scene->get_scene_graph()->get_root();
 
 	/* Local translation */
 
@@ -314,6 +326,7 @@ void wx_editor_gui::create_scene_graph_page(wxAuiNotebook * notebook)
 		{
 			return vec128_get_x(m_selectedNode->get_local_translation());
 		}
+		return 0.f;
 	},
 		[&](float x)
 	{
@@ -321,7 +334,7 @@ void wx_editor_gui::create_scene_graph_page(wxAuiNotebook * notebook)
 		{
 			auto v = m_selectedNode->get_local_translation();
 			vec128_set_x(v, x);
-			return m_selectedNode->set_local_translation(v);
+			m_selectedNode->set_local_translation(v);
 		}
 	}, sg, wxID_ANY, -FLT_MAX, FLT_MAX, .1f);
 
@@ -332,6 +345,7 @@ void wx_editor_gui::create_scene_graph_page(wxAuiNotebook * notebook)
 		{
 			return vec128_get_y(m_selectedNode->get_local_translation());
 		}
+		return 0.f;
 	},
 		[&](float x)
 	{
@@ -339,7 +353,7 @@ void wx_editor_gui::create_scene_graph_page(wxAuiNotebook * notebook)
 		{
 			auto v = m_selectedNode->get_local_translation();
 			vec128_set_y(v, x);
-			return m_selectedNode->set_local_translation(v);
+			m_selectedNode->set_local_translation(v);
 		}
 	}, sg, wxID_ANY, -FLT_MAX, FLT_MAX, .1f);
 
@@ -350,6 +364,7 @@ void wx_editor_gui::create_scene_graph_page(wxAuiNotebook * notebook)
 		{
 			return vec128_get_z(m_selectedNode->get_local_translation());
 		}
+		return 0.f;
 	},
 		[&](float x)
 	{
@@ -357,38 +372,201 @@ void wx_editor_gui::create_scene_graph_page(wxAuiNotebook * notebook)
 		{
 			auto v = m_selectedNode->get_local_translation();
 			vec128_set_z(v, x);
-			return m_selectedNode->set_local_translation(v);
+			m_selectedNode->set_local_translation(v);
 		}
 	}, sg, wxID_ANY, -FLT_MAX, FLT_MAX, .1f);
+
+	/* Local scale */
+
+	auto localScaleX = new wx_spin<float>(
+		[&]()
+	{
+		if (m_selectedNode)
+		{
+			return vec128_get_x(m_selectedNode->get_local_scale());
+		}
+		return 0.f;
+	},
+		[&](float x)
+	{
+		if (m_selectedNode)
+		{
+			auto v = m_selectedNode->get_local_scale();
+			vec128_set_x(v, x);
+			m_selectedNode->set_local_scale(v);
+		}
+	}, sg, wxID_ANY, -FLT_MAX, FLT_MAX, .1f);
+
+	auto localScaleY = new wx_spin<float>(
+		[&]()
+	{
+		if (m_selectedNode)
+		{
+			return vec128_get_y(m_selectedNode->get_local_scale());
+		}
+		return 0.f;
+	},
+		[&](float x)
+	{
+		if (m_selectedNode)
+		{
+			auto v = m_selectedNode->get_local_scale();
+			vec128_set_y(v, x);
+			return m_selectedNode->set_local_scale(v);
+		}
+	}, sg, wxID_ANY, -FLT_MAX, FLT_MAX, .1f);
+
+	auto localScaleZ = new wx_spin<float>(
+		[&]()
+	{
+		if (m_selectedNode)
+		{
+			return vec128_get_z(m_selectedNode->get_local_scale());
+		}
+		return 0.f;
+	},
+		[&](float x)
+	{
+		if (m_selectedNode)
+		{
+			auto v = m_selectedNode->get_local_scale();
+			vec128_set_z(v, x);
+			return m_selectedNode->set_local_scale(v);
+		}
+	}, sg, wxID_ANY, -FLT_MAX, FLT_MAX, .1f);
+
+	/* Local rotation */
+
+	auto localRotationX = new wx_spin<float>(
+		[&]()
+	{
+		if (m_selectedNode)
+		{
+			quaternion q = to_quaternion(m_selectedNode->get_local_rotation());
+			float3 e = to_euler(q);
+			return to_degrees(e.x);
+		}
+		return 0.f;
+	},
+		[&](float x)
+	{
+		if (m_selectedNode)
+		{
+			if (m_selectedNode)
+			{
+				quaternion q = to_quaternion(m_selectedNode->get_local_rotation());
+				float3 e = to_euler(q);
+				e.x = to_radians(x);
+				m_selectedNode->set_local_rotation(to_quaternion(e));
+			}
+		}
+	}, sg, wxID_ANY, -FLT_MAX, FLT_MAX, .1f);
+
+	auto localRotationY = new wx_spin<float>(
+		[&]()
+	{
+		if (m_selectedNode)
+		{
+			quaternion q = to_quaternion(m_selectedNode->get_local_rotation());
+			float3 e = to_euler(q);
+			return to_degrees(e.y);
+		}
+		return 0.f;
+	},
+		[&](float x)
+	{
+		if (m_selectedNode)
+		{
+			quaternion q = to_quaternion(m_selectedNode->get_local_rotation());
+			float3 e = to_euler(q);
+			e.y = to_radians(x);
+			m_selectedNode->set_local_rotation(to_quaternion(e));
+		}
+	}, sg, wxID_ANY, -FLT_MAX, FLT_MAX, .1f);
+
+	auto localRotationZ = new wx_spin<float>(
+		[&]()
+	{
+		if (m_selectedNode)
+		{
+			quaternion q = to_quaternion(m_selectedNode->get_local_rotation());
+			float3 e = to_euler(q);
+			return to_degrees(e.z);
+		}
+		return 0.f;
+	},
+		[&](float x)
+	{
+		if (m_selectedNode)
+		{
+			quaternion q = to_quaternion(m_selectedNode->get_local_rotation());
+			float3 e = to_euler(q);
+			e.z = to_radians(x);
+			m_selectedNode->set_local_rotation(to_quaternion(e));
+		}
+	}, sg, wxID_ANY, -FLT_MAX, FLT_MAX, .1f);
+
+	/* Size settings */
 
 	localTranslationX->SetMinSize(wxSize(64, 24));
 	localTranslationY->SetMinSize(wxSize(64, 24));
 	localTranslationZ->SetMinSize(wxSize(64, 24));
 
+	localScaleX->SetMinSize(wxSize(64, 24));
+	localScaleY->SetMinSize(wxSize(64, 24));
+	localScaleZ->SetMinSize(wxSize(64, 24));
+
+	localRotationX->SetMinSize(wxSize(64, 24));
+	localRotationY->SetMinSize(wxSize(64, 24));
+	localRotationZ->SetMinSize(wxSize(64, 24));
+
 	/* Add elements */
 
 	//localTranslation->Add(new wxStaticText(sg, wxID_ANY, _("Translation")), 0, wxEXPAND | wxALL, padding);
-	localTranslationFields->Add(localTranslationX, 0, wxEXPAND | wxALL);
-	localTranslationFields->Add(localTranslationY, 0, wxEXPAND | wxALL);
-	localTranslationFields->Add(localTranslationZ, 0, wxEXPAND | wxALL);
+	localTranslationFields->Add(localTranslationX, 1, wxEXPAND | wxALL);
+	localTranslationFields->Add(localTranslationY, 1, wxEXPAND | wxALL);
+	localTranslationFields->Add(localTranslationZ, 1, wxEXPAND | wxALL);
 
-	localTranslationBox->Add(localTranslationFields, 0, wxEXPAND | wxALL);
+	localScaleFields->Add(localScaleX, 1, wxEXPAND | wxALL);
+	localScaleFields->Add(localScaleY, 1, wxEXPAND | wxALL);
+	localScaleFields->Add(localScaleZ, 1, wxEXPAND | wxALL);
+
+	localRotationFields->Add(localRotationX, 1, wxEXPAND | wxALL);
+	localRotationFields->Add(localRotationY, 1, wxEXPAND | wxALL);
+	localRotationFields->Add(localRotationZ, 1, wxEXPAND | wxALL);
+
+	localTranslationBox->Add(localTranslationFields, 1, wxEXPAND | wxALL);
+	localScaleBox->Add(localScaleFields, 1, wxEXPAND | wxALL);
+	localRotationBox->Add(localRotationFields, 1, wxEXPAND | wxALL);
 
 	sizer->Add(m_sgTree, 1, wxEXPAND | wxALL, padding);
+
 	sizer->Add(localTranslationBox, 0, wxEXPAND | wxALL, padding);
+	sizer->Add(localScaleBox, 0, wxEXPAND | wxALL, padding);
+	sizer->Add(localRotationBox, 0, wxEXPAND | wxALL, padding);
 
 	sg->SetSizerAndFit(sizer);
 
 	notebook->AddPage(sg, _("Scene Graph"));
 
-	m_sgTree->Bind(wxEVT_TREE_ITEM_ACTIVATED,
-		[&, localTranslationX, localTranslationY, localTranslationZ](wxTreeEvent & event)
+	m_sgTree->Bind(wxEVT_TREE_SEL_CHANGED,
+		[&,
+		localTranslationX, localTranslationY, localTranslationZ,
+		localScaleX, localScaleY, localScaleZ,
+		localRotationX, localRotationY, localRotationZ]
+	(wxTreeEvent & event)
 	{
 		wxTreeItemId item = event.GetItem();
 		m_selectedNode = m_itemNodeMap[item];
 		localTranslationX->update_value();
 		localTranslationY->update_value();
 		localTranslationZ->update_value();
+		localScaleX->update_value();
+		localScaleY->update_value();
+		localScaleZ->update_value();
+		localRotationX->update_value();
+		localRotationY->update_value();
+		localRotationZ->update_value();
 	});
 }
 
@@ -425,14 +603,19 @@ void wx_editor_gui::load_scene_graph(void)
 	} while (!stack.empty());
 }
 
-void wx_editor_gui::update_selected_node(scene_graph_node * node)
+scene_graph_node * wx_editor_gui::get_selected_node(void) const
 {
-	
+	return m_selectedNode;
 }
 
-void wx_editor_gui::on_scene_graph_node_select(wxTreeEvent & event)
+void wx_editor_gui::set_selected_node(scene_graph_node * node)
 {
+	auto it = m_nodeItemMap.find(node);
 
+	if (it != m_nodeItemMap.end())
+	{
+		m_sgTree->SelectItem(it->second);
+	}
 }
 
 #endif

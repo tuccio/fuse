@@ -40,6 +40,9 @@ namespace fuse
 		bool init(wxWindow * window, scene * scene, render_configuration * r, visual_debugger * debugger);
 		void shutdown(void);
 
+		scene_graph_node * get_selected_node(void) const;
+		void set_selected_node(scene_graph_node * node);
+
 	private:
 
 		wxWindow     * m_window;
@@ -65,9 +68,6 @@ namespace fuse
 		void create_scene_graph_page(wxAuiNotebook * notebook);
 
 		void load_scene_graph(void);
-		void update_selected_node(scene_graph_node * node);
-
-		void on_scene_graph_node_select(wxTreeEvent & event);
 
 	};
 

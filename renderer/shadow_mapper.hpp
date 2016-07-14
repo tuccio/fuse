@@ -38,8 +38,8 @@ namespace fuse
 			const mat128 & lightMatrix,
 			const render_resource & renderTarget,
 			const render_resource & depthBuffer,
-			renderable_iterator begin,
-			renderable_iterator end);
+			geometry_iterator begin,
+			geometry_iterator end);
 
 	private:
 

@@ -73,4 +73,28 @@ namespace fuse
 		return detail::matrix_scale_impl<T, N, M>::divide(a, b);
 	}
 
+	template <typename T, int N, int M>
+	matrix<T, N, M> operator+ (T s, const matrix<T, N, M> & m)
+	{
+		return detail::matrix_add_impl<T, N, M>::add(m, s);
+	}
+
+	template <typename T, int N, int M>
+	matrix<T, N, M> operator+ (const matrix<T, N, M> & m, T s)
+	{
+		return detail::matrix_add_impl<T, N, M>::add(m, s);
+	}
+
+	template <typename T, int N, int M>
+	matrix<T, N, M> operator- (T s, const matrix<T, N, M> & m)
+	{
+		return detail::matrix_sub_impl<T, N, M>::sub(m, s);
+	}
+
+	template <typename T, int N, int M>
+	matrix<T, N, M> operator- (const matrix<T, N, M> & m, T s)
+	{
+		return detail::matrix_sub_impl<T, N, M>::sub(m, s);
+	}
+
 }

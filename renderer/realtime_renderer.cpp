@@ -151,13 +151,12 @@ void realtime_renderer::render(D3D12_GPU_VIRTUAL_ADDRESS cbPerFrameAddress, scen
 
 	/* GBuffer rendering */
 
-	m_renderables = scene->frustum_culling(camera->get_frustum());
-	auto sgfc = scene->frustum_culling_sg(camera->get_frustum());
+	m_renderedGeometry = scene->frustum_culling(camera->get_frustum());
 
 	//FUSE_LOG(FUSE_LITERAL("realtime_renderer"), stringstream_t() << "Drawing " << m_renderables.size() << " objects.");
 
-	auto renderableObjects = std::make_pair(m_renderables.begin(), m_renderables.end());
-	//auto renderableObjects = scene->get_renderable_objects();
+	auto geometry = std::make_pair(m_renderedGeometry.begin(), m_renderedGeometry.end());
+	//auto renderableObjects = scene->get_geometry();
 
 	auto fullscreenViewport    = make_fullscreen_viewport(m_renderResolution.x, m_renderResolution.y);
 	auto fullscreenScissorRect = make_fullscreen_scissor_rect(m_renderResolution.x, m_renderResolution.y);
@@ -172,11 +171,10 @@ void realtime_renderer::render(D3D12_GPU_VIRTUAL_ADDRESS cbPerFrameAddress, scen
 		m_renderContext->get_ring_buffer(),
 		cbPerFrameAddress,
 		gbuffer,
-		//g_depthBuffer[bufferIndex],
 		*m_depthBuffer.get(),
 		camera,
-		renderableObjects.first,
-		renderableObjects.second);
+		geometry.first,
+		geometry.second);
 
 	//g_visualDebugger.add(device, commandList, bufferIndex, *gbufferResources[0].get(), XMUINT2(16, 16), g_visualDebugger.get_textures_scale());
 
@@ -287,7 +285,7 @@ void realtime_renderer::render(D3D12_GPU_VIRTUAL_ADDRESS cbPerFrameAddress, scen
 			mat128 lightViewMatrix = look_at_lh(vec128_zero(), to_vec128(sunLight.direction), to_vec128(camera->left()));
 			//vec128_set(sunLight.direction.y > .99f ? 1.f : 0.f, sunLight.direction.y > .99f ? 0.f : 1.f, 0.f, 0.f));
 
-			mat128 lightCropMatrix = sm_crop_matrix_lh(lightViewMatrix, renderableObjects.first, renderableObjects.second);
+			mat128 lightCropMatrix = sm_crop_matrix_lh(lightViewMatrix, geometry.first, geometry.second);
 
 			shadowMapInfo.lightMatrix = lightViewMatrix * lightCropMatrix;
 		}
@@ -303,8 +301,8 @@ void realtime_renderer::render(D3D12_GPU_VIRTUAL_ADDRESS cbPerFrameAddress, scen
 			shadowMapInfo.lightMatrix,
 			*shadowMapResources[0].get(),
 			*shadowMapDepth.get(),
-			renderableObjects.first,
-			renderableObjects.second);
+			geometry.first,
+			geometry.second);
 
 		m_shadowMapBlur.render(
 			commandQueue,

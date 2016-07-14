@@ -145,9 +145,9 @@ namespace fuse
 
 	public:
 
-		template <typename Functor>
-		wx_spin(Functor cb, wxWindow * parent, int id, T value, T min, T max, T step = T(0.01)) :
-			wxSpinCtrlDouble(parent, id)
+		template <typename Setter>
+		wx_spin(Setter set, wxWindow * parent, int id, T value, T min, T max, T step = T(0.01)) :
+			wxSpinCtrlDouble(parent, id, wxEmptyString, wxDefaultPosition, wxDefaultSize, wxSP_ARROW_KEYS | wxTE_PROCESS_ENTER)
 		{
 			if (std::is_integral<T>::value) SetDigits(0);
 
@@ -155,12 +155,21 @@ namespace fuse
 			SetValue(static_cast<double>(value));
 			SetIncrement(static_cast<double>(step));
 
-			Bind(wxEVT_SPINCTRLDOUBLE, [=](wxSpinDoubleEvent & event) { cb(static_cast<T>(event.GetValue())); });
+			Bind(wxEVT_SPINCTRLDOUBLE, [=](wxSpinDoubleEvent & event) { set(static_cast<T>(event.GetValue())); });
+			Bind(wxEVT_TEXT_ENTER, [=](wxCommandEvent & event)
+			{
+				wxString s = event.GetString();
+				double v;
+				if (s.ToCDouble(&v))
+				{
+					set(static_cast<T>(v));
+				}
+			});
 		}
 
 		template <typename Getter, typename Setter>
 		wx_spin(Getter get, Setter set, wxWindow * parent, int id, T min, T max, T step = T(0.01)) :
-			wxSpinCtrlDouble(parent, id),
+			wxSpinCtrlDouble(parent, id, wxEmptyString, wxDefaultPosition, wxDefaultSize, wxSP_ARROW_KEYS | wxTE_PROCESS_ENTER),
 			m_getter(get)
 		{
 			if (std::is_integral<T>::value) SetDigits(0);
@@ -171,6 +180,15 @@ namespace fuse
 			update_value();
 
 			Bind(wxEVT_SPINCTRLDOUBLE, [=](wxSpinDoubleEvent & event) { set(static_cast<T>(event.GetValue())); });
+			Bind(wxEVT_TEXT_ENTER, [=](wxCommandEvent & event)
+			{
+				wxString s = event.GetString();
+				double v;
+				if (s.ToCDouble(&v))
+				{
+					set(static_cast<T>(v));
+				}
+			});
 		}
 
 		void update_value(void)

@@ -118,7 +118,7 @@ namespace fuse
 	FUSE_LOOSEOCTREE_TEMPLATE_DECLARATION
 		bool FUSE_LOOSEOCTREE_TYPE::ray_pick(const ray & ray, Object & result, float & t)
 	{
-		aabb rootAABB = aabb::from_center_half_extents(m_center, vec128Scale(m_halfextent, 2.f));
+		aabb rootAABB = aabb::from_center_half_extents(m_center, m_halfextent * 2.f);
 
 		Object * object = nullptr;
 		t = std::numeric_limits<float>::infinity();
@@ -381,11 +381,11 @@ namespace fuse
 				}
 			}
 
-			auto currentCenter      = current.get_center();
-			auto currentHalfExtents = current.get_half_extents();
+			vec128 currentCenter      = current.get_center();
+			vec128 currentHalfExtents = current.get_half_extents();
 
-			auto nextHalfExtents = vec128Scale(currentHalfExtents, .5f);
-			auto shiftSize       = vec128Scale(currentHalfExtents, .25f);
+			vec128 nextHalfExtents = currentHalfExtents * .5f;
+			vec128 shiftSize       = currentHalfExtents * .25f;
 
 			for (int child = 0; child < 8; child++)
 			{
@@ -408,7 +408,7 @@ namespace fuse
 
 					centerShift = vec128_or(centerShift, shiftSize);
 
-					aabb childAABB = aabb::from_center_half_extents(vec128Add(currentCenter, centerShift), nextHalfExtents);
+					aabb childAABB = aabb::from_center_half_extents(currentCenter + centerShift, nextHalfExtents);
 
 					ray_pick(childCode, childAABB, ray, minDistance, object);
 				}

@@ -18,7 +18,10 @@ namespace fuse
 		ray(const ray &) = default;
 		ray(ray &&) = default;
 
-		vec128 evaluate(float t);
+		vec128 evaluate(float t) const;
+
+		ray & operator= (const ray &) = default;
+		ray & operator= (ray &&) = default;
 
 	private:
 

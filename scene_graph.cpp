@@ -70,8 +70,5 @@ void scene_graph_node::clear_children(void)
 
 void scene_graph_camera::update_impl(void)
 {
-	vec128 s, r, t;
-	extract_global_srt(&s, &r, &t);
-	m_camera.set_orientation(to_quaternion(r));
-	m_camera.set_position(to_float3(t));
+	m_camera.set_world_matrix(to_float4x4(get_global_matrix()));
 }

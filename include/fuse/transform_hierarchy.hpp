@@ -70,25 +70,19 @@ namespace fuse
 		inline void FUSE_VECTOR_CALL set_local_translation(vec128 t)
 		{
 			m_localTranslation = t;
-			m_localMatricesUptodate = false;
-			m_globalMatrixUptodate  = false;
-			m_moved = true;
+			notify_local_change();
 		}
 
 		inline void FUSE_VECTOR_CALL set_local_rotation(vec128 r)
 		{
 			m_localRotation = r;
-			m_localMatricesUptodate = false;
-			m_globalMatrixUptodate  = false;
-			m_moved = true;
+			notify_local_change();
 		}
 
 		inline void FUSE_VECTOR_CALL set_local_scale(vec128 s)
 		{
 			m_localScale = s;
-			m_localMatricesUptodate = false;
-			m_globalMatrixUptodate  = false;
-			m_moved = true;
+			notify_local_change();
 		}
 
 		vec128 get_local_translation(void) const
@@ -96,12 +90,12 @@ namespace fuse
 			return m_localTranslation;
 		}
 
-		vec128 set_local_rotation(void) const
+		vec128 get_local_rotation(void) const
 		{
 			return m_localRotation;
 		}
 
-		vec128 set_local_scale(void) const
+		vec128 get_local_scale(void) const
 		{
 			return m_localScale;
 		}
@@ -116,20 +110,21 @@ namespace fuse
 
 		void notify_local_change(void)
 		{
+			m_localMatricesUptodate = false;
 			notify_global_change();
-			m_localMatricesUptodate  = false;
-			m_globalMatrixUptodate = false;
-			m_moved = true;
 		}
 
 		void notify_global_change(void)
 		{
-			for (auto it = get_transform_hierarchy_children_begin(this); it != get_transform_hierarchy_children_end(this); ++it)
+			if (!m_moved)
 			{
-				it->notify_global_change(void);
+				m_moved = true;
+				m_globalMatrixUptodate = false;
+				for (auto it = get_transform_hierarchy_children_begin(this); it != get_transform_hierarchy_children_end(this); ++it)
+				{
+					(*it)->notify_global_change();
+				}
 			}
-			m_globalMatrixUptodate = false;
-			m_moved = true;
 		}
 
 		bool is_global_matrix_uptodate(void) const

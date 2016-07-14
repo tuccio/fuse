@@ -26,10 +26,9 @@ void shadow_mapper::render(
 	const mat128 & lightMatrix,
 	const render_resource & renderTarget,
 	const render_resource & depthBuffer,
-	renderable_iterator begin,
-	renderable_iterator end)
+	geometry_iterator begin,
+	geometry_iterator end)
 {
-
 	/* Setup the pipeline state */
 
 	commandList->SetPipelineState(m_pso.get());
@@ -47,21 +46,19 @@ void shadow_mapper::render(
 	}
 	else
 	{
-
 		commandList.resource_barrier_transition(renderTarget.get(), D3D12_RESOURCE_STATE_RENDER_TARGET);
 
 		auto rtv = renderTarget.get_rtv_cpu_descriptor_handle();
 
 		commandList->ClearRenderTargetView(rtv, color_rgba::zero, 0, nullptr);
 		commandList->OMSetRenderTargets(1, &rtv, false, &dsv);
-
 	}
 
 	commandList->RSSetViewports(1, &m_viewport);
 	commandList->RSSetScissorRects(1, &m_scissorRect);
 
 	commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	
+
 	commandList->SetGraphicsRootConstantBufferView(0, cbPerFrame);
 
 	/* Render loop */
@@ -76,18 +73,17 @@ void shadow_mapper::render(
 		if (cbData)
 		{
 
-			renderable * object = *it;
+			scene_graph_geometry * geometry = *it;
 
-			mat128 worldLightSpace = to_mat128(object->get_world_matrix()) * lightMatrix;
+			mat128 worldLightSpace = geometry->get_global_matrix() * lightMatrix;
 			memcpy(cbData, &worldLightSpace, sizeof(mat128));
 
 			/* Draw */
 
-			auto mesh = object->get_mesh();
+			gpu_mesh_ptr mesh = geometry->get_gpu_mesh();
 
 			if (mesh && mesh->load())
 			{
-
 				commandList->SetGraphicsRootConstantBufferView(1, cbPerLight);
 
 				commandList.resource_barrier_transition(mesh->get_resource(), D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER | D3D12_RESOURCE_STATE_INDEX_BUFFER);
@@ -96,13 +92,9 @@ void shadow_mapper::render(
 				commandList->IASetIndexBuffer(&mesh->get_index_data());
 
 				commandList->DrawIndexedInstanced(mesh->get_num_indices(), 1, 0, 0, 0);
-
 			}
-
 		}
-
 	}
-
 }
 
 bool shadow_mapper::create_debug_pso(ID3D12Device * device)

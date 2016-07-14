@@ -9,7 +9,6 @@ using namespace fuse;
 
 #define OCTREE_MAX_DEPTH 9
 
-FUSE_DEFINE_ALIGNED_ALLOCATOR_NEW(renderable, 16)
 FUSE_DEFINE_ALIGNED_ALLOCATOR_NEW(scene, 16)
 
 static const float3 & to_float3(const aiVector3D & color)
@@ -150,6 +149,11 @@ void scene::create_scene_graph_assimp(assimp_loader * loader, const aiScene * sc
 							reinterpret_cast<const float3 *>(nodeMesh->get_vertices()) + nodeMesh->get_num_vertices());
 
 						gNode->set_local_bounding_sphere(s);
+
+						gNode->set_gpu_mesh(nodeGPUMesh);
+						gNode->set_material(nodeMaterial);
+
+						m_geometry.push_back(gNode);
 					}
 				}
 
@@ -167,63 +171,7 @@ bool scene::import_static_objects(assimp_loader * loader)
 	}
 
 	const aiScene * scene = loader->get_scene();
-
 	create_scene_graph_assimp(loader, scene, scene->mRootNode, m_sceneGraph.get_root());
-
-	visit_assimp_scene_dfs(scene, 
-		[&] (const aiScene * scene, const aiNode * node, const mat128 & world, const mat128 & local, const mat128 & worldLocal)
-	{
-		for (int i = 0; i < node->mNumMeshes; i++)
-		{
-			unsigned int meshIndex     = node->mMeshes[i];
-			unsigned int materialIndex = scene->mMeshes[meshIndex]->mMaterialIndex;
-
-			mesh_ptr nodeMesh = loader->create_mesh(meshIndex);
-
-			if (!nodeMesh || !nodeMesh->load())
-			{
-				return false;
-			}
-
-			if (!nodeMesh->has_storage_semantic(FUSE_MESH_STORAGE_TANGENTS))
-			{
-				nodeMesh->calculate_tangent_space();
-			}
-
-			// TODO: remove phony texcoords to handle the objects with no diffuse texture (add shaders permutations)
-
-			if (nodeMesh->add_storage_semantic(FUSE_MESH_STORAGE_TEXCOORDS0))
-			{
-				FUSE_LOG_OPT(FUSE_LITERAL("assimp_loader"), FUSE_LITERAL("Added phony texcoords to mesh."));
-			}
-
-			gpu_mesh_ptr nodeGPUMesh  = resource_factory::get_singleton_pointer()->create<gpu_mesh>(FUSE_RESOURCE_TYPE_GPU_MESH, nodeMesh->get_name());
-			material_ptr nodeMaterial = loader->create_material(materialIndex);
-
-			if (!nodeGPUMesh || !nodeGPUMesh->load() ||
-				!nodeMaterial || !nodeMaterial->load())
-			{
-				return false;
-			}
-
-			sphere boundingSphere = bounding_sphere(
-				reinterpret_cast<const float3 *>(nodeMesh->get_vertices()),
-				reinterpret_cast<const float3 *>(nodeMesh->get_vertices()) + nodeMesh->get_num_vertices());
-
-			renderable * object = new renderable;
-
-			object->set_world_matrix(worldLocal);
-			object->set_material(nodeMaterial);
-			object->set_mesh(nodeGPUMesh);
-			object->set_bounding_sphere(boundingSphere);
-
-			m_renderableObjects.push_back(object);
-		}
-
-		return true;
-	}
-	);
-
 	return true;
 }
 
@@ -348,9 +296,9 @@ bool scene::import_lights(assimp_loader * loader)
 	return true;
 }
 
-std::pair<renderable_iterator, renderable_iterator> scene::get_renderable_objects(void)
+std::pair<geometry_iterator, geometry_iterator> scene::get_geometry(void)
 {
-	return std::make_pair(m_renderableObjects.begin(), m_renderableObjects.end());
+	return std::make_pair(m_geometry.begin(), m_geometry.end());
 }
 
 std::pair<camera_iterator, camera_iterator> scene::get_cameras(void)
@@ -365,23 +313,17 @@ std::pair<light_iterator, light_iterator> scene::get_lights(void)
 
 void scene::clear(void)
 {
-	for (auto r : m_renderableObjects)
+	for (auto r : m_geometry)
 	{
 		delete r;
 	}
 
-	m_renderableObjects.clear();
+	m_geometry.clear();
+	m_sgOctree.clear();
 }
 
 void scene::recalculate_octree(void)
 {
-	m_octree = renderable_octree(m_sceneBounds.get_center(), vec128_get_x(m_sceneBounds.get_half_extents()), OCTREE_MAX_DEPTH);
-
-	for (renderable * r : m_renderableObjects)
-	{
-		m_octree.insert(r);
-	}
-
 	m_sgOctree = geometry_octree(m_sceneBounds.get_center(), vec128_get_x(m_sceneBounds.get_half_extents()), OCTREE_MAX_DEPTH);
 
 	m_sceneGraph.visit(
@@ -394,14 +336,7 @@ void scene::recalculate_octree(void)
 	});
 }
 
-renderable_vector scene::frustum_culling(const frustum & f)
-{
-	renderable_vector renderables;
-	m_octree.query(f, [&](renderable * r) { renderables.push_back(r); });
-	return renderables;
-}
-
-geometry_vector scene::frustum_culling_sg(const frustum & f)
+geometry_vector scene::frustum_culling(const frustum & f)
 {
 	geometry_vector geometry;
 	m_sgOctree.query(f, [&](scene_graph_geometry * r) { geometry.push_back(r); });
@@ -410,8 +345,8 @@ geometry_vector scene::frustum_culling_sg(const frustum & f)
 
 void scene::draw_octree(visual_debugger * debugger)
 {
-	m_octree.traverse(
-		[=](const aabb & aabb, renderable_octree::objects_list_iterator begin, renderable_octree::objects_list_iterator end)
+	m_sgOctree.traverse(
+		[=](const aabb & aabb, geometry_octree::objects_list_iterator begin, geometry_octree::objects_list_iterator end)
 	{
 		debugger->add(aabb, color_rgba(1, 0, 0, 1));
 	});
@@ -419,7 +354,7 @@ void scene::draw_octree(visual_debugger * debugger)
 
 aabb scene::get_fitting_bounds(void) const
 {
-	if (m_renderableObjects.empty())
+	if (m_geometry.empty())
 	{
 		return aabb::from_min_max(vec128_zero(), vec128_zero());
 	}
@@ -428,9 +363,9 @@ aabb scene::get_fitting_bounds(void) const
 		vec128_set(FLT_MAX, FLT_MAX, FLT_MAX, 1.f),
 		vec128_set(-FLT_MAX, -FLT_MAX, -FLT_MAX, 1.f));
 
-	for (renderable * r : m_renderableObjects)
+	for (scene_graph_geometry * g : m_geometry)
 	{
-		bounds = bounds + bounding_aabb(r->get_world_space_bounding_sphere());
+		bounds = bounds + bounding_aabb(g->get_global_bounding_sphere());
 	}
 
 	return bounds;
@@ -464,4 +399,9 @@ void scene::on_scene_graph_node_move(scene_graph_node * node, const mat128 & old
 	const sphere & s = g->get_local_bounding_sphere();
 	m_sgOctree.remove(g, transform_affine(s, oldTransform));
 	m_sgOctree.insert(g);
+}
+
+bool FUSE_VECTOR_CALL scene::ray_pick(ray r, scene_graph_geometry * & node, float & t)
+{
+	return m_sgOctree.ray_pick(r, node, t);
 }

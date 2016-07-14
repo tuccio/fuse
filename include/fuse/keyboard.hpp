@@ -71,6 +71,7 @@ enum keyboard_vk
 	FUSE_KEYBOARD_VK_F22,
 	FUSE_KEYBOARD_VK_F23,
 	FUSE_KEYBOARD_VK_F24,
+	FUSE_KEYBOARD_VK_ENTER,
 	FUSE_KEYBOARD_VK_MAX
 
 };
@@ -124,7 +125,6 @@ namespace fuse
 
 	inline keyboard_vk keyboard_vk_from_win32(int vk)
 	{
-
 		keyboard_vk key = FUSE_KEYBOARD_VK_UNKNOWN;
 
 		if ((vk >= 'A' && vk <= 'Z') ||
@@ -138,7 +138,6 @@ namespace fuse
 		}
 		else
 		{
-			
 			switch (vk)
 			{
 
@@ -158,12 +157,13 @@ namespace fuse
 				key = FUSE_KEYBOARD_VK_DOWN_ARROW;
 				break;
 
-			}
+			case VK_RETURN:
+				key = FUSE_KEYBOARD_VK_ENTER;
 
+			}
 		}
 
 		return key;
-
 	}
 
 }

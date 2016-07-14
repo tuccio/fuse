@@ -79,7 +79,8 @@ namespace fuse
 		float3     m_position;
 		quaternion m_orientation;
 
-		mutable float4x4 m_worldMatrix;
+		float4x4 m_worldMatrix;
+
 		mutable float4x4 m_viewMatrix;
 		mutable float4x4 m_projectionMatrix;
 
@@ -89,11 +90,9 @@ namespace fuse
 		float m_znear;
 		float m_zfar;
 
-		mutable bool m_worldMatrixDirty;
 		mutable bool m_viewMatrixDirty;
 		mutable bool m_projectionMatrixDirty;
 
-		void update_world_matrix(void) const;
 		void update_view_matrix(void) const;
 		void update_projection_matrix(void) const;
 

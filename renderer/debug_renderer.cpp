@@ -16,7 +16,6 @@ void debug_renderer::shutdown(void)
 
 void debug_renderer::add(const aabb & boundingBox, const color_rgba & color)
 {
-
 	auto corners = boundingBox.get_corners();
 
 	debug_line lines[] = {
@@ -42,12 +41,10 @@ void debug_renderer::add(const aabb & boundingBox, const color_rgba & color)
 	};
 
 	add_lines(lines, lines + _countof(lines));
-
 }
 
 void debug_renderer::add(const frustum & f, const color_rgba & color)
 {
-
 	auto corners = f.get_corners();
 
 	debug_line lines[] = {
@@ -92,7 +89,13 @@ void debug_renderer::add(const frustum & f, const color_rgba & color)
 	});
 
 	add_lines(normals.begin(), normals.end());
-	
+}
+
+void debug_renderer::add(const ray & r, const color_rgba & color)
+{
+	const float RayLength = 10000.f;
+	debug_line line = { debug_vertex(to_float3(r.get_origin()), to_float4(color)),  debug_vertex(to_float3(r.evaluate(RayLength)), to_float4(color)) };
+	add_lines(&line, &line + 1);
 }
 
 void debug_renderer::add(ID3D12Device * device, gpu_graphics_command_list & commandList, UINT bufferIndex, const render_resource & r, uint2 position, float scale, bool hdr)

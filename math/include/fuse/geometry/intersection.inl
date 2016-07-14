@@ -1,6 +1,8 @@
 #include <fuse/geometry/aabb.hpp>
 #include <fuse/geometry/sphere.hpp>
 
+#include <algorithm>
+
 namespace fuse
 {
 
@@ -14,7 +16,7 @@ namespace fuse
 			intersection_base<aabb, aabb>
 		{
 
-			inline static bool contains(const aabb & a, const aabb & b)
+			inline static bool FUSE_VECTOR_CALL contains(aabb a, aabb b)
 			{
 				vec128 aMin = a.get_min();
 				vec128 aMax = a.get_max();
@@ -27,7 +29,7 @@ namespace fuse
 				return vec128_checksign<0, 0, 0>(vec128_eq(andResult, vec128_zero()));
 			}
 
-			inline static bool intersects(const aabb & a, const aabb & b)
+			inline static bool FUSE_VECTOR_CALL intersects(aabb a, aabb b)
 			{
 				vec128 aCenter      = a.get_center();
 				vec128 aHalfExtents = a.get_half_extents();
@@ -50,7 +52,7 @@ namespace fuse
 			intersection_base<aabb, sphere>
 		{
 
-			inline static bool intersects(const aabb & a, const sphere & b)
+			inline static bool FUSE_VECTOR_CALL intersects(aabb a, sphere b)
 			{
 				vec128 aabbMin = a.get_min();
 				vec128 aabbMax = a.get_max();
@@ -84,7 +86,7 @@ namespace fuse
 			intersection_base<aabb, frustum>
 		{
 
-			inline static bool intersects(const aabb & a, const frustum & b)
+			inline static bool FUSE_VECTOR_CALL intersects(aabb a, frustum b)
 			{
 				auto planes = b.get_planes();
 
@@ -154,7 +156,7 @@ namespace fuse
 			intersection_base<sphere, frustum>
 		{
 
-			inline static bool intersects(const sphere & a, const frustum & b)
+			inline static bool FUSE_VECTOR_CALL intersects(sphere a, frustum b)
 			{
 
 				// http://www.flipcode.com/archives/Frustum_Culling.shtml
@@ -182,6 +184,133 @@ namespace fuse
 
 				return true;
 
+			}
+
+		};
+
+		/* ray/aabb */
+
+		template <>
+		struct intersection_impl<ray, aabb> :
+			intersection_base<ray, aabb>
+		{
+
+			inline static bool FUSE_VECTOR_CALL intersects(ray a, aabb b, float & distance)
+			{
+				vec128 invDirection = vec128_reciprocal(a.get_direction());
+
+				vec128 aabbMin = b.get_min();
+				vec128 aabbMax = b.get_max();
+
+				vec128 lb = vec128_permute<FUSE_X1, FUSE_Y0, FUSE_Z0, FUSE_W0>(aabbMin, aabbMax);
+				vec128 rt = vec128_permute<FUSE_X0, FUSE_Y1, FUSE_Z1, FUSE_W0>(aabbMin, aabbMax);
+
+				vec128_f32 s0 = lb - a.get_origin() * invDirection;
+				vec128_f32 s1 = rt - a.get_origin() * invDirection;
+
+				float t1 = s0.f32[0];
+				float t2 = s1.f32[0];
+				float t3 = s0.f32[1];
+				float t4 = s1.f32[1];
+				float t5 = s0.f32[2];
+				float t6 = s1.f32[2];
+
+				float tmin = std::max(std::max(std::min(t1, t2), std::min(t3, t4)), std::min(t5, t6));
+				float tmax = std::min(std::min(std::max(t1, t2), std::max(t3, t4)), std::max(t5, t6));
+
+				if (tmax < 0)
+				{
+					distance = tmax;
+					return false;
+				}
+
+				if (tmin > tmax)
+				{
+					distance = tmax;
+					return false;
+				}
+
+				distance = tmin;
+				return true;				
+			}
+
+			inline static bool FUSE_VECTOR_CALL intersects(ray a, aabb b)
+			{
+				vec128 aabbMin = b.get_min();
+				vec128 aabbMax = b.get_max();
+
+				vec128 origin = a.get_origin();
+
+				vec128 invDirection = vec128_reciprocal(a.get_direction());
+
+				vec128 t1 = (aabbMin - origin) * invDirection;
+				vec128 t2 = (aabbMax - origin) * invDirection;
+
+				vec128 t1x = vec128_splat<FUSE_X>(t1);
+				vec128 t2x = vec128_splat<FUSE_X>(t2);
+
+				vec128 t1y = vec128_splat<FUSE_Y>(t1);
+				vec128 t2y = vec128_splat<FUSE_Y>(t2);
+
+				vec128 tmin = vec128_min(t1x, t2x);
+				vec128 tmax = vec128_max(t1x, t2x);
+
+				tmin = vec128_max(tmin, vec128_min(t1y, t2y));
+				tmax = vec128_min(tmax, vec128_max(t1y, t2y));
+
+				return vec128_all_true(vec128_ge(tmax, tmin));
+			}
+
+		};
+
+		/* ray/aabb */
+
+		template <>
+		struct intersection_impl<ray, sphere> :
+			intersection_base<ray, sphere>
+		{
+
+			inline static bool FUSE_VECTOR_CALL intersects(ray a, sphere b, float & distance)
+			{
+				vec128 center = b.get_center();
+				vec128 radius = b.get_radius();
+
+				vec128 oc = a.get_origin() - center;
+
+				// Assuming the ray direction is a normalized vector, so A = 1
+				vec128 B = 2 * vec128_dot3(a.get_direction(), oc);
+				vec128 C = vec128_dot3(oc, oc) - radius * radius;
+
+				vec128 delta = B * B - 4 * C;
+
+				if (vec128_checksign<FUSE_SIGN_POSITIVE, FUSE_SIGN_POSITIVE, FUSE_SIGN_POSITIVE, FUSE_SIGN_POSITIVE>(delta))
+				{
+					vec128 sqrtDelta = vec128_sqrt(delta);
+					vec128 t0 = (-B - sqrtDelta) * .5f;
+
+					if (vec128_checksign<FUSE_SIGN_POSITIVE, FUSE_SIGN_POSITIVE, FUSE_SIGN_POSITIVE, FUSE_SIGN_POSITIVE>(t0))
+					{
+						distance = vec128_get_x(t0);
+						return true;
+					}
+					else
+					{
+						vec128 t1 = (-B + sqrtDelta) * .5f;
+
+						if (vec128_checksign<FUSE_SIGN_POSITIVE, FUSE_SIGN_POSITIVE, FUSE_SIGN_POSITIVE, FUSE_SIGN_POSITIVE>(t1))
+						{
+							distance = vec128_get_x(t1);
+							return true;
+						}
+					}
+				}
+				return false;
+			}
+
+			inline static bool FUSE_VECTOR_CALL intersects(ray a, sphere b)
+			{
+				float t;
+				return intersects(a, b, t);
 			}
 
 		};

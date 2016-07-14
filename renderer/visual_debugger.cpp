@@ -9,10 +9,11 @@ visual_debugger::visual_debugger(void) :
 
 bool visual_debugger::init(ID3D12Device * device, const debug_renderer_configuration & cfg)
 {
-	m_drawBoundingVolumes = false;
-	m_drawOctree          = false;
-	m_drawSkydome         = false;
-	m_texturesScale       = .25f;
+	m_drawBoundingVolumes            = false;
+	m_drawOctree                     = false;
+	m_drawSkydome                    = false;
+	m_drawSelectedNodeBoundingVolume = true;
+	m_texturesScale                  = .25f;
 	return debug_renderer::init(device, cfg);
 }
 
@@ -29,26 +30,33 @@ void visual_debugger::render(
 	debug_renderer::render(device, commandQueue, commandList, ringBuffer, cbPerFrame, renderTarget, depthBuffer);
 }
 
-void visual_debugger::add_persistent(const char * name, const aabb & boundingBox, const color_rgba & color)
+void visual_debugger::add_persistent(const char_t * name, const aabb & boundingBox, const color_rgba & color)
 {
 	m_persistentObjects.emplace(name, draw_info{ boundingBox, color });
 }
 
-void visual_debugger::add_persistent(const char * name, const frustum & f, const color_rgba & color)
+void visual_debugger::add_persistent(const char_t * name, const frustum & f, const color_rgba & color)
 {
 	m_persistentObjects.emplace(name, draw_info{ f, color });
 }
 
-void visual_debugger::remove_persistent(const char * name)
+void visual_debugger::add_persistent(const char_t * name, const ray & r, const color_rgba & color)
 {
+	auto it = m_persistentObjects.emplace(name, draw_info{ r, color });
+	if (!it.second)
+	{
+		(it.first->second) = draw_info{ r, color };
+	}
+}
 
+void visual_debugger::remove_persistent(const char_t * name)
+{
 	auto it = m_persistentObjects.find(name);
 
 	if (it != m_persistentObjects.end())
 	{
 		m_persistentObjects.erase(it);
 	}
-
 }
 
 class persistent_object_visitor :
@@ -70,6 +78,11 @@ public:
 		m_renderer->add(f, m_color);
 	}
 
+	void operator()(const ray & r) const
+	{
+		m_renderer->add(r, m_color);
+	}
+
 private:
 
 	debug_renderer * m_renderer;
@@ -80,10 +93,8 @@ private:
 
 void visual_debugger::draw_persistent_objects(void)
 {
-
 	for (auto & p : m_persistentObjects)
 	{
 		boost::apply_visitor(persistent_object_visitor{ this, p.second.color }, p.second.geometry);
 	}
-
 }

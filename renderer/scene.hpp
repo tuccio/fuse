@@ -7,7 +7,6 @@
 #include <fuse/scene_graph.hpp>
 
 #include "light.hpp"
-#include "renderable.hpp"
 #include "skydome.hpp"
 #include "visual_debugger.hpp"
 
@@ -24,11 +23,6 @@ namespace fuse
 			return g->get_global_bounding_sphere();
 		}
 	};
-
-	using renderable_vector = std::vector<renderable*>;
-	using renderable_iterator = renderable_vector::iterator;
-
-	using renderable_octree = loose_octree<renderable*, sphere, renderable_bounding_sphere_functor>;
 
 	using geometry_octree   = loose_octree<scene_graph_geometry*, sphere, geometry_bounding_sphere>;
 	using geometry_vector   = std::vector<scene_graph_geometry*>;
@@ -58,16 +52,15 @@ namespace fuse
 		bool import_cameras(fuse::assimp_loader * loader);
 		bool import_lights(fuse::assimp_loader * loader);
 
-		std::pair<renderable_iterator, renderable_iterator> get_renderable_objects(void);
-		std::pair<camera_iterator, camera_iterator>         get_cameras(void);
-		std::pair<light_iterator, light_iterator>           get_lights(void);
+		std::pair<geometry_iterator, geometry_iterator> get_geometry(void);
+		std::pair<camera_iterator, camera_iterator>     get_cameras(void);
+		std::pair<light_iterator, light_iterator>       get_lights(void);
 
 		inline skydome * get_skydome(void) { return &m_skydome; }
 
 		void recalculate_octree(void);
 
-		renderable_vector frustum_culling(const frustum & f);
-		geometry_vector frustum_culling_sg(const frustum & f);
+		geometry_vector frustum_culling(const frustum & f);
 
 		inline void set_scene_bounds(const vec128 & center, float halfExtents) { m_sceneBounds = aabb::from_center_half_extents(center, vec128_set(halfExtents, halfExtents, halfExtents, halfExtents)); }
 		inline aabb get_scene_bounds(void) const { return m_sceneBounds; }
@@ -91,19 +84,20 @@ namespace fuse
 
 		void on_scene_graph_node_move(scene_graph_node * node, const mat128 & oldTransform, const mat128 & newTransform);
 
+		bool FUSE_VECTOR_CALL ray_pick(ray r, scene_graph_geometry * & node, float & t);
+
 	private:
 
-		aabb              m_sceneBounds;
+		aabb            m_sceneBounds;
 
-		renderable_vector m_renderableObjects;
-		camera_vector     m_cameras;
-		light_vector      m_lights;
+		geometry_vector m_geometry;
+		camera_vector   m_cameras;
+		light_vector    m_lights;
 
-		skydome           m_skydome;
+		skydome         m_skydome;
 
 		camera * m_activeCamera;
 
-		renderable_octree m_octree;
 		geometry_octree m_sgOctree;
 
 		scene_graph m_sceneGraph;
