@@ -21,15 +21,13 @@ find_package ( wxWidgets COMPONENTS core base aui )
 
 include_directories ( ${DirectX12_INCLUDE_DIR} )
 include_directories ( ${Boost_INCLUDE_DIRS} )
-include_directories ( ${CMAKE_SOURCE_DIR}/include )
 include_directories ( ${IL_INCLUDE_DIR} )
 
+include_directories ( math/include )
+include_directories ( core/include )
+include_directories ( graphics/include )
+
 set ( CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} /fp:fast )
-
-file ( GLOB FUSE_SOURCE_FILES *.cpp )
-file ( GLOB FUSE_INCLUDE_FILES include/fuse/*.hpp include/fuse/*.inl )
-
-set ( FUSE_SRC_FILES ${FUSE_SOURCE_FILES} ${FUSE_INCLUDE_FILES} )
 
 set ( libRocket_INCLUDE_DIR libRocket/include )
 
@@ -72,16 +70,8 @@ if ( FUSE_UNICODE OR FUSE_WXWIDGETS )
 	add_definitions ( -DFUSE_UNICODE -DUNICODE -D_UNICODE )
 endif ( FUSE_UNICODE OR FUSE_WXWIDGETS )
 
-include_directories ( math/include )
-include_directories ( core/include )
-
-add_library ( fuse ${FUSE_SRC_FILES} )
-
-if ( wxWidgets_FOUND AND FUSE_WXWIDGETS )
-	target_link_libraries ( fuse ${wxWidgets_LIBRARIES} )
-endif ( wxWidgets_FOUND AND FUSE_WXWIDGETS )
-
 add_subdirectory ( core )
 add_subdirectory ( math )
+add_subdirectory ( graphics )
 add_subdirectory ( renderer )
 add_subdirectory ( math_test )

@@ -12,13 +12,10 @@ bool fuse::gpu_upload_buffer(
 	UINT64 sourceOffset,
 	UINT64 size)
 {
-
 	commandList.resource_barrier_transition(destination, D3D12_RESOURCE_STATE_COPY_DEST);
 	commandList.resource_barrier_transition(source, D3D12_RESOURCE_STATE_GENERIC_READ);
 	commandList->CopyBufferRegion(destination, destinationOffset, source, sourceOffset, size);
-
 	return true;
-
 }
 
 bool fuse::gpu_upload_texture(
@@ -27,13 +24,10 @@ bool fuse::gpu_upload_texture(
 	const D3D12_TEXTURE_COPY_LOCATION * destination,
 	const D3D12_TEXTURE_COPY_LOCATION * source)
 {
-
 	commandList.resource_barrier_transition(destination->pResource, D3D12_RESOURCE_STATE_COPY_DEST);
 	commandList.resource_barrier_transition(source->pResource, D3D12_RESOURCE_STATE_GENERIC_READ);
 	commandList->CopyTextureRegion(destination, 0, 0, 0, source, nullptr);
-
 	return true;
-
 }
 
 bool fuse::gpu_generate_mipmaps(

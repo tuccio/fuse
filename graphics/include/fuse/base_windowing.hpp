@@ -36,6 +36,8 @@ namespace fuse
 
 		static void signal_error(const char_t * error);
 
+		static void quit(void);
+
 	private:
 
 		static HINSTANCE m_hInstance;

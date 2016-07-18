@@ -2,6 +2,7 @@
 
 #include <fuse/application.hpp>
 #include <fuse/wx_windowing.hpp>
+#include <fuse/scene_graph.hpp>
 
 namespace fuse
 {
@@ -22,6 +23,16 @@ namespace fuse
 		static void on_update(float dt);
 
 		static void on_configuration_init(fuse::application_config * configuration);
+
+		static bool import_scene(const char_t * filename);
+
+		static void lock_render(void);
+		static void unlock_render(void);
+
+		static void lock_update(void);
+		static void unlock_update(void);
+
+		static void set_active_camera_node(scene_graph_camera * camera);
 
 	private:
 

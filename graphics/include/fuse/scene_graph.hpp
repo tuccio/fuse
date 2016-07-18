@@ -98,6 +98,18 @@ namespace fuse
 
 		void update(void);
 
+		scene_graph_node * find_root(void);
+
+		void set_parent(scene_graph_node * parent);
+
+		inline void set_parent_raw(scene_graph_node * parent)
+		{
+			m_parent = parent;
+		}
+
+		bool is_ancestor(scene_graph_node * node) const;
+		bool is_descendant(scene_graph_node * node) const;
+
 	protected:
 
 		scene_graph_node(scene_graph_node_type type, scene_graph_node * parent) :
@@ -119,17 +131,44 @@ namespace fuse
 
 		string_t m_name;
 
-	public:
+		inline transform_hierarchy<scene_graph_node> * get_transform_hierarchy_parent(void)
+		{
+			return m_parent;
+		}
 
-		FUSE_PROPERTIES_BY_VALUE(
-			(parent, m_parent)
-		)
+		inline void set_transform_hierarchy_parent(transform_hierarchy<scene_graph_node> * parent)
+		{
+			m_parent = static_cast<scene_graph_node*>(parent);
+		}
+
+		inline children_iterator get_transform_hierarchy_children_begin(void)
+		{
+			return m_children.begin();
+		}
+
+		inline children_iterator get_transform_hierarchy_children_end(void)
+		{
+			return m_children.end();
+		}
+
+		inline children_const_iterator get_transform_hierarchy_children_begin(void) const
+		{
+			return m_children.cbegin();
+		}
+
+		inline children_const_iterator get_transform_hierarchy_children_end(void) const
+		{
+			return m_children.cend();
+		}
+
+	public:
 
 		FUSE_PROPERTIES_STRING(
 			(name, m_name)
 		)
 
 		FUSE_PROPERTIES_BY_VALUE_READ_ONLY(
+			(parent, m_parent)
 			(type, m_type)
 		)
 	};
@@ -138,6 +177,12 @@ namespace fuse
 	inline scene_graph_node * get_transform_hierarchy_parent(transform_hierarchy<scene_graph_node> * node)
 	{
 		return static_cast<scene_graph_node*>(node)->get_parent();
+	}
+
+	template <>
+	inline void set_transform_hierarchy_parent(transform_hierarchy<scene_graph_node> * node, transform_hierarchy<scene_graph_node> * parent)
+	{
+		static_cast<scene_graph_node*>(node)->set_parent_raw(static_cast<scene_graph_node*>(parent));
 	}
 
 	template <>
@@ -152,7 +197,7 @@ namespace fuse
 		return static_cast<scene_graph_node*>(node)->end();
 	}
 
-	/* Root node */
+	/* Group node */
 
 	class alignas(16) scene_graph_group :
 		public scene_graph_node
@@ -185,6 +230,11 @@ namespace fuse
 			scene_graph_node(FUSE_SCENE_GRAPH_CAMERA, parent) {}
 
 		FUSE_DECLARE_ALIGNED_ALLOCATOR_NEW(16)
+
+		camera * get_camera(void)
+		{
+			return &m_camera;
+		}
 
 		const camera * get_camera(void) const
 		{
@@ -252,7 +302,7 @@ namespace fuse
 	public:
 
 		scene_graph(void) :
-			m_root(new scene_graph_group) {}
+			m_root(new scene_graph_group()) {}
 
 		scene_graph(const scene_graph &) = delete;
 		scene_graph(scene_graph &&) = default;
@@ -264,7 +314,7 @@ namespace fuse
 
 		void clear(void)
 		{
-			m_root->clear_children();
+			m_root = std::make_unique<scene_graph_group>();
 		}
 
 		scene_graph_node * get_root(void) const

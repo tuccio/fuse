@@ -53,27 +53,20 @@ deferred_renderer::deferred_renderer(void) { }
 
 bool deferred_renderer::init(ID3D12Device * device, const deferred_renderer_configuration & cfg)
 {
-
 	m_configuration = cfg;
 
-	return set_shadow_mapping_algorithm(m_configuration.shadowMappingAlgorithm) &&
-		create_debug_pso(device);
-
+	return 
+		set_shadow_mapping_algorithm(m_configuration.shadowMappingAlgorithm) &&
+		create_psos(device);
 }
 
 void deferred_renderer::shutdown(void)
 {
-
-	//m_gbufferPSO.reset();
-	//m_gbufferRS.reset();
-
 	m_gbufferPST.clear();
 	m_shadingPST.clear();
 
-	//m_directionalPSO.reset();
 	m_gbufferRS.reset();
 	m_shadingRS.reset();
-
 }
 
 bool deferred_renderer::set_shadow_mapping_algorithm(shadow_mapping_algorithm algorithm)
@@ -94,7 +87,6 @@ void deferred_renderer::render_gbuffer(
 	geometry_iterator begin,
 	geometry_iterator end)
 {
-
 	mat128 view              = mat128_load(camera->get_view_matrix());
 	mat128 projection        = mat128_load(camera->get_projection_matrix());
 	mat128 viewProjection    = view * projection;
@@ -282,7 +274,7 @@ void deferred_renderer::render_skydome(
 	commandList->DrawInstanced(4, 1, 0, 0);
 }
 
-bool deferred_renderer::create_debug_pso(ID3D12Device * device)
+bool deferred_renderer::create_psos(ID3D12Device * device)
 {
 	return create_gbuffer_pso(device) &&
 	       create_shading_pst(device) &&
@@ -459,7 +451,6 @@ bool deferred_renderer::create_shading_pst(ID3D12Device * device)
 
 bool deferred_renderer::create_skydome_pso(ID3D12Device * device)
 {
-
 	com_ptr<ID3DBlob> quadVS, skydomePS;
 	std::vector<D3D12_INPUT_ELEMENT_DESC> inputLayoutVector;
 
@@ -496,7 +487,6 @@ bool deferred_renderer::create_skydome_pso(ID3D12Device * device)
 		!FUSE_HR_FAILED_BLOB(D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &serializedSignature, &errorsBlob), errorsBlob) &&
 		!FUSE_HR_FAILED(device->CreateRootSignature(0, FUSE_BLOB_ARGS(serializedSignature), IID_PPV_ARGS(&m_skydomeRS))))
 	{
-
 		D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
 
 		psoDesc.BlendState      = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
@@ -521,9 +511,7 @@ bool deferred_renderer::create_skydome_pso(ID3D12Device * device)
 		psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 
 		return !FUSE_HR_FAILED(device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_skydomePSO)));
-
 	}
 
 	return false;
-
 }

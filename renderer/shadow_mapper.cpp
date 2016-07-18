@@ -99,7 +99,6 @@ void shadow_mapper::render(
 
 bool shadow_mapper::create_debug_pso(ID3D12Device * device)
 {
-
 	switch (m_configuration.algorithm)
 	{
 	case FUSE_SHADOW_MAPPING_NONE:
@@ -113,12 +112,10 @@ bool shadow_mapper::create_debug_pso(ID3D12Device * device)
 	default:
 		return create_regular_pso(device);
 	}
-
 }
 
 bool shadow_mapper::create_rs(ID3D12Device * device)
 {
-
 	com_ptr<ID3DBlob> serializedSignature;
 	com_ptr<ID3DBlob> errorsBlob;
 
@@ -131,12 +128,10 @@ bool shadow_mapper::create_rs(ID3D12Device * device)
 
 	return !FUSE_HR_FAILED_BLOB(D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &serializedSignature, &errorsBlob), errorsBlob) &&
 	       !FUSE_HR_FAILED(device->CreateRootSignature(0, FUSE_BLOB_ARGS(serializedSignature), IID_PPV_ARGS(&m_rs)));
-
 }
 
 bool shadow_mapper::create_regular_pso(ID3D12Device * device)
 {
-
 	com_ptr<ID3DBlob> shadowMapVS;
 	std::vector<D3D12_INPUT_ELEMENT_DESC> inputLayoutVector;
 	com_ptr<ID3D12ShaderReflection> shaderReflection;
@@ -167,12 +162,10 @@ bool shadow_mapper::create_regular_pso(ID3D12Device * device)
 	}
 
 	return false;
-
 }
 
 bool shadow_mapper::create_vsm_pso(ID3D12Device * device)
 {
-
 	com_ptr<ID3DBlob> shadowMapVS, vsmPS;
 	std::vector<D3D12_INPUT_ELEMENT_DESC> inputLayoutVector;
 
@@ -207,12 +200,10 @@ bool shadow_mapper::create_vsm_pso(ID3D12Device * device)
 	}
 
 	return false;
-
 }
 
 bool shadow_mapper::create_evsm2_pso(ID3D12Device * device)
 {
-
 	com_ptr<ID3DBlob> shadowMapVS, evsm2PS;
 	std::vector<D3D12_INPUT_ELEMENT_DESC> inputLayoutVector;
 
@@ -247,12 +238,10 @@ bool shadow_mapper::create_evsm2_pso(ID3D12Device * device)
 	}
 
 	return false;
-
 }
 
 bool shadow_mapper::create_evsm4_pso(ID3D12Device * device)
 {
-
 	com_ptr<ID3DBlob> shadowMapVS, evsm4PS;
 	std::vector<D3D12_INPUT_ELEMENT_DESC> inputLayoutVector;
 
@@ -287,5 +276,4 @@ bool shadow_mapper::create_evsm4_pso(ID3D12Device * device)
 	}
 
 	return false;
-
 }

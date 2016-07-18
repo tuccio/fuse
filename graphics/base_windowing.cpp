@@ -187,3 +187,8 @@ void base_windowing::signal_error(const char_t * error)
 		MessageBox(get_render_window(), error, FUSE_LITERAL("Fuse error"), MB_ICONERROR);
 	}
 }
+
+void base_windowing::quit(void)
+{
+	PostQuitMessage(0);
+}

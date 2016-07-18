@@ -28,11 +28,19 @@ namespace fuse
 	using geometry_vector   = std::vector<scene_graph_geometry*>;
 	using geometry_iterator = geometry_vector::iterator;
 
-	using camera_vector = std::vector<camera*>;
+	using camera_vector   = std::vector<scene_graph_camera*>;
 	using camera_iterator = camera_vector::iterator;
 
-	using light_vector = std::vector<light*>;
+	using light_vector   = std::vector<light*>;
 	using light_iterator = light_vector::iterator;
+	
+	class alignas(16) scene;
+
+	struct scene_listener
+	{
+		virtual void on_scene_active_camera_change(scene * scene, scene_graph_camera * oldCamera, scene_graph_camera * newCamera) {}
+		virtual void on_scene_clear(scene * scene) {}
+	};
 
 	class alignas(16) scene :
 		public scene_graph_node_listener
@@ -42,13 +50,13 @@ namespace fuse
 
 		FUSE_DECLARE_ALIGNED_ALLOCATOR_NEW(16)
 
-		scene(void) = default;
+		scene(void);
 		scene(const scene &) = delete;
 		scene(scene &&) = default;
 
 		void clear(void);
 
-		bool import_static_objects(assimp_loader * loader);
+		bool import(assimp_loader * loader);
 		bool import_cameras(fuse::assimp_loader * loader);
 		bool import_lights(fuse::assimp_loader * loader);
 
@@ -80,6 +88,10 @@ namespace fuse
 			return &m_sceneGraph;
 		}
 
+		void set_active_camera_node(scene_graph_camera * camera);
+		void add_listener(scene_listener * listener);
+		void remove_listener(scene_listener * listener);
+
 		void update(void);
 
 		void on_scene_graph_node_move(scene_graph_node * node, const mat128 & oldTransform, const mat128 & newTransform);
@@ -96,16 +108,23 @@ namespace fuse
 
 		skydome         m_skydome;
 
-		camera * m_activeCamera;
+		geometry_octree m_octree;
+		scene_graph     m_sceneGraph;
 
-		geometry_octree m_sgOctree;
+		scene_graph_camera * m_activeCamera;
+		bool m_boundsGrowth;
 
-		scene_graph m_sceneGraph;
+		std::vector<scene_listener*> m_listeners;
 
 	public:
 
 		FUSE_PROPERTIES_BY_VALUE (
-			(active_camera, m_activeCamera)
+			(bounds_growth, m_boundsGrowth)
+		)
+
+		FUSE_PROPERTIES_BY_CONST_REFERENCE_READ_ONLY (
+			(cameras, m_cameras)
+			(active_camera_node, m_activeCamera)
 		)
 
 	private:

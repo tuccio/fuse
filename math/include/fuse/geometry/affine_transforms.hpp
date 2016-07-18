@@ -78,4 +78,5 @@ namespace fuse
 	}
 
 	void decompose_affine(const float4x4 & m, float3 * pScale, quaternion * pRotation, float3 * pTranslation);
+	void FUSE_VECTOR_CALL decompose_affine(mat128 m, vec128 * pScale, vec128 * pRotation, vec128 * pTranslation);
 }

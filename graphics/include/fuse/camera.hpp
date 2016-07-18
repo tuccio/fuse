@@ -46,11 +46,9 @@ namespace fuse
 			return -right();
 		}
 
-		const float4x4 & get_world_matrix(void) const;
 		const float4x4 & get_view_matrix(void) const;
 		const float4x4 & get_projection_matrix(void) const;
 
-		void set_world_matrix(const float4x4 & matrix);
 		void set_view_matrix(const float4x4 & matrix);
 		void set_projection_matrix(const float4x4 & matrix);
 

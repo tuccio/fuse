@@ -135,6 +135,12 @@ void wx_windowing::save_ui_configuration(const char * filename)
 	m_mainWindow->save_aui_conf(filename);
 }
 
+void wx_windowing::quit(void)
+{
+	// We don't really use wxWidgets main loop
+	PostQuitMessage(0);
+}
+
 /* Main window */
 
 wxBEGIN_EVENT_TABLE(wx_window, wxFrame)

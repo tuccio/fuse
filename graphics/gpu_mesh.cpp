@@ -17,7 +17,6 @@ gpu_mesh::gpu_mesh(const char_t * name, resource_loader * loader, resource_manag
 
 bool gpu_mesh::create(ID3D12Device * device, gpu_command_queue & commandQueue, gpu_graphics_command_list & commandList, gpu_ring_buffer & ringBuffer, mesh * mesh)
 {
-
 	m_numVertices  = mesh->get_num_vertices();
 	m_numTriangles = mesh->get_num_triangles();
 	m_storageFlags = mesh->get_storage_semantic_flags();
@@ -86,10 +85,8 @@ bool gpu_mesh::create(ID3D12Device * device, gpu_command_queue & commandQueue, g
 
 	for (int vertexIndex = 0; vertexIndex < m_numVertices; vertexIndex++)
 	{
-
 		for (int iteratorIndex = 0; iteratorIndex < iterators.size(); iteratorIndex++)
 		{
-
 			uint32_t copySize = dataSize[iteratorIndex];
 
 			std::memcpy(bufferPosition, iterators[iteratorIndex], copySize);
@@ -97,9 +94,7 @@ bool gpu_mesh::create(ID3D12Device * device, gpu_command_queue & commandQueue, g
 
 			offset                   += copySize;
 			iterators[iteratorIndex] += copySize;
-
 		}
-
 	}
 
 	// Now create the vertex buffer and upload the data
@@ -113,7 +108,6 @@ bool gpu_mesh::create(ID3D12Device * device, gpu_command_queue & commandQueue, g
 			nullptr,
 			IID_PPV_ARGS(&m_dataBuffer)))
 	{
-
 		UINT64 heapOffset;
 		void * data = ringBuffer.allocate_constant_buffer(device, commandQueue, bufferSize, nullptr, &heapOffset);
 
@@ -145,11 +139,9 @@ bool gpu_mesh::create(ID3D12Device * device, gpu_command_queue & commandQueue, g
 		recalculate_size();
 
 		return true;
-
 	}
 
 	return false;
-
 }
 
 void gpu_mesh::clear(gpu_command_queue & commandQueue)
@@ -160,8 +152,7 @@ void gpu_mesh::clear(gpu_command_queue & commandQueue)
 
 bool gpu_mesh::load_impl(void)
 {
-
-	std::shared_ptr<mesh> m = resource_factory::get_singleton_pointer()->
+	mesh_ptr m = resource_factory::get_singleton_pointer()->
 		create<mesh>(FUSE_RESOURCE_TYPE_MESH, get_name());
 
 	if (m && m->load())
@@ -171,7 +162,6 @@ bool gpu_mesh::load_impl(void)
 	}
 
 	return false;
-
 }
 
 void gpu_mesh::unload_impl(void)
@@ -182,7 +172,6 @@ void gpu_mesh::unload_impl(void)
 
 size_t gpu_mesh::calculate_size_impl(void)
 {
-
 	size_t indicesSize   = m_numTriangles * 3 * sizeof(uint32_t);
 	size_t verticesSize  = m_numVertices * 3 * sizeof(float);
 	size_t texcoordsSize = m_numVertices * 2 * sizeof(float);
@@ -209,16 +198,12 @@ size_t gpu_mesh::calculate_size_impl(void)
 
 	for (int i = 0; i < FUSE_MESH_MAX_TEXCOORDS; i++)
 	{
-
 		if (m_storageFlags & texcoordFlag)
 		{
 			texcoordsMultiplier++;
 		}
-
 		texcoordFlag <<= 1;
-
 	}
 
 	return verticesSize * verticesMultiplier + texcoordsSize * texcoordsMultiplier + indicesSize;
-
 }

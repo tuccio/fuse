@@ -37,7 +37,6 @@ namespace fuse
 			REFIID riidResource,
 			_COM_Outptr_opt_  void **ppvResource)
 		{
-			
 			HRESULT hr = pDevice->CreateCommittedResource(pHeapProperties, HeapFlags, pResourceDesc, InitialResourceState, pOptimizedClearValue, riidResource, ppvResource);
 
 			if (!FUSE_HR_FAILED(hr))
@@ -47,7 +46,6 @@ namespace fuse
 			}
 
 			return false;
-
 		}
 
 	private:

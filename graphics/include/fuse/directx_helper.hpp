@@ -1,9 +1,5 @@
 #pragma once
 
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-
 #include <Windows.h>
 
 #include <fuse/core.hpp>
@@ -14,32 +10,8 @@
 
 #include <d3dx12.h>
 
-#define FUSE_BLOB_ARGS(Blob) Blob->GetBufferPointer(), Blob->GetBufferSize()
-#define FUSE_BLOB_LOG(Blob) { const TCHAR * msg = static_cast<const TCHAR *>(Blob->GetBufferPointer()); FUSE_LOG_OPT_DEBUG(msg); }
-
-#define FUSE_HR_LOG(HR)\
-		{\
-			LPTSTR output;\
-			FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_IGNORE_INSERTS,\
-			nullptr,\
-			HR,\
-			MAKELANGID(LANG_NEUTRAL, SUBLANG_NEUTRAL),\
-			(LPTSTR) &output,\
-			0x0,\
-			nullptr);\
-			FUSE_LOG_OPT_DEBUG(output);\
-			LocalFree((HLOCAL) output);\
-		}
-
-#define FUSE_HR_CHECK(HR)  { HRESULT hr = HR; if (FAILED(hr)) FUSE_HR_LOG(hr); }
-#define FUSE_HR_FAILED(HR) ([] (HRESULT hr) { if (FAILED(hr)) { FUSE_HR_LOG(hr); return true; } return false; } (HR))
-
-#define FUSE_HR_CHECK_BLOB(HR, Blob) { HRESULT hr = HR; if (FAILED(hr)) FUSE_BLOB_LOG(Blob) }
-#define FUSE_HR_FAILED_BLOB(HR, Blob) ([&Blob] (HRESULT hr) { if (FAILED(hr)) { FUSE_BLOB_LOG(Blob); return true; } return false; } (HR))
-
 namespace fuse
 {
-
 	template <typename ComObject>
 	class com_ptr
 	{
@@ -89,7 +61,6 @@ namespace fuse
 
 	inline size_t get_dxgi_format_byte_size(DXGI_FORMAT format)
 	{
-
 		// TODO
 
 		switch (format)
@@ -129,12 +100,10 @@ namespace fuse
 			assert(false && "get_dxgi_format_size unknown type");
 			return 0;
 		}
-
 	}
 
 	inline D3D12_VIEWPORT make_fullscreen_viewport(float width, float height)
 	{
-
 		D3D12_VIEWPORT viewport = {};
 
 		viewport.Height   = height;
@@ -142,19 +111,39 @@ namespace fuse
 		viewport.MaxDepth = 1.f;
 
 		return viewport;
-
 	}
 
 	inline D3D12_RECT make_fullscreen_scissor_rect(UINT width, UINT height)
 	{
-
 		D3D12_RECT scissorRect = {};
 
 		scissorRect.right  = width;
 		scissorRect.bottom = height;
 
 		return scissorRect;
-
 	}
 
 }
+
+#define FUSE_HR_LOG(HR)\
+		{\
+			LPTSTR output;\
+			FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_IGNORE_INSERTS,\
+			nullptr,\
+			HR,\
+			MAKELANGID(LANG_NEUTRAL, SUBLANG_NEUTRAL),\
+			(LPTSTR) &output,\
+			0x0,\
+			nullptr);\
+			FUSE_LOG_OPT_DEBUG(output);\
+			LocalFree((HLOCAL) output);\
+		}
+
+#define FUSE_HR_CHECK(HR)  { HRESULT hr = HR; if (FAILED(hr)) FUSE_HR_LOG(hr); }
+#define FUSE_HR_FAILED(HR) ([] (HRESULT hr) { if (FAILED(hr)) { FUSE_HR_LOG(hr); return true; } return false; } (HR))
+
+#define FUSE_BLOB_ARGS(Blob) Blob->GetBufferPointer(), Blob->GetBufferSize()
+#define FUSE_BLOB_LOG(Blob) { const TCHAR * msg = static_cast<const TCHAR *>(Blob->GetBufferPointer()); FUSE_LOG_DEBUG(msg); }
+
+#define FUSE_HR_CHECK_BLOB(HR, Blob) { HRESULT hr = HR; if (FAILED(hr)) FUSE_BLOB_LOG(Blob) }
+#define FUSE_HR_FAILED_BLOB(HR, Blob) ([&Blob] (HRESULT hr) { if (FAILED(hr)) { FUSE_HR_LOG(hr); FUSE_BLOB_LOG(Blob); return true; } return false; } (HR))

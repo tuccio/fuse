@@ -11,6 +11,10 @@ using namespace fuse;
 
 FUSE_DEFINE_ALIGNED_ALLOCATOR_NEW(scene, 16)
 
+scene::scene(void) :
+	m_boundsGrowth(true),
+	m_activeCamera(nullptr) {}
+
 static const float3 & to_float3(const aiVector3D & color)
 {
 	return reinterpret_cast<const float3 &>(color);
@@ -74,15 +78,32 @@ void visit_assimp_scene_dfs(const aiScene * scene, Visitor visitor)
 	} while (!stack.empty());
 }
 
+aiCamera * find_camera(const aiScene * scene, aiNode * node)
+{
+	for (int i = 0; i < scene->mNumCameras; ++i)
+	{
+		if (scene->mCameras[i]->mName == node->mName)
+		{
+			return scene->mCameras[i];
+		}
+	}
+	return nullptr;
+}
+
 void scene::create_scene_graph_assimp(assimp_loader * loader, const aiScene * scene, aiNode * node, scene_graph_node * parent)
 {
 	if (node)
 	{
 		scene_graph_node * newNode = nullptr;
+		aiCamera * aiCam = nullptr;
 
 		if (node->mNumMeshes)
 		{
 			newNode = parent->add_child<scene_graph_geometry>();
+		}
+		else if (aiCam = find_camera(scene, node))
+		{
+			newNode = parent->add_child<scene_graph_camera>();
 		}
 		else
 		{
@@ -114,11 +135,13 @@ void scene::create_scene_graph_assimp(assimp_loader * loader, const aiScene * sc
 				create_scene_graph_assimp(loader, scene, node->mChildren[i], newNode);
 			}
 
-			if (newNode->get_type() == FUSE_SCENE_GRAPH_GEOMETRY)
+			switch (newNode->get_type())
+			{
+			case FUSE_SCENE_GRAPH_GEOMETRY:
 			{
 				scene_graph_geometry * gNode = static_cast<scene_graph_geometry*>(newNode);
 
-				unsigned int meshIndex     = node->mMeshes[0];
+				unsigned int meshIndex = node->mMeshes[0];
 				unsigned int materialIndex = scene->mMeshes[meshIndex]->mMaterialIndex;
 
 				mesh_ptr nodeMesh = loader->create_mesh(meshIndex);
@@ -142,7 +165,7 @@ void scene::create_scene_graph_assimp(assimp_loader * loader, const aiScene * sc
 					material_ptr nodeMaterial = loader->create_material(materialIndex);
 
 					if (nodeGPUMesh && nodeGPUMesh->load() &&
-					    nodeMaterial && nodeMaterial->load())
+						nodeMaterial && nodeMaterial->load())
 					{
 						sphere s = bounding_sphere(
 							reinterpret_cast<const float3 *>(nodeMesh->get_vertices()),
@@ -159,19 +182,48 @@ void scene::create_scene_graph_assimp(assimp_loader * loader, const aiScene * sc
 
 				on_geometry_add(static_cast<scene_graph_geometry*>(newNode));
 			}
+				break;
+			case FUSE_SCENE_GRAPH_CAMERA:
+			{
+				scene_graph_camera * cNode = static_cast<scene_graph_camera*>(newNode);
+
+				float3 position      = to_float3(aiCam->mPosition);
+				float3 up            = to_float3(aiCam->mUp);
+				float3 viewDirection = to_float3(aiCam->mLookAt);
+
+				//position.z = -position.z;
+
+				float3 lookAt = viewDirection - position;
+
+				camera * cam = cNode->get_camera();
+
+				cam->look_at(position, up, lookAt);
+
+				cNode->set_local_rotation(cam->get_orientation());
+
+				cam->set_znear(aiCam->mClipPlaneNear);
+				cam->set_zfar(aiCam->mClipPlaneFar);
+
+				m_cameras.push_back(cNode);
+			}
+				break;
+			}
 		}
 	}
 }
 
-bool scene::import_static_objects(assimp_loader * loader)
+bool scene::import(assimp_loader * loader)
 {
 	if (!loader->is_loaded())
 	{
 		return false;
 	}
-
+	
 	const aiScene * scene = loader->get_scene();
+
 	create_scene_graph_assimp(loader, scene, scene->mRootNode, m_sceneGraph.get_root());
+	m_activeCamera = m_cameras.empty() ? nullptr : m_cameras[0];
+
 	return true;
 }
 
@@ -196,56 +248,54 @@ static bool find_node_by_name(const aiScene * scene, const aiString & name, aiNo
 	return *outNode != nullptr;
 }
 
-bool scene::import_cameras(assimp_loader * loader)
-{
-	if (!loader->is_loaded())
-	{
-		return false;
-	}
-
-	const aiScene * scene = loader->get_scene();
-
-	for (int i = 0; i < scene->mNumCameras; i++)
-	{
-			
-		camera * camera = new fuse::camera;
-
-		aiNode * node;
-		mat128 transform;
-
-		float3 position      = to_float3(scene->mCameras[i]->mPosition);
-		float3 up            = to_float3(scene->mCameras[i]->mUp);
-		float3 viewDirection = to_float3(scene->mCameras[i]->mLookAt);
-		
-		position.z = -position.z;
-
-		float3 lookAt = position - viewDirection;
-
-		if (find_node_by_name(scene, scene->mCameras[i]->mName, &node, &transform))
-		{
-			position = to_float3(mat128_transform3(to_vec128(position), transform));
-			up       = to_float3((mat128_transform_normal(to_vec128(up), transform)));
-			lookAt   = to_float3(mat128_transform3(to_vec128(lookAt), transform));
-		}
-
-		camera->look_at(position, up, lookAt);
-
-		camera->set_znear(scene->mCameras[i]->mClipPlaneNear);
-		camera->set_zfar(scene->mCameras[i]->mClipPlaneFar);
-		//camera.set_aspect_ratio(scene->mCameras[i]->mAspect);
-		//camera.set_fovx(scene->mCameras[i]->mHorizontalFOV);
-
-		m_cameras.push_back(camera);
-
-	}
-
-	if (!m_cameras.empty() && !m_activeCamera)
-	{
-		m_activeCamera = m_cameras.front();
-	}
-
-	return true;
-}
+//bool scene::import_cameras(assimp_loader * loader)
+//{
+//	if (!loader->is_loaded())
+//	{
+//		return false;
+//	}
+//
+//	const aiScene * scene = loader->get_scene();
+//
+//	for (int i = 0; i < scene->mNumCameras; i++)
+//	{
+//		camera * camera = new fuse::camera;
+//
+//		aiNode * node;
+//		mat128 transform;
+//
+//		float3 position      = to_float3(scene->mCameras[i]->mPosition);
+//		float3 up            = to_float3(scene->mCameras[i]->mUp);
+//		float3 viewDirection = to_float3(scene->mCameras[i]->mLookAt);
+//		
+//		position.z = -position.z;
+//
+//		float3 lookAt = position - viewDirection;
+//
+//		if (find_node_by_name(scene, scene->mCameras[i]->mName, &node, &transform))
+//		{
+//			position = to_float3(mat128_transform3(to_vec128(position), transform));
+//			up       = to_float3((mat128_transform_normal(to_vec128(up), transform)));
+//			lookAt   = to_float3(mat128_transform3(to_vec128(lookAt), transform));
+//		}
+//
+//		camera->look_at(position, up, lookAt);
+//
+//		camera->set_znear(scene->mCameras[i]->mClipPlaneNear);
+//		camera->set_zfar(scene->mCameras[i]->mClipPlaneFar);
+//		//camera.set_aspect_ratio(scene->mCameras[i]->mAspect);
+//		//camera.set_fovx(scene->mCameras[i]->mHorizontalFOV);
+//
+//		m_cameras.push_back(camera);
+//	}
+//
+//	if (!m_cameras.empty() && !m_activeCamera)
+//	{
+//		m_activeCamera = m_cameras.front();
+//	}
+//
+//	return true;
+//}
 
 bool scene::import_lights(assimp_loader * loader)
 {
@@ -313,25 +363,26 @@ std::pair<light_iterator, light_iterator> scene::get_lights(void)
 
 void scene::clear(void)
 {
-	for (auto r : m_geometry)
-	{
-		delete r;
-	}
-
 	m_geometry.clear();
-	m_sgOctree.clear();
+	m_cameras.clear();
+	m_octree.clear();
+	m_sceneGraph.clear();
+
+	m_activeCamera = nullptr;
+
+	for (auto listener : m_listeners) listener->on_scene_clear(this);
 }
 
 void scene::recalculate_octree(void)
 {
-	m_sgOctree = geometry_octree(m_sceneBounds.get_center(), vec128_get_x(m_sceneBounds.get_half_extents()), OCTREE_MAX_DEPTH);
+	m_octree = geometry_octree(m_sceneBounds.get_center(), vec128_get_x(m_sceneBounds.get_half_extents()), OCTREE_MAX_DEPTH);
 
 	m_sceneGraph.visit(
 		[&](scene_graph_node * n)
 	{
 		if (n->get_type() == FUSE_SCENE_GRAPH_GEOMETRY)
 		{
-			m_sgOctree.insert(static_cast<scene_graph_geometry*>(n));
+			m_octree.insert(static_cast<scene_graph_geometry*>(n));
 		}
 	});
 }
@@ -339,13 +390,13 @@ void scene::recalculate_octree(void)
 geometry_vector scene::frustum_culling(const frustum & f)
 {
 	geometry_vector geometry;
-	m_sgOctree.query(f, [&](scene_graph_geometry * r) { geometry.push_back(r); });
+	m_octree.query(f, [&](scene_graph_geometry * r) { geometry.push_back(r); });
 	return geometry;
 }
 
 void scene::draw_octree(visual_debugger * debugger)
 {
-	m_sgOctree.traverse(
+	m_octree.traverse(
 		[=](const aabb & aabb, geometry_octree::objects_list_iterator begin, geometry_octree::objects_list_iterator end)
 	{
 		debugger->add(aabb, color_rgba(1, 0, 0, 1));
@@ -378,6 +429,30 @@ void scene::fit_octree(float scale)
 	recalculate_octree();
 }
 
+void scene::set_active_camera_node(scene_graph_camera * camera)
+{
+	scene_graph_camera * old = m_activeCamera;
+	m_activeCamera = camera;
+	for (auto listener : m_listeners)
+	{
+		listener->on_scene_active_camera_change(this, old, camera);
+	}
+}
+
+void scene::add_listener(scene_listener * listener)
+{
+	m_listeners.push_back(listener);
+}
+
+void scene::remove_listener(scene_listener * listener)
+{
+	auto it = std::find(m_listeners.begin(), m_listeners.end(), listener);
+	if (it != m_listeners.end())
+	{
+		m_listeners.erase(it);
+	}
+}
+
 void scene::update(void)
 {
 	m_sceneGraph.update();
@@ -397,11 +472,16 @@ void scene::on_scene_graph_node_move(scene_graph_node * node, const mat128 & old
 {
 	scene_graph_geometry * g = static_cast<scene_graph_geometry*>(node);
 	const sphere & s = g->get_local_bounding_sphere();
-	m_sgOctree.remove(g, transform_affine(s, oldTransform));
-	m_sgOctree.insert(g);
+
+	m_octree.remove(g, transform_affine(s, oldTransform));
+
+	if (!m_octree.insert(g) && m_boundsGrowth)
+	{
+		fit_octree();
+	}
 }
 
 bool FUSE_VECTOR_CALL scene::ray_pick(ray r, scene_graph_geometry * & node, float & t)
 {
-	return m_sgOctree.ray_pick(r, node, t);
+	return m_octree.ray_pick(r, node, t);
 }

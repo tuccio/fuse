@@ -9,6 +9,7 @@
 #define FUSE_RENDERING_NOTEBOOK _("wx_editor_gui::rendering_notebook")
 #define FUSE_SCENE_NOTEBOOK     _("wx_editor_gui::scene_notebook")
 
+#include "renderer_application.hpp"
 #include "wx_editor_gui.hpp"
 
 #include <fuse/wx_helpers.hpp>
@@ -17,12 +18,19 @@
 #include <deque>
 #include <iterator>
 
+wxDEFINE_EVENT(FUSE_EVENT_REFRESH, wxCommandEvent);
+
 using namespace fuse;
 
-bool wx_editor_gui::init(wxWindow * window, scene * scene, render_configuration * r, visual_debugger * visualDebugger)
+wx_editor_gui::wx_editor_gui(void) :
+	m_initialized(false) {}
+
+bool wx_editor_gui::init(wxFrame * frame, scene * scene, render_configuration * r, visual_debugger * visualDebugger)
 {
-	m_window  = window;
-	m_manager = wxAuiManager::GetManager(window);
+	m_initialized = false;
+
+	m_frame   = frame;
+	m_manager = wxAuiManager::GetManager(frame);
 	m_scene   = scene;
 
 	m_visualDebugger        = visualDebugger;
@@ -30,8 +38,10 @@ bool wx_editor_gui::init(wxWindow * window, scene * scene, render_configuration 
 
 	m_selectedNode = nullptr;
 
-	wxAuiNotebook * renderingNotebook = new wxAuiNotebook(window, wxID_ANY);
-	wxAuiNotebook * sceneNotebook     = new wxAuiNotebook(window, wxID_ANY);
+	create_menu();
+
+	wxAuiNotebook * renderingNotebook = new wxAuiNotebook(frame, wxID_ANY);
+	wxAuiNotebook * sceneNotebook     = new wxAuiNotebook(frame, wxID_ANY);
 
 	renderingNotebook->Freeze();
 	sceneNotebook->Freeze();
@@ -57,15 +67,62 @@ bool wx_editor_gui::init(wxWindow * window, scene * scene, render_configuration 
 
 		m_manager->Update();
 
-		return true;
+		m_scene->add_listener(this);
+		m_scene->get_active_camera_node()->add_listener(this);
+
+		m_initialized = true;
 	}
 
-	return false;
+	return m_initialized;
 }
 
 void wx_editor_gui::shutdown(void)
 {
+	m_scene->remove_listener(this);
+}
 
+bool wx_editor_gui::is_initialized(void) const
+{
+	return m_initialized;
+}
+
+void wx_editor_gui::create_menu(void)
+{
+	wxMenu * file = new wxMenu;
+	file->Append(wxID_FILE, _("&Import"));
+	file->Append(wxID_EXIT, _("E&xit"));
+
+	file->Bind(wxEVT_COMMAND_MENU_SELECTED, [=](wxCommandEvent & event)
+	{
+		switch (event.GetId())
+		{
+		case wxID_FILE:
+		{
+			wxFileDialog openFileDialog(
+				m_frame,
+				_("Import scene file"), "", "", "FBX files (*.fbx)|*.fbx|All files|*",
+				wxFD_OPEN | wxFD_FILE_MUST_EXIST);
+
+			if (openFileDialog.ShowModal() != wxID_CANCEL)
+			{
+				if (!renderer_application::import_scene(openFileDialog.GetPath().c_str()))
+				{
+					renderer_application::signal_error(FUSE_LITERAL("Failed to import the selected scene."));
+				}
+			}
+			break;
+		}
+			
+		case wxID_EXIT:
+			renderer_application::quit();
+			break;
+		}
+	});
+	
+	m_menuBar = new wxMenuBar();
+	m_menuBar->Append(file, _("&File"));
+
+	m_frame->SetMenuBar(m_menuBar);
 }
 
 void wx_editor_gui::create_shadow_mapping_page(wxAuiNotebook * notebook)
@@ -257,7 +314,7 @@ void wx_editor_gui::create_debug_page(wxAuiNotebook * notebook)
 
 		drawSizer->Add(new wx_checkbox(
 			[&](bool value) {
-				if (value) m_visualDebugger->add_persistent(FUSE_LITERAL("camera"), m_scene->get_active_camera()->get_frustum(), color_rgba(0, 1, 0, 1));
+				if (value) m_visualDebugger->add_persistent(FUSE_LITERAL("camera"), m_scene->get_active_camera_node()->get_camera()->get_frustum(), color_rgba(0, 1, 0, 1));
 				else m_visualDebugger->remove_persistent(FUSE_LITERAL("camera"));
 			},
 			drawSizer->GetStaticBox(), wxID_ANY, _("Current Camera Frustum"), m_visualDebugger->get_draw_bounding_volumes()), 0, wxEXPAND | wxALL, padding);
@@ -277,21 +334,138 @@ void wx_editor_gui::create_camera_page(wxAuiNotebook * notebook)
 {
 	const int padding = 5;
 
-	wxWindow   * camera = new wxWindow(notebook, wxID_ANY);
-	wxBoxSizer * sizer  = new wxBoxSizer(wxVERTICAL);
+	m_camera = new wxWindow(notebook, wxID_ANY);
+	wxBoxSizer * sizer = new wxBoxSizer(wxVERTICAL);
 
-	sizer->Add(new wxStaticText(camera, wxID_ANY, _("Field of View")), 0, wxEXPAND | wxALL, padding);
-	sizer->Add(FUSE_WX_SPIN(camera, float, m_scene->get_active_camera()->get_fovx_deg, m_scene->get_active_camera()->set_fovx_deg, 15.f, 120.f, 5.f), 0, wxEXPAND | wxALL, padding);
+	/*sizer->Add(new wxStaticText(camera, wxID_ANY, _("Field of View")), 0, wxEXPAND | wxALL, padding);
+	sizer->Add(FUSE_WX_SPIN(camera, float, m_scene->get_active_camera_node()->get_fovx_deg, m_scene->get_active_camera_node()->set_fovx_deg, 15.f, 120.f, 5.f), 0, wxEXPAND | wxALL, padding);
 
 	sizer->Add(new wxStaticText(camera, wxID_ANY, _("Near Clip Distance")), 0, wxEXPAND | wxALL, padding);
-	sizer->Add(FUSE_WX_SPIN(camera, float, m_scene->get_active_camera()->get_znear, m_scene->get_active_camera()->set_znear, .00001f, 100000.f, .1f), 0, wxEXPAND | wxALL, padding);
+	sizer->Add(FUSE_WX_SPIN(camera, float, m_scene->get_active_camera_node()->get_znear, m_scene->get_active_camera_node()->set_znear, .00001f, 100000.f, .1f), 0, wxEXPAND | wxALL, padding);
 
 	sizer->Add(new wxStaticText(camera, wxID_ANY, _("Far Clip Distance")), 0, wxEXPAND | wxALL, padding);
-	sizer->Add(FUSE_WX_SPIN(camera, float, m_scene->get_active_camera()->get_zfar, m_scene->get_active_camera()->set_zfar, .00001f, 100000.f, .1f), 0, wxEXPAND | wxALL, padding);
+	sizer->Add(FUSE_WX_SPIN(camera, float, m_scene->get_active_camera_node()->get_zfar, m_scene->get_active_camera_node()->set_zfar, .00001f, 100000.f, .1f), 0, wxEXPAND | wxALL, padding);*/
 
-	camera->SetSizerAndFit(sizer);
+	auto fov = new wx_spin<float>(
+		[&](void)
+	{
+		camera * c = m_scene->get_active_camera_node()->get_camera();
+		return c ? c->get_fovy_deg() : 0.f;
+	},
+		[&](float x)
+	{
+		camera * c = m_scene->get_active_camera_node()->get_camera();
+		if (c)
+		{
+			c->set_fovy_deg(x);
+		}
+	},
+		m_camera, wxID_ANY, 15.f, 120.f, 5.f);
 
-	notebook->AddPage(camera, _("Camera"));
+	auto zfar = new wx_spin<float>(
+		[&](void)
+	{
+		camera * c = m_scene->get_active_camera_node()->get_camera();
+		return c ? c->get_zfar() : 0.f;
+	},
+		[&](float x)
+	{
+		camera * c = m_scene->get_active_camera_node()->get_camera();
+		if (c)
+		{
+			c->set_zfar(x);
+		}
+	},
+		m_camera, wxID_ANY, .00001f, 100000.f, .1f);
+
+	auto znear = new wx_spin<float>(
+		[&](void)
+	{
+		camera * c = m_scene->get_active_camera_node()->get_camera();
+		return c ? c->get_znear() : 0.f;
+	},
+		[&](float x)
+	{
+		camera * c = m_scene->get_active_camera_node()->get_camera();
+		if (c)
+		{
+			c->set_znear(x);
+		}
+	},
+		m_camera, wxID_ANY, .00001f, 100000.f, .1f);
+
+	sizer->Add(new wxStaticText(m_camera, wxID_ANY, _("Field of View")), 0, wxEXPAND | wxALL, padding);
+	sizer->Add(fov, 0, wxEXPAND | wxALL, padding);
+
+	sizer->Add(new wxStaticText(m_camera, wxID_ANY, _("Near Clip Distance")), 0, wxEXPAND | wxALL, padding);
+	sizer->Add(znear, 0, wxEXPAND | wxALL, padding);
+
+	sizer->Add(new wxStaticText(m_camera, wxID_ANY, _("Far Clip Distance")), 0, wxEXPAND | wxALL, padding);
+	sizer->Add(zfar, 0, wxEXPAND | wxALL, padding);
+
+	m_camera->SetSizerAndFit(sizer);
+
+	m_camera->Bind(FUSE_EVENT_REFRESH, [=](wxCommandEvent & event)
+	{
+		fov->update_value();
+		znear->update_value();
+		zfar->update_value();
+	});
+
+	notebook->AddPage(m_camera, _("Camera"));
+}
+
+void wx_editor_gui::add_branch(scene_graph_node * root)
+{
+	std::deque<scene_graph_node*> stack = { root };
+
+	do
+	{
+		scene_graph_node * node   = stack.front();
+		scene_graph_node * parent = node->get_parent();
+
+		string_t name = node->get_name();
+		wxTreeItemId id;
+
+		if (parent)
+		{
+			id = m_sgTree->AppendItem(
+				m_nodeItemMap[parent],
+				name.empty() ? _("<unnamed node>") : name.c_str());
+		}
+		else
+		{
+			id = m_sgTree->AddRoot(_("<root>"));
+		}
+
+		m_nodeItemMap[node] = id;
+		m_itemNodeMap[id] = node;
+
+		std::copy(node->begin(), node->end(), std::back_inserter(stack));
+		stack.pop_front();
+	} while (!stack.empty());
+}
+
+void wx_editor_gui::remove_branch(scene_graph_node * root)
+{
+	std::deque<scene_graph_node*> stack = { root };
+
+	do
+	{
+		scene_graph_node * node   = stack.front();
+
+		auto nodeItemIt = m_nodeItemMap.find(node);
+
+		wxTreeItemId id = nodeItemIt->second;
+
+		m_sgTree->Delete(id);
+
+		m_nodeItemMap.erase(nodeItemIt);
+		m_itemNodeMap.erase(m_itemNodeMap.find(id));
+
+		std::copy(node->begin(), node->end(), std::back_inserter(stack));
+		stack.pop_front();
+	} while (!stack.empty());
 }
 
 void wx_editor_gui::create_scene_graph_page(wxAuiNotebook * notebook)
@@ -312,10 +486,8 @@ void wx_editor_gui::create_scene_graph_page(wxAuiNotebook * notebook)
 
 	m_sgTree = new wxTreeCtrl(sg);
 
-	load_scene_graph();
-
-	m_sgTree->SelectItem(m_sgTree->GetRootItem());
-	m_selectedNode = m_scene->get_scene_graph()->get_root();
+	update_scene_graph();
+	set_selected_node(m_scene->get_scene_graph()->get_root());
 
 	/* Local translation */
 
@@ -506,6 +678,46 @@ void wx_editor_gui::create_scene_graph_page(wxAuiNotebook * notebook)
 		}
 	}, sg, wxID_ANY, -FLT_MAX, FLT_MAX, .1f);
 
+	m_sgTree->Bind(wxEVT_TREE_BEGIN_DRAG,
+		[&](wxTreeEvent & event)
+	{
+		wxTreeItemId item = event.GetItem();
+
+		if (item != m_sgTree->GetRootItem())
+		{
+			m_draggedItem = item;
+			event.Allow();
+		}
+	});
+
+	m_sgTree->Bind(wxEVT_TREE_END_DRAG,
+		[&](wxTreeEvent & event)
+	{
+		wxTreeItemId parent = event.GetItem();
+		wxTreeItemId item = m_draggedItem;
+
+		auto parentIt = m_itemNodeMap.find(parent);
+		auto nodeIt   = m_itemNodeMap.find(item);
+
+		if (parentIt != m_itemNodeMap.end() &&
+		    nodeIt != m_itemNodeMap.end())
+		{
+			scene_graph_node * parent = parentIt->second;
+			scene_graph_node * node   = nodeIt->second;
+
+			if (parent->is_ancestor(node))
+			{
+				renderer_application::signal_error(FUSE_LITERAL("No loops allowed in the scene graph, cannot attach an ancestor to a descendant."));
+			}
+			else if (parent != node)
+			{
+				remove_branch(node);
+				node->set_parent(parent);
+				add_branch(node);
+			}
+		}
+	});
+
 	/* Size settings */
 
 	localTranslationX->SetMinSize(wxSize(64, 24));
@@ -550,14 +762,17 @@ void wx_editor_gui::create_scene_graph_page(wxAuiNotebook * notebook)
 	notebook->AddPage(sg, _("Scene Graph"));
 
 	m_sgTree->Bind(wxEVT_TREE_SEL_CHANGED,
-		[&,
-		localTranslationX, localTranslationY, localTranslationZ,
-		localScaleX, localScaleY, localScaleZ,
-		localRotationX, localRotationY, localRotationZ]
+		[&]
 	(wxTreeEvent & event)
 	{
 		wxTreeItemId item = event.GetItem();
 		m_selectedNode = m_itemNodeMap[item];
+		update_selected_object();
+	});
+
+	m_sgTree->Bind(FUSE_EVENT_REFRESH,
+		[=](wxCommandEvent & event)
+	{
 		localTranslationX->update_value();
 		localTranslationY->update_value();
 		localTranslationZ->update_value();
@@ -570,37 +785,19 @@ void wx_editor_gui::create_scene_graph_page(wxAuiNotebook * notebook)
 	});
 }
 
-void wx_editor_gui::load_scene_graph(void)
+void wx_editor_gui::update_scene_graph(void)
 {
 	m_sgTree->DeleteAllItems();
+	add_branch(m_scene->get_scene_graph()->get_root());}
 
-	std::deque<scene_graph_node*> stack = { m_scene->get_scene_graph()->get_root() };
+void wx_editor_gui::update_camera(void)
+{
+	wxPostEvent(m_camera, wxCommandEvent(FUSE_EVENT_REFRESH));
+}
 
-	do
-	{
-		scene_graph_node * node   = stack.front();
-		scene_graph_node * parent = node->get_parent();
-
-		string_t name = node->get_name();
-		wxTreeItemId id;
-
-		if (parent)
-		{
-			id = m_sgTree->AppendItem(
-				m_nodeItemMap[parent],
-				name.empty() ? _("<unnamed node>") : name.c_str());
-		}
-		else
-		{
-			id = m_sgTree->AddRoot(_("<root>"));
-		}
-
-		m_nodeItemMap[node] = id;
-		m_itemNodeMap[id]   = node;
-
-		std::copy(node->begin(), node->end(), std::back_inserter(stack));
-		stack.pop_front();
-	} while (!stack.empty());
+void wx_editor_gui::update_selected_object(void)
+{
+	wxPostEvent(m_sgTree, wxCommandEvent(FUSE_EVENT_REFRESH));
 }
 
 scene_graph_node * wx_editor_gui::get_selected_node(void) const
@@ -614,8 +811,53 @@ void wx_editor_gui::set_selected_node(scene_graph_node * node)
 
 	if (it != m_nodeItemMap.end())
 	{
+		if (m_selectedNode)
+		{
+			m_selectedNode->remove_listener(this);
+		}
+
 		m_sgTree->SelectItem(it->second);
+
+		if (node)
+		{
+			node->remove_listener(this);
+		}
 	}
+}
+
+void wx_editor_gui::on_scene_graph_node_destruction(scene_graph_node * node)
+{
+	//update_scene_graph();
+}
+
+void wx_editor_gui::on_scene_graph_node_move(scene_graph_node * node, const mat128 & oldTransform, const mat128 & newTransform)
+{
+	if (node == m_scene->get_active_camera_node())
+	{
+		update_camera();
+	}
+	if (node == m_selectedNode)
+	{
+		update_selected_object();
+	}
+}
+
+void wx_editor_gui::on_scene_active_camera_change(scene * scene, scene_graph_camera * oldCamera, scene_graph_camera * newCamera)
+{
+	if (oldCamera)
+	{
+		oldCamera->remove_listener(this);
+	}
+	if (newCamera)
+	{
+		newCamera->add_listener(this);
+		update_camera();
+	}
+}
+
+void wx_editor_gui::on_scene_clear(scene * scene)
+{
+
 }
 
 #endif

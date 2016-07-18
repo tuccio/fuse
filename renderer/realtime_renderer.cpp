@@ -7,7 +7,6 @@ using namespace fuse;
 
 bool realtime_renderer::init(gpu_render_context & renderContext, render_configuration * renderConfiguration)
 {
-
 	m_renderContext       = &renderContext;
 	m_renderConfiguration = renderConfiguration;
 
@@ -41,38 +40,32 @@ bool realtime_renderer::init(gpu_render_context & renderContext, render_configur
 	return m_deferredRenderer.init(device, rendererCFG) &&
 		m_skydomeRenderer.init(device) &&
 		setup_shadow_mapping(device);
-
 }
 
 void realtime_renderer::shutdown(void)
 {
-
 	release_resources();
 
 	m_deferredRenderer.shutdown();
 	m_skydomeRenderer.shutdown();
 
 	m_gbufferSRVTable.clear();
-
 }
 
 void realtime_renderer::release_resources(void)
 {
-
-	/*m_gbuffer[0].reset();
+	m_gbuffer[0].reset();
 	m_gbuffer[1].reset();
 	m_gbuffer[2].reset();
 	m_gbuffer[3].reset();
 
 	m_final.reset();
 
-	m_depthBuffer.reset();*/
-
+	m_depthBuffer.reset();
 }
 
 void realtime_renderer::render(D3D12_GPU_VIRTUAL_ADDRESS cbPerFrameAddress, scene * scene, camera * camera)
 {
-
 	release_resources();
 
 	ID3D12Device * device = m_renderContext->get_device();
@@ -262,7 +255,6 @@ void realtime_renderer::render(D3D12_GPU_VIRTUAL_ADDRESS cbPerFrameAddress, scen
 		&shadowMapDSVDesc);
 
 	{
-
 		shadow_map_info shadowMapInfo = {};
 
 		//shadowMapInfo.sdsm          = true;
@@ -339,9 +331,7 @@ void realtime_renderer::render(D3D12_GPU_VIRTUAL_ADDRESS cbPerFrameAddress, scen
 			*m_final.get(),
 			*m_depthBuffer.get(),
 			*skydome);
-
 	}
-
 }
 
 render_resource_ptr realtime_renderer::get_shadow_map_render_target(void)
@@ -451,7 +441,6 @@ bool realtime_renderer::setup_shadow_mapping(ID3D12Device * device)
 
 void realtime_renderer::update_render_configuration(void)
 {
-
 	auto updates = m_renderConfiguration->get_updates();
 
 	ID3D12Device      * device       = m_renderContext->get_device();
@@ -459,7 +448,6 @@ void realtime_renderer::update_render_configuration(void)
 
 	for (auto variable : updates)
 	{
-
 		switch (variable)
 		{
 
@@ -492,7 +480,5 @@ void realtime_renderer::update_render_configuration(void)
 			break;
 
 		}
-
 	}
-
 }

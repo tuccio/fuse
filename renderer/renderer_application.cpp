@@ -84,12 +84,14 @@ std::unique_ptr<gpu_mesh_manager>    g_gpuMeshManager;
 std::unique_ptr<texture_manager>     g_textureManager;
 std::unique_ptr<bitmap_font_manager> g_bitmapFontManager;
 
+std::mutex g_updateMutex;
+std::mutex g_renderMutex;
+
 std::array<gpu_graphics_command_list, NUM_BUFFERS> g_guiCommandList;
 
 render_resource_manager g_renderResourceManager;
 
 fps_camera_controller g_cameraController;
-
 
 bitmap_font_ptr    g_font;
 
@@ -129,7 +131,7 @@ bool renderer_application::on_render_context_created(gpu_render_context & render
 	gpu_graphics_command_list & commandList  = renderContext.get_command_list();
 
 	// The command list will be used for uploading assets and buffers on the gpu
-	commandList.reset_command_list(nullptr);
+	//commandList.reset_command_list(nullptr);
 
 	g_mipmapGenerator = std::make_unique<mipmap_generator>(device);
 
@@ -151,39 +153,13 @@ bool renderer_application::on_render_context_created(gpu_render_context & render
 
 	/* Load scene */
 
-	//g_sceneLoader = std::make_unique<assimp_loader>("scene/default.fbx");
-	
-	g_sceneLoader = std::make_unique<assimp_loader>(FUSE_LITERAL("scene/cornellbox_solid.fbx"));
-	//g_sceneLoader = std::make_unique<assimp_loader>("scene/sponza.fbx");
+	import_scene(FUSE_LITERAL("scene/cornellbox_solid.fbx"));
+	//import_scene(FUSE_LITERAL("scene/default.fbx"));
 
-	FAIL_IF(
-		!g_scene.import_static_objects(g_sceneLoader.get()) ||
-		!g_scene.import_cameras(g_sceneLoader.get()) ||
-		//!g_scene.import_lights(g_sceneLoader.get()) ||
-		!g_scene.get_skydome()->init(device, SKYDOME_WIDTH, SKYDOME_HEIGHT, NUM_BUFFERS)
-	)
-
-	g_scene.get_skydome()->set_zenith(1.02539599f);
-	g_scene.get_skydome()->set_azimuth(-1.70169306f);
-
-	g_scene.fit_octree(1.1f);
-	
-	/*auto light = *g_scene.get_lights().first;
-
-	light->direction = XMFLOAT3(-0.281581f, 0.522937f, -0.804518f);
-	light->intensity *= .2f;*/
-	//g_scene.get_active_camera()->set_zfar(10000.f);
-
-	//g_cameraController = std::make_unique<fps_camera_controller>(g_scene.get_active_camera());
-
-	g_cameraController.set_camera(g_scene.get_active_camera());
-	g_cameraController.set_speed(float3(200, 200, 200));
+	g_cameraController.set_speed(float3(1, 1, 1));
 	
 	add_keyboard_listener(&g_cameraController);
 	add_mouse_listener(&g_cameraController);
-
-	g_scene.get_active_camera()->set_orientation(quaternion(1, 0, 0, 0));
-	//g_scene.get_active_camera()->set_position(float3(15, 135, -115));
 
 	/* Create gbuffer desc tables */
 
@@ -304,10 +280,7 @@ bool renderer_application::on_render_context_created(gpu_render_context & render
 	{
 
 		/* Wait for the initialization operations to be done on the GPU
-		   before starting the rendering and resetting the command allocator */
-
-		FUSE_HR_CHECK(commandList->Close());
-		commandQueue.execute(commandList);
+		before starting the rendering and resetting the command allocator */
 
 		com_ptr<ID3D12Fence> initFence;
 		HANDLE hEvent = CreateEventEx(nullptr, nullptr, 0, EVENT_ALL_ACCESS);
@@ -321,7 +294,7 @@ bool renderer_application::on_render_context_created(gpu_render_context & render
 		CloseHandle(hEvent);
 
 #ifdef FUSE_USE_EDITOR_GUI
-		FAIL_IF(!g_wxEditorGUI.init(get_wx_window(), &g_scene, &g_renderConfiguration, &g_visualDebugger));
+		FAIL_IF(!g_wxEditorGUI.init(get_wx_frame(), &g_scene, &g_renderConfiguration, &g_visualDebugger));
 		load_ui_configuration(FUSE_UI_CONFIGURATION);
 #endif
 
@@ -333,9 +306,68 @@ bool renderer_application::on_render_context_created(gpu_render_context & render
 
 }
 
+bool renderer_application::import_scene(const char_t * filename)
+{
+	std::lock_guard<std::mutex> updateLock(g_updateMutex);
+	std::lock_guard<std::mutex> renderLock(g_renderMutex);
+
+	gpu_render_context * renderContext = gpu_render_context::get_singleton_pointer();
+
+	gpu_graphics_command_list & commandList  = renderContext->get_command_list();
+	gpu_command_queue         & commandQueue = renderContext->get_command_queue();
+	ID3D12Device              * device       = renderContext->get_device();
+
+	commandList.reset_command_list(nullptr);
+
+	g_sceneLoader = std::make_unique<assimp_loader>(filename);
+
+	g_scene.clear();
+
+	if (!g_scene.import(g_sceneLoader.get()) ||
+	    //!g_scene.import_cameras(g_sceneLoader.get()) ||
+	    //!g_scene.import_lights(g_sceneLoader.get()) ||
+	    !g_scene.get_skydome()->init(get_device(), SKYDOME_WIDTH, SKYDOME_HEIGHT, NUM_BUFFERS))
+	{
+		return false;
+	}
+
+#if FUSE_USE_EDITOR_GUI
+	if (g_wxEditorGUI.is_initialized())
+	{
+		g_wxEditorGUI.update_scene_graph();
+		g_wxEditorGUI.update_camera();
+	}
+#endif
+
+	set_active_camera_node(g_scene.get_active_camera_node());
+
+	g_scene.fit_octree();
+
+	g_scene.get_skydome()->set_zenith(1.02539599f);
+	g_scene.get_skydome()->set_azimuth(-1.70169306f);
+
+	FUSE_HR_CHECK(commandList->Close());
+	commandQueue.execute(commandList);
+
+	/* Wait for the initialization operations to be done on the GPU
+	before starting the rendering and resetting the command allocator */
+
+	com_ptr<ID3D12Fence> initFence;
+	HANDLE hEvent = CreateEventEx(nullptr, nullptr, 0, EVENT_ALL_ACCESS);
+	device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&initFence));
+
+	commandQueue->Signal(initFence.get(), 1u);
+	initFence->SetEventOnCompletion(1u, hEvent);
+
+	bool initialized = WAIT_OBJECT_0 == WaitForSingleObject(hEvent, INFINITE);
+
+	CloseHandle(hEvent);
+
+	return initialized;
+}
+
 void renderer_application::on_render_context_released(gpu_render_context & renderContext)
 {
-
 	g_renderResourceManager.clear();
 
 	g_imageManager.reset();
@@ -376,7 +408,7 @@ bool renderer_application::on_swap_chain_resized(ID3D12Device * device, IDXGISwa
 
 	FAIL_IF (!g_sdsm.init(device, desc->Width, desc->Height))
 
-	camera * mainCamera = g_scene.get_active_camera();
+	camera * mainCamera = g_scene.get_active_camera_node()->get_camera();
 
 	if (mainCamera)
 	{
@@ -403,27 +435,9 @@ bool renderer_application::on_mouse_event(const mouse & mouse, const mouse_event
 #ifdef FUSE_USE_EDITOR_GUI
 		if (event.key == FUSE_MOUSE_VK_MOUSE1)
 		{
-			/*camera * cam = g_scene.get_active_camera();
-
-			float4x4 vp = cam->get_view_matrix() * cam->get_projection_matrix();
-			float4x4 invVP = inverse(vp);
-
-			float2 screenPosition = {
-				(float)event.position.x / get_render_window_width(),
-				(float)event.position.y / get_render_window_height()
-			};
-
-			screenPosition = 2.f * screenPosition - 1.f;
-
-			float4 clipPosition = float4(screenPosition.x, -screenPosition.y, 1, 1) * invVP;
-			float3 camPosition = cam->get_position();
-			float3 farPosition = to_float3(clipPosition);
-
-			ray r;
-			r.set_origin(to_vec128(camPosition));
-			r.set_direction(to_vec128(normalize(farPosition - camPosition)));*/
-
-			camera * c = g_scene.get_active_camera();
+			/* Ray picking */
+			
+			/*camera * c = g_scene.get_active_camera_node()->get_camera();
 
 			float4x4 viewProjMatrix    = c->get_view_matrix() * c->get_projection_matrix();
 			float4x4 invViewProjMatrix = inverse(viewProjMatrix);
@@ -453,9 +467,7 @@ bool renderer_application::on_mouse_event(const mouse & mouse, const mouse_event
 			else
 			{
 				g_wxEditorGUI.set_selected_node(g_scene.get_scene_graph()->get_root());
-			}
-
-			//g_visualDebugger.add_persistent(FUSE_LITERAL("casted_ray"), r, color_rgba::green);
+			}*/
 		}
 #endif
 	}
@@ -496,6 +508,8 @@ bool renderer_application::on_keyboard_event(const keyboard & keyboard, const ke
 
 void renderer_application::on_update(float dt)
 {
+	std::lock_guard<std::mutex> updateLock(g_updateMutex);
+
 	g_cameraController.on_update(dt);
 	g_scene.update();
 }
@@ -504,7 +518,7 @@ void renderer_application::upload_per_frame_resources(ID3D12Device * device, gpu
 {
 	/* Setup per frame constant buffer */
 
-	camera * camera = g_scene.get_active_camera();
+	camera * camera = g_scene.get_active_camera_node()->get_camera();
 
 	auto view              = to_mat128(camera->get_view_matrix());
 	auto projection        = to_mat128(camera->get_projection_matrix());
@@ -577,14 +591,17 @@ void draw_bounding_volume(scene_graph_geometry * node)
 
 void renderer_application::on_render(gpu_render_context & renderContext, const render_resource & backBuffer)
 {
+	std::lock_guard<std::mutex> renderLock(g_updateMutex);
+
 	ID3D12Device * device = renderContext.get_device();
 
 	uint32_t bufferIndex  = renderContext.get_buffer_index();
 
 	auto & commandQueue   = renderContext.get_command_queue();
 
-	auto & commandList    = renderContext.get_command_list();
-	auto & guiCommandList = g_guiCommandList[bufferIndex];
+	auto & commandList       = renderContext.get_command_list();
+	//auto & uploadCommandList = renderContext.get_upload_command_list();
+	auto & guiCommandList    = g_guiCommandList[bufferIndex];
 
 	g_realtimeRenderer.update_render_configuration();
 
@@ -626,7 +643,7 @@ void renderer_application::on_render(gpu_render_context & renderContext, const r
 
 	/* Render */
 
-	g_realtimeRenderer.render(cbPerFrameAddress, &g_scene, g_scene.get_active_camera());
+	g_realtimeRenderer.render(cbPerFrameAddress, &g_scene, g_scene.get_active_camera_node()->get_camera());
 	g_realtimeRenderer.get_culling_results();
 
 	/* Tonemap */
@@ -660,7 +677,8 @@ void renderer_application::on_render(gpu_render_context & renderContext, const r
 	{
 		scene_graph_node * selectedNode = g_wxEditorGUI.get_selected_node();
 
-		if (selectedNode->get_type() == FUSE_SCENE_GRAPH_GEOMETRY)
+		if (selectedNode &&
+			selectedNode->get_type() == FUSE_SCENE_GRAPH_GEOMETRY)
 		{
 			draw_bounding_volume(static_cast<scene_graph_geometry*>(selectedNode));
 		}
@@ -748,4 +766,33 @@ void renderer_application::on_configuration_init(application_config * configurat
 	configuration->swapChainBufferCount = NUM_BUFFERS;
 	configuration->swapChainFormat      = DXGI_FORMAT_R8G8B8A8_UNORM;
 	configuration->uploadHeapSize       = UPLOAD_HEAP_SIZE;
+}
+
+void renderer_application::lock_render(void)
+{
+	g_renderMutex.lock();
+}
+
+void renderer_application::unlock_render(void)
+{
+	g_renderMutex.unlock();
+}
+
+void renderer_application::lock_update(void)
+{
+	g_updateMutex.lock();
+}
+
+void renderer_application::unlock_update(void)
+{
+	g_updateMutex.unlock();
+}
+
+void renderer_application::set_active_camera_node(scene_graph_camera * cameraNode)
+{
+	camera * camera = cameraNode->get_camera();
+	camera->set_aspect_ratio((float)get_render_window_width() / get_render_window_height());
+	g_scene.set_active_camera_node(cameraNode);
+
+	g_cameraController.set_camera(cameraNode);
 }

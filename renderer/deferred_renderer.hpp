@@ -95,7 +95,7 @@ namespace fuse
 		deferred_renderer_configuration m_configuration;
 		const char * m_shadowMapAlgorithmDefine;
 
-		bool create_debug_pso(ID3D12Device * device);
+		bool create_psos(ID3D12Device * device);
 		bool create_gbuffer_pso(ID3D12Device * device);
 		bool create_shading_pst(ID3D12Device * device);
 		bool create_skydome_pso(ID3D12Device * device);

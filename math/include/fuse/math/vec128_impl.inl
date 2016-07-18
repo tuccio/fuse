@@ -342,7 +342,7 @@ namespace fuse
 		static_assert(SignY == 0 || SignY == 1, "Sign of Y must be either 0 or 1.");
 		static_assert(SignZ == 0 || SignZ == 1, "Sign of Z must be either 0 or 1.");
 		static_assert(SignW == 0 || SignW == 1, "Sign of W must be either 0 or 1.");
-		return vec128_signmask(lhs) == SignX | (SignY << 1) | (SignZ << 2) | (SignW << 3);
+		return vec128_signmask(lhs) == (SignX | (SignY << 1) | (SignZ << 2) | (SignW << 3));
 	}
 
 	template <uint32_t SignX, uint32_t SignY, uint32_t SignZ>

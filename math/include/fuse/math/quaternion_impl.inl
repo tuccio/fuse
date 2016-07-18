@@ -116,9 +116,9 @@ namespace fuse
 		q.x = square_root(std::max(0.f, 1.f + lhs._00 - lhs._11 - lhs._22)) * .5f;
 		q.y = square_root(std::max(0.f, 1.f - lhs._00 + lhs._11 - lhs._22)) * .5f;
 		q.z = square_root(std::max(0.f, 1.f - lhs._00 - lhs._11 + lhs._22)) * .5f;
-		q.x = std::copysign(q.x, lhs._21 - lhs._12);
-		q.y = std::copysign(q.y, lhs._02 - lhs._20);
-		q.z = std::copysign(q.z, lhs._10 - lhs._01);
+		q.x = std::copysign(q.x, lhs._12 - lhs._21);
+		q.y = std::copysign(q.y, lhs._20 - lhs._02);
+		q.z = std::copysign(q.z, lhs._01 - lhs._10);
 		return q;
 	}
 
@@ -129,9 +129,9 @@ namespace fuse
 		q.x = square_root(std::max(0.f, 1.f + lhs._00 - lhs._11 - lhs._22)) * .5f;
 		q.y = square_root(std::max(0.f, 1.f - lhs._00 + lhs._11 - lhs._22)) * .5f;
 		q.z = square_root(std::max(0.f, 1.f - lhs._00 - lhs._11 + lhs._22)) * .5f;
-		q.x = std::copysign(q.x, lhs._21 - lhs._12);
-		q.y = std::copysign(q.y, lhs._02 - lhs._20);
-		q.z = std::copysign(q.z, lhs._10 - lhs._01);
+		q.x = std::copysign(q.x, lhs._12 - lhs._21);
+		q.y = std::copysign(q.y, lhs._20 - lhs._02);
+		q.z = std::copysign(q.z, lhs._01 - lhs._10);
 		return q;
 	}
 

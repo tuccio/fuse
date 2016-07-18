@@ -97,13 +97,13 @@ namespace fuse
 	template <typename Char, template <typename Char> class Formatter = default_quaternion_formatter>
 	std::basic_ostream<Char> & operator<< (std::basic_ostream<Char> & os, const vec128_f32 & v)
 	{
-		return operator<< <Char, Formatter>(os, v.v4f);
+		return operator<< <Char, float, 1, 4>(os, v.v4f);
 	}
 
 	template <typename Char, template <typename Char> class Formatter = default_quaternion_formatter>
 	std::basic_ostream<Char> & operator<< (std::basic_ostream<Char> & os, const mat128_f32 & v)
 	{
-		return operator<< <Char, Formatter>(os, v.m);
+		return operator<< <Char, float, 4, 4> (os, v.m);
 	}
 
 }

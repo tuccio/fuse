@@ -5,6 +5,7 @@ using namespace fuse;
 camera::camera(void) :
 	m_orientation(1, 0, 0, 0),
 	m_position(0, 0, 0),
+	m_worldMatrix(1.f),
 	m_fovy(FUSE_HALF_PI),
 	m_znear(.1f),
 	m_zfar(100.f),
@@ -72,11 +73,6 @@ void camera::set_projection(float fovy, float znear, float zfar)
 	m_projectionMatrixDirty = true;
 }
 
-const float4x4 & camera::get_world_matrix(void) const
-{
-	return m_worldMatrix;
-}
-
 const float4x4 & camera::get_view_matrix(void) const
 {
 	if (m_viewMatrixDirty)
@@ -95,11 +91,6 @@ const float4x4 & camera::get_projection_matrix(void) const
 	}
 
 	return m_projectionMatrix;
-}
-
-void camera::set_world_matrix(const float4x4 & matrix)
-{
-	throw;
 }
 
 void camera::set_view_matrix(const float4x4 & matrix)

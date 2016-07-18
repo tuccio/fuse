@@ -76,11 +76,14 @@ namespace fuse
 		return _mm_xor_ps(signMask, lhs);
 	}
 
-	inline vec128 FUSE_VECTOR_CALL quat128_transform(vec128 x, vec128 q)
+	inline vec128 FUSE_VECTOR_CALL quat128_transform(vec128 lhs, vec128 rhs)
 	{
-		vec128 t0 = _mm_castsi128_ps(_mm_set_epi32(0x0, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF));
+		/*vec128 t0 = _mm_castsi128_ps(_mm_set_epi32(0x0, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF));
 		vec128 pq = _mm_and_ps(x, t0);
-		return quat128_mul(quat128_mul(q, pq), quat128_conjugate(q));
+		return quat128_mul(quat128_mul(q, pq), quat128_conjugate(q));*/
+
+		vec128 uv = 2.f * vec128_cross(rhs, lhs);
+		return lhs + vec128_splat<FUSE_W>(rhs) * uv + vec128_cross(rhs, uv);
 	}
 
 	inline vec128 FUSE_VECTOR_CALL quat128_norm(vec128 lhs)
@@ -100,10 +103,13 @@ namespace fuse
 		return reinterpret_cast<const quaternion&>(lhs);
 	}
 
-
 	inline vec128 to_quat128(const quaternion & lhs)
 	{
 		return _mm_loadu_ps(&lhs.x);
 	}
 
+	inline vec128 FUSE_VECTOR_CALL to_quat128(mat128 lhs)
+	{
+		return to_quat128(to_quaternion(reinterpret_cast<const float4x4&>(lhs)));
+	}
 }

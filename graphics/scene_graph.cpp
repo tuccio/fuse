@@ -26,6 +26,54 @@ scene_graph_node::~scene_graph_node(void)
 	}
 }
 
+scene_graph_node * scene_graph_node::find_root(void)
+{
+	scene_graph_node * current;
+	for (current = this; current->get_parent() != nullptr; current = current->get_parent());
+	return current;
+}
+
+bool scene_graph_node::is_ancestor(scene_graph_node * node) const
+{
+	return m_parent != nullptr && (m_parent == node || m_parent->is_ancestor(node));
+}
+
+bool scene_graph_node::is_descendant(scene_graph_node * node) const
+{
+	for (scene_graph_node * child : m_children)
+	{
+		if (child == node)
+		{
+			return true;
+		}
+		return child->is_descendant(node);
+	}
+	return false;
+}
+
+void scene_graph_node::set_parent(scene_graph_node * parent)
+{
+	mat128 oldMatrix = get_global_matrix();
+
+	scene_graph_node * oldParent = m_parent;
+
+	if (m_parent)
+	{
+		auto it = std::find(oldParent->m_children.begin(), oldParent->m_children.end(), this);
+		if (it != oldParent->m_children.end())
+		{
+			oldParent->m_children.erase(it);
+		}
+	}
+
+	switch_parent(parent);
+
+	if (parent)
+	{
+		parent->m_children.push_back(this);
+	}
+}
+
 void scene_graph_node::update(void)
 {
 	if (was_moved())
@@ -70,5 +118,6 @@ void scene_graph_node::clear_children(void)
 
 void scene_graph_camera::update_impl(void)
 {
-	m_camera.set_world_matrix(to_float4x4(get_global_matrix()));
+	m_camera.set_orientation(to_quaternion(get_global_rotation()));
+	m_camera.set_position(to_float3(get_global_translation()));
 }

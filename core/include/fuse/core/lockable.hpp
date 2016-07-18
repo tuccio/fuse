@@ -13,7 +13,7 @@ namespace fuse
 		using lock_type  = std::recursive_mutex;
 		using guard_type = std::lock_guard<lock_type>;
 
-		lockable(void) { }
+		lockable(void) {}
 		lockable(const lockable &) = delete;
 		lockable(lockable &&) = default;
 

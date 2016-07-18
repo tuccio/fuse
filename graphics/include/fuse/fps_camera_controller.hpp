@@ -1,7 +1,7 @@
 #pragma once
 
 #include <fuse/core.hpp>
-#include <fuse/camera.hpp>
+#include <fuse/scene_graph.hpp>
 #include <fuse/keyboard.hpp>
 #include <fuse/mouse.hpp>
 
@@ -29,7 +29,7 @@ namespace fuse
 	public:
 
 		fps_camera_controller(void);
-		fps_camera_controller(camera * cam);
+		fps_camera_controller(scene_graph_camera * camera);
 
 		void bind_keyboard_key(keyboard_vk key, camera_action action);
 		void unbind_keyboard_key(keyboard_vk key);
@@ -40,42 +40,44 @@ namespace fuse
 		void clear_keyboard_binds(void);
 		void clear_mouse_binds(void);
 
-		LRESULT on_keyboard(WPARAM wParam, LPARAM lParam);
-		LRESULT on_mouse(WPARAM wParam, LPARAM lParam);
-
-		LRESULT on_resize(UINT width, UINT height);
-
-		LRESULT on_update(float dt);
+		void on_resize(UINT width, UINT height);
+		void on_update(float dt);
 
 		bool on_keyboard_event(const keyboard & keyboard, const keyboard_event_info & event) override;
 		bool on_mouse_event(const mouse & mouse, const mouse_event_info & event) override;
 
+		void set_camera(scene_graph_camera * camera);
+
 	private:
 
-		vec128   m_acceleration;
-		vec128   m_velocity;
 
-		camera * m_camera;
+		vec128 m_acceleration;
+		vec128 m_velocity;
 
-		float3   m_speed;
+		float3 m_speed;
 
-		float2   m_screenSize;
-		float2   m_screenCenter;
+		float2 m_screenSize;
+		float2 m_screenCenter;
 
-		float    m_sensitivity;
+		float  m_sensitivity;
 
-		bool     m_centerMouse;
-		bool     m_centeringMouse;
-		bool     m_holdToRotate;
+		bool   m_centerMouse;
+		bool   m_centeringMouse;
+		bool   m_holdToRotate;
 
-		bool     m_rotating;
+		bool   m_invertX;
+		bool   m_invertY;
 
-		bool     m_strafingForward;
-		bool     m_strafingBackward;
-		bool     m_strafingLeft;
-		bool     m_strafingRight;
-		bool     m_strafingUpward;
-		bool     m_strafingDownward;
+		bool   m_rotating;
+
+		bool   m_strafingForward;
+		bool   m_strafingBackward;
+		bool   m_strafingLeft;
+		bool   m_strafingRight;
+		bool   m_strafingUpward;
+		bool   m_strafingDownward;
+
+		scene_graph_camera * m_camera;
 
 		std::unordered_map<keyboard_vk, camera_action> m_keyboardBinds;
 		std::unordered_map<UINT, camera_action>        m_mouseBinds;
@@ -90,6 +92,8 @@ namespace fuse
 			(hold_to_rotate,    m_holdToRotate)
 			(auto_center_mouse, m_centerMouse)
 			(sensitivity,       m_sensitivity)
+			(invert_mouse_x,    m_invertX)
+			(invert_mouse_y,    m_invertY)
 		)
 
 		FUSE_DECLARE_ALIGNED_ALLOCATOR_NEW(16)

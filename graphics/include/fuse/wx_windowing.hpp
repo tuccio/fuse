@@ -120,6 +120,8 @@ namespace fuse
 		static void save_ui_configuration(const char * filename);
 		static void load_ui_configuration(const char * filename);
 
+		static void quit(void);
+
 	protected:
 
 		static void add_keyboard_callback(keyboard_callback callback, unsigned int priority = FUSE_PRIORITY_DEFAULT);
@@ -137,7 +139,7 @@ namespace fuse
 		inline static keyboard & get_keyboard(void) { return m_keyboard; }
 		inline static mouse & get_mouse(void) { return m_mouse; }
 
-		inline static wxWindow * get_wx_window(void) { return m_mainWindow; }
+		inline static wxFrame * get_wx_frame(void) { return m_mainWindow; }
 		inline static wxAuiManager * get_wx_aui_manager(void) { return wxAuiManager::GetManager(m_mainWindow); }
 
 	private:

@@ -58,7 +58,7 @@ namespace fuse
 	{
 		aabb aabb = bounding_aabb(volume);
 
-		if (!contains(get_aabb(), aabb))
+		if (!contains(get_octant_aabb(FUSE_LOOSEOCTREE_ROOT_INDEX), aabb))
 		{
 			return false;
 		}
@@ -68,7 +68,6 @@ namespace fuse
 		node_hashmap_iterator it = create_octant(octant);
 
 		it->second.objects.push_back(object);
-
 		increase_occupancy(it);
 
 		return true;
@@ -216,7 +215,7 @@ namespace fuse
 	FUSE_LOOSEOCTREE_TEMPLATE_DECLARATION
 		morton_code FUSE_LOOSEOCTREE_TYPE::calculate_fitting_octant(const aabb & aabb) const
 	{
-		vec128 center   = aabb.get_center();
+		vec128 center = aabb.get_center();
 		vec128 hExtents = aabb.get_half_extents();
 
 		float maxExtent = std::max(std::max(vec128_get_x(hExtents), vec128_get_y(hExtents)), vec128_get_z(hExtents));
@@ -228,8 +227,8 @@ namespace fuse
 		// Solving we have d <= log2 w0/wx. So d = floor(log2(w0/wx)) is the max depth an
 		// object can fit in.
 
-		unsigned int fitDepth = (unsigned int) std::floor(std::log2(vec128_get_x(m_halfextent) / maxExtent));
-		unsigned int depth    = std::min(fitDepth, m_maxdepth);
+		unsigned int fitDepth = (unsigned int)std::floor(std::log2(vec128_get_x(m_halfextent) / maxExtent));
+		unsigned int depth = std::min(fitDepth, m_maxdepth);
 
 		vec128_f32 t = vec128_floor(normalizedCentroid * (1 << m_maxdepth));
 
@@ -263,11 +262,6 @@ namespace fuse
 	FUSE_LOOSEOCTREE_TEMPLATE_DECLARATION
 		aabb FUSE_LOOSEOCTREE_TYPE::get_octant_aabb(morton_code location) const
 	{
-		if (location == FUSE_LOOSEOCTREE_ROOT_INDEX)
-		{
-			return get_aabb();
-		}
-
 		auto it = m_nodes.find(location);
 
 		if (it != m_nodes.end())

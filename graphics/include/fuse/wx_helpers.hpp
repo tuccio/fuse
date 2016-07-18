@@ -180,6 +180,7 @@ namespace fuse
 			update_value();
 
 			Bind(wxEVT_SPINCTRLDOUBLE, [=](wxSpinDoubleEvent & event) { set(static_cast<T>(event.GetValue())); });
+
 			Bind(wxEVT_TEXT_ENTER, [=](wxCommandEvent & event)
 			{
 				wxString s = event.GetString();

@@ -70,7 +70,7 @@ void debug_renderer::add(const frustum & f, const color_rgba & color)
 
 	add_lines(lines, lines + _countof(lines));
 
-	auto planes = f.get_planes();
+	/*auto planes = f.get_planes();
 
 	std::vector<debug_line> normals;
 
@@ -88,7 +88,7 @@ void debug_renderer::add(const frustum & f, const color_rgba & color)
 		return line;
 	});
 
-	add_lines(normals.begin(), normals.end());
+	add_lines(normals.begin(), normals.end());*/
 }
 
 void debug_renderer::add(const ray & r, const color_rgba & color)
@@ -133,10 +133,8 @@ void debug_renderer::render_lines(
 	const render_resource & renderTarget,
 	const render_resource & depthBuffer)
 {
-
 	if (!m_lines.empty())
 	{		
-
 		D3D12_GPU_VIRTUAL_ADDRESS vbAddress;
 
 		size_t vbSize = sizeof(debug_line) * m_lines.size();
@@ -145,7 +143,6 @@ void debug_renderer::render_lines(
 
 		if (vbData)
 		{
-
 			auto pso = m_debugPST.get_pso_instance(device);
 			memcpy(vbData, &m_lines[0], m_lines.size() * sizeof(debug_line));
 			
@@ -173,9 +170,7 @@ void debug_renderer::render_lines(
 		}
 
 		m_lines.clear();
-
 	}
-
 }
 
 void debug_renderer::render_textures(
@@ -187,10 +182,8 @@ void debug_renderer::render_textures(
 	const render_resource & renderTarget,
 	const render_resource & depthBuffer)
 {
-
 	if (!m_textures.empty())
 	{
-
 		D3D12_GPU_VIRTUAL_ADDRESS vbAddress;
 
 		std::vector<float> vertices;
@@ -199,8 +192,6 @@ void debug_renderer::render_textures(
 
 		for (auto & p : m_textures)
 		{
-
-
 			vertices.push_back(p.position.x);
 			vertices.push_back(p.position.y + p.scaledHeight);
 
@@ -224,8 +215,6 @@ void debug_renderer::render_textures(
 
 			vertices.push_back(1.f);
 			vertices.push_back(0.f);
-
-
 		}
 
 		void * vbData = ringBuffer.allocate_constant_buffer(device, commandQueue, vertices.size() * sizeof(float), &vbAddress);
@@ -235,7 +224,6 @@ void debug_renderer::render_textures(
 
 		if (vbData)
 		{
-
 			memcpy(vbData, &vertices[0], vertices.size() * sizeof(float));
 
 			commandList.resource_barrier_transition(renderTarget.get(), D3D12_RESOURCE_STATE_RENDER_TARGET);
@@ -256,7 +244,6 @@ void debug_renderer::render_textures(
 
 			for (int i = 0; i < m_textures.size(); i++)
 			{
-
 				commandList->SetPipelineState(m_textures[i].hdr ? hdrPSO : ldrPSO);
 
 				commandList->SetGraphicsRootDescriptorTable(1, m_textures[i].texture->get_srv_gpu_descriptor_handle());
@@ -264,20 +251,15 @@ void debug_renderer::render_textures(
 				commandList->DrawInstanced(4, 1, 0, 0);
 
 				vb.BufferLocation += vb.SizeInBytes;
-
 			}			
-
 		}
 
 		m_textures.clear();
-
 	}
-
 }
 
 bool debug_renderer::create_debug_pso(ID3D12Device * device)
 {
-
 	com_ptr<ID3DBlob> serializedSignature;
 	com_ptr<ID3DBlob> errorsBlob;
 
@@ -292,7 +274,6 @@ bool debug_renderer::create_debug_pso(ID3D12Device * device)
 	if (!FUSE_HR_FAILED_BLOB(D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &serializedSignature, &errorsBlob), errorsBlob) &&
 		!FUSE_HR_FAILED(device->CreateRootSignature(0, FUSE_BLOB_ARGS(serializedSignature), IID_PPV_ARGS(&m_debugRS))))
 	{
-
 		D3D12_GRAPHICS_PIPELINE_STATE_DESC debugPSODesc = {};
 
 		debugPSODesc.BlendState        = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
@@ -320,16 +301,13 @@ bool debug_renderer::create_debug_pso(ID3D12Device * device)
 		m_debugPST.set_pixel_shader(FUSE_LITERAL("shaders/debug.hlsl"), "debug_ps");
 
 		return true;
-
 	}
 
 	return false;
-
 }
 
 bool debug_renderer::create_debug_texture_pso(ID3D12Device * device)
 {
-
 	com_ptr<ID3DBlob> serializedSignature;
 	com_ptr<ID3DBlob> errorsBlob;
 
@@ -349,7 +327,6 @@ bool debug_renderer::create_debug_texture_pso(ID3D12Device * device)
 	if (!FUSE_HR_FAILED_BLOB(D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &serializedSignature, &errorsBlob), errorsBlob) &&
 		!FUSE_HR_FAILED(device->CreateRootSignature(0, FUSE_BLOB_ARGS(serializedSignature), IID_PPV_ARGS(&m_debugTextureRS))))
 	{
-
 		D3D12_GRAPHICS_PIPELINE_STATE_DESC debugPSODesc = {};
 
 		debugPSODesc.BlendState        = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
@@ -380,5 +357,4 @@ bool debug_renderer::create_debug_texture_pso(ID3D12Device * device)
 	}
 
 	return false;
-
 }

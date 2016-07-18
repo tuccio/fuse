@@ -6,7 +6,6 @@ namespace fuse
 	template <typename WindowingSystem>
 	void application_base<WindowingSystem>::shutdown(void)
 	{
-
 		com_ptr<ID3D12DebugDevice> debugDevice;
 
 		if (m_swapChain)
@@ -32,13 +31,11 @@ namespace fuse
 		{
 			debugDevice->ReportLiveDeviceObjects(D3D12_RLDO_DETAIL);
 		}
-
 	}
 
 	template <typename WindowingSystem>
 	float application_base<WindowingSystem>::get_fps(void)
 	{
-
 		float time = 0.f;
 
 		for (int i = 0; i < FUSE_FPS_SAMPLES; i++)
@@ -47,7 +44,6 @@ namespace fuse
 		}
 
 		return time / FUSE_FPS_SAMPLES;
-
 	}
 
 	template <typename WindowingSystem>
@@ -89,32 +85,28 @@ namespace fuse
 	template <typename WindowingSystem>
 	void application_base<WindowingSystem>::set_default_configuration(void)
 	{
-
 		m_configuration = application_config{};
 
-		m_configuration.swapChainFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
-		m_configuration.swapChainBufferCount = 2;
-		m_configuration.swapChainBufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-		m_configuration.sampleDesc.Count = 1;
+		m_configuration.swapChainFormat         = DXGI_FORMAT_R8G8B8A8_UNORM;
+		m_configuration.swapChainBufferCount    = 2;
+		m_configuration.swapChainBufferUsage    = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+		m_configuration.sampleDesc.Count        = 1;
 		m_configuration.refreshRate.Denominator = 1;
-		m_configuration.swapChainFlags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
-		m_configuration.swapChainSwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+		m_configuration.swapChainFlags          = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
+		m_configuration.swapChainSwapEffect     = DXGI_SWAP_EFFECT_FLIP_DISCARD;
 
-		m_configuration.maxDSV = 64;
+		m_configuration.maxDSV       = 64;
 		m_configuration.maxCBVUAVSRV = 2048;
-		m_configuration.maxRTV = 2048;
+		m_configuration.maxRTV       = 2048;
 
 		m_configuration.uploadHeapSize = 1 << 20;
-
 	}
 
 	template <typename WindowingSystem>
 	bool application_base<WindowingSystem>::create_device(D3D_FEATURE_LEVEL featureLevel, bool debug)
 	{
-
 		if (debug)
 		{
-
 			com_ptr<ID3D12Debug> debugInterface;
 
 			if (FUSE_HR_FAILED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugInterface))))
@@ -123,7 +115,6 @@ namespace fuse
 			}
 
 			debugInterface->EnableDebugLayer();
-
 		}
 
 		if (!FUSE_HR_FAILED(D3D12CreateDevice(nullptr, featureLevel, IID_PPV_ARGS(&m_device))))
@@ -133,7 +124,6 @@ namespace fuse
 		}
 
 		return false;
-
 	}
 
 	template <typename WindowingSystem>
@@ -145,7 +135,6 @@ namespace fuse
 	template <typename WindowingSystem>
 	bool application_base<WindowingSystem>::create_swap_chain(bool debug, int width, int height)
 	{
-
 		m_debug = debug;
 
 		DXGI_SWAP_CHAIN_DESC swapChainDesc = {};
@@ -191,13 +180,11 @@ namespace fuse
 		}
 
 		return success;
-
 	}
 
 	template <typename WindowingSystem>
 	bool application_base<WindowingSystem>::resize_swap_chain(int width, int height)
 	{
-
 		// Wait for all the frames to be completed before resizing
 		get_command_queue().wait_for_frame(get_command_queue().get_frame_index());
 
@@ -208,17 +195,14 @@ namespace fuse
 
 		return !FUSE_HR_FAILED(m_swapChain->ResizeBuffers(m_configuration.swapChainBufferCount, width, height, m_configuration.swapChainFormat, 0)) &&
 			get_swap_chain_buffers();
-
 	}
 
 	template <typename WindowingSystem>
 	bool application_base<WindowingSystem>::create_descriptor_heaps(void)
 	{
-
 		return m_depthStencilDescriptorHeap.init(m_device.get(), m_configuration.maxDSV) &&
 			m_renderTargetDescriptorHeap.init(m_device.get(), m_configuration.maxRTV) &&
 			m_shaderDescriptorHeap.init(m_device.get(), m_configuration.maxCBVUAVSRV);
-
 	}
 
 	template <typename WindowingSystem>
@@ -232,7 +216,6 @@ namespace fuse
 	template <typename WindowingSystem>
 	bool application_base<WindowingSystem>::get_swap_chain_buffers(void)
 	{
-
 		m_renderTargets.resize(m_configuration.swapChainBufferCount);
 
 		for (int i = 0; i < m_configuration.swapChainBufferCount; i++)
@@ -252,7 +235,6 @@ namespace fuse
 		}
 
 		return true;
-
 	}
 
 	template <typename WindowingSystem>
